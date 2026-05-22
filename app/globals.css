@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F5F0E8;
+  --foreground: #2C1810;
+  --accent: #B85C3A;
+  --secondary: #8B7355;
+  --cream-dark: #EDE8DF;
+}
+
+@layer base {
+  body {
+    background-color: #F5F0E8;
+    color: #2C1810;
+    font-family: var(--font-jakarta), system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  body::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    box-sizing: border-box;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-cormorant), Georgia, serif;
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn-primary {
+    @apply bg-brand-terracotta text-white px-6 py-3 font-medium tracking-wide hover:bg-brand-terracotta-dark transition-colors duration-200 uppercase text-sm inline-block;
+  }
+
+  .btn-outline {
+    @apply border border-brand-brown text-brand-brown px-6 py-3 font-medium tracking-wide hover:bg-brand-brown hover:text-brand-cream transition-colors duration-200 uppercase text-sm inline-block;
+  }
+
+  .btn-ghost {
+    @apply text-brand-brown px-4 py-2 font-medium hover:text-brand-terracotta transition-colors duration-200;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-brand-brown tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-brand-tan text-sm uppercase tracking-widest font-medium;
+  }
+
+  .input-base {
+    @apply w-full border border-brand-tan bg-white px-4 py-3 text-brand-brown placeholder-brand-tan focus:outline-none focus:border-brand-terracotta transition-colors duration-200 text-sm;
+  }
+
+  .badge-sale {
+    @apply bg-brand-terracotta text-white text-xs font-bold px-2 py-1 uppercase tracking-wide;
+  }
+
+  .badge-new {
+    @apply bg-brand-brown text-white text-xs font-bold px-2 py-1 uppercase tracking-wide;
+  }
+
+  .badge-out {
+    @apply bg-brand-tan text-white text-xs font-bold px-2 py-1 uppercase tracking-wide;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Swiper custom styles */
+.swiper-pagination-bullet {
+  background-color: #8B7355 !important;
+  opacity: 0.5;
+}
+.swiper-pagination-bullet-active {
+  background-color: #B85C3A !important;
+  opacity: 1;
+}
+.swiper-button-prev,
+.swiper-button-next {
+  color: #B85C3A !important;
+}
