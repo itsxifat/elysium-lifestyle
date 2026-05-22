@@ -178,7 +178,7 @@ export default function AdminMasterSizesPage() {
         {/* Info */}
         <div className="bg-brand-cream/50 border border-brand-tan/15 px-5 py-4">
           <p className="text-[11px] text-brand-tan leading-relaxed">
-            These sizes are the global pool. When you add variants to a product, you'll pick from this list and set a price and stock for each. Removing a size here does not affect existing products — it only removes it from the picker for future uploads.
+            These sizes are the global pool. When you add variants to a product, you&apos;ll pick from this list and set a price and stock for each. Removing a size here does not affect existing products — it only removes it from the picker for future uploads.
           </p>
         </div>
 

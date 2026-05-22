@@ -251,7 +251,7 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
           </div>
           <div>
             <h2 className="text-sm font-semibold text-brand-brown uppercase tracking-wider">Size Guide Chart</h2>
-            <p className="text-xs text-brand-tan mt-0.5">Attach a size chart — shown to customers as a "Size Guide" on the product page</p>
+            <p className="text-xs text-brand-tan mt-0.5">Attach a size chart — shown to customers as a &quot;Size Guide&quot; on the product page</p>
           </div>
         </div>
 
