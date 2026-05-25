@@ -7,6 +7,7 @@ import "swiper/css/navigation";
 import "swiper/css/pagination";
 import Image from "next/image";
 import Link from "next/link";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 // Shown only when no slides are configured in the admin
 const PLACEHOLDER = [
@@ -28,15 +29,18 @@ export default function HeroSlider({ slides }) {
         className="w-full"
       >
         {items.map((slide, i) => {
+          const desktopImage = slide.imageDesktop || slide.imageMobile;
+          const mobileImage = slide.imageMobile || slide.imageDesktop;
           const inner = (
             <>
               {/* Desktop image — 1920×750 (2.56:1) */}
               <div className="hidden md:block w-full aspect-[1920/750] relative">
                 <Image
-                  src={slide.imageDesktop || slide.imageMobile}
+                  src={desktopImage}
                   alt=""
                   fill
                   priority={i === 0}
+                  unoptimized={shouldUnoptimizeImage(desktopImage)}
                   sizes="100vw"
                   className="object-cover"
                 />
@@ -44,10 +48,11 @@ export default function HeroSlider({ slides }) {
               {/* Mobile image — 750×1000 (3:4) */}
               <div className="block md:hidden w-full aspect-[3/4] relative">
                 <Image
-                  src={slide.imageMobile || slide.imageDesktop}
+                  src={mobileImage}
                   alt=""
                   fill
                   priority={i === 0}
+                  unoptimized={shouldUnoptimizeImage(mobileImage)}
                   sizes="100vw"
                   className="object-cover"
                 />

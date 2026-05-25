@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Edit, Trash2, Eye, EyeOff } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import toast from "react-hot-toast";
 import Badge from "@/components/ui/Badge";
 
@@ -92,15 +92,17 @@ export default function AdminProductsClient({ initialProducts }) {
                 (s, v) => s + v.stock,
                 0
               );
+              const image = product.images?.[0] || "/placeholder.jpg";
               return (
                 <tr key={product._id} className="hover:bg-brand-cream/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="relative w-10 h-12 flex-shrink-0 bg-brand-cream-dark overflow-hidden">
                         <Image
-                          src={product.images?.[0] || "/placeholder.jpg"}
+                          src={image}
                           alt={product.name}
                           fill
+                          unoptimized={shouldUnoptimizeImage(image)}
                           className="object-cover"
                         />
                       </div>

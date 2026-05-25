@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Minus, Plus, ShoppingBag } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, shouldUnoptimizeImage } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import toast from "react-hot-toast";
 
@@ -18,6 +18,7 @@ export default function QuickAddModal({ product, onClose }) {
   const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
   const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
   const hasPriceRange = minPrice !== maxPrice;
+  const image = product.images?.[0] || "/placeholder.jpg";
 
   useEffect(() => {
     const handle = (e) => { if (e.key === "Escape") onClose(); };
@@ -65,9 +66,10 @@ export default function QuickAddModal({ product, onClose }) {
         <div className="flex gap-4 p-5 border-b border-brand-tan/15">
           <Link href={`/shop/${product.slug}`} onClick={onClose} className="relative w-[60px] h-[76px] flex-shrink-0 bg-brand-cream-dark overflow-hidden block">
             <Image
-              src={product.images?.[0] || "/placeholder.jpg"}
+              src={image}
               alt={product.name}
               fill
+              unoptimized={shouldUnoptimizeImage(image)}
               className="object-cover"
               sizes="60px"
             />

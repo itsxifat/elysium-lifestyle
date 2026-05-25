@@ -10,6 +10,7 @@ import {
   ChevronRight, ChevronDown, LogOut, Package, Settings,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 let _navCache = null;
 let _navCacheTs = 0;
@@ -458,7 +459,16 @@ export default function Navbar() {
                     aria-label="Account"
                   >
                     {session?.user?.image
-                      ? <Image src={session.user.image} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover ring-1 ring-brand-tan/30" />
+                      ? (
+                        <Image
+                          src={session.user.image}
+                          alt=""
+                          width={28}
+                          height={28}
+                          unoptimized={shouldUnoptimizeImage(session.user.image)}
+                          className="w-7 h-7 rounded-full object-cover ring-1 ring-brand-tan/30"
+                        />
+                      )
                       : <User size={20} strokeWidth={1.5} />}
                   </button>
 
@@ -468,7 +478,16 @@ export default function Navbar() {
                         <>
                           <div className="px-5 py-4 bg-brand-cream-dark/30 border-b border-brand-tan/10 flex items-center gap-3">
                             {session.user.image
-                              ? <Image src={session.user.image} alt="" width={36} height={36} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                              ? (
+                                <Image
+                                  src={session.user.image}
+                                  alt=""
+                                  width={36}
+                                  height={36}
+                                  unoptimized={shouldUnoptimizeImage(session.user.image)}
+                                  className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                                />
+                              )
                               : <div className="w-9 h-9 rounded-full bg-brand-brown flex items-center justify-center text-brand-cream text-sm font-semibold flex-shrink-0">{session.user.name?.charAt(0)?.toUpperCase()}</div>
                             }
                             <div className="min-w-0">

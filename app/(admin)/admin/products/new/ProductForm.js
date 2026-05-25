@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Plus, Trash2, Upload, X, TableProperties } from "lucide-react";
-import { slugify } from "@/lib/utils";
+import { shouldUnoptimizeImage, slugify } from "@/lib/utils";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Image from "next/image";
@@ -154,7 +154,13 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
         <div className="flex flex-wrap gap-3 mb-4">
           {images.map((img, i) => (
             <div key={i} className="relative w-24 h-28 group">
-              <Image src={img} alt={`Product ${i + 1}`} fill className="object-cover" />
+              <Image
+                src={img}
+                alt={`Product ${i + 1}`}
+                fill
+                unoptimized={shouldUnoptimizeImage(img)}
+                className="object-cover"
+              />
               <button type="button" onClick={() => removeImage(img, i)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <X size={12} />
               </button>

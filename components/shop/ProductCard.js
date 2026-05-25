@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import QuickAddModal from "@/components/shop/QuickAddModal";
 
@@ -17,6 +17,8 @@ export default function ProductCard({ product }) {
   const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
   const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
   const hasPriceRange = minPrice !== maxPrice;
+  const mainImage = product.images?.[0] || "/placeholder.jpg";
+  const hoverImage = product.images?.[1];
 
   const handleQuickAdd = (e) => {
     e.preventDefault();
@@ -30,17 +32,19 @@ export default function ProductCard({ product }) {
       <Link href={`/shop/${product.slug}`} className="group block">
         <div className="relative overflow-hidden bg-brand-cream-dark aspect-[3/4]">
           <Image
-            src={product.images?.[0] || "/placeholder.jpg"}
+            src={mainImage}
             alt={product.name}
             fill
+            unoptimized={shouldUnoptimizeImage(mainImage)}
             className="object-cover transition-transform duration-700 group-hover:scale-105"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
-          {product.images?.[1] && (
+          {hoverImage && (
             <Image
-              src={product.images[1]}
+              src={hoverImage}
               alt={product.name}
               fill
+              unoptimized={shouldUnoptimizeImage(hoverImage)}
               className="object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-500"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />

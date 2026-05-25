@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { useSession } from "next-auth/react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import Input from "@/components/ui/Input";
@@ -314,6 +314,7 @@ export default function CheckoutPage() {
                         src={item.image || "/placeholder.jpg"}
                         alt={item.name}
                         fill
+                        unoptimized={shouldUnoptimizeImage(item.image)}
                         className="object-cover"
                       />
                       <span className="absolute -top-1 -right-1 bg-brand-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">

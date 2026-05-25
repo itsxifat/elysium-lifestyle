@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, subtotal } = useCart();
@@ -51,7 +51,13 @@ export default function CartPage() {
               {items.map((item) => (
                 <div key={`${item.productId}-${item.size}`} className="bg-white border border-brand-tan/10 p-5 flex gap-5">
                   <div className="relative w-20 h-28 flex-shrink-0 overflow-hidden bg-brand-cream-dark">
-                    <Image src={item.image || "/placeholder.jpg"} alt={item.name} fill className="object-cover" />
+                    <Image
+                      src={item.image || "/placeholder.jpg"}
+                      alt={item.name}
+                      fill
+                      unoptimized={shouldUnoptimizeImage(item.image)}
+                      className="object-cover"
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <Link href={`/shop/${item.slug}`} className="font-medium text-[14px] text-brand-brown hover:text-brand-terracotta transition-colors line-clamp-2">
