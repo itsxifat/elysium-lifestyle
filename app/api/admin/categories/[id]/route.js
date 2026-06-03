@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongoose";
 import Category from "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { deleteFromCDN } from "@/lib/cdn";
 
 export async function GET(_, { params }) {
   try {
@@ -29,8 +30,17 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "A category cannot be its own parent" }, { status: 400 });
     }
 
+    // If the image is being changed/cleared, remember the old one to clean up.
+    const before = "image" in data
+      ? await Category.findById(params.id).select("image").lean()
+      : null;
+
     const cat = await Category.findByIdAndUpdate(params.id, data, { new: true }).lean();
     if (!cat) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (before?.image && before.image !== data.image) {
+      await deleteFromCDN(before.image);
+    }
     return NextResponse.json(cat);
   } catch (err) {
     if (err.code === 11000) {
@@ -52,7 +62,8 @@ export async function DELETE(_, { params }) {
         { status: 400 }
       );
     }
-    await Category.findByIdAndDelete(params.id);
+    const cat = await Category.findByIdAndDelete(params.id);
+    if (cat?.image) await deleteFromCDN(cat.image);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });

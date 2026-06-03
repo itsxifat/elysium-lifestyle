@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { uploadToCDN, cdnProxyPath } from "@/lib/cdn";
+import { uploadToCDN, cdnProxyPath, deleteFromCDN } from "@/lib/cdn";
 
 const ALLOWED_MIME = [
   "image/jpeg",
@@ -45,8 +45,13 @@ export async function DELETE(request) {
   const { error } = await requireAdmin();
   if (error) return error;
 
-  // EnCDN exposes no delete API for client credentials, so removing an image
-  // from a document is enough — the orphaned CDN file is harmless. This
-  // endpoint is kept for backward compatibility with callers that still call it.
-  return NextResponse.json({ success: true });
+  try {
+    const { url } = await request.json();
+    // deleteFromCDN is idempotent and no-ops on non-CDN values (legacy
+    // /uploads, external URLs), so this is always safe to call.
+    await deleteFromCDN(url);
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+  }
 }

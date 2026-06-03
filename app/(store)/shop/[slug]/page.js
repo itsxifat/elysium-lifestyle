@@ -6,6 +6,7 @@ import Product from "@/models/Product";
 import "@/models/Category";
 import "@/models/SizeChart";
 import { serializeDoc, formatPrice, calculateDiscount } from "@/lib/utils";
+import { cdnAbsoluteUrl } from "@/lib/cdn";
 import ProductDetailClient from "./ProductDetailClient";
 
 async function getProduct(slug) {
@@ -35,12 +36,16 @@ export async function generateMetadata({ params }) {
     await connectDB();
     const product = await Product.findOne({ slug: params.slug }).lean();
     if (!product) return { title: "Product Not Found" };
+    // og:image is fetched by external crawlers (Facebook, WhatsApp, …) which
+    // can't use the same-origin proxy — give them an absolute, never-expiring
+    // signed CDN URL instead.
+    const ogImage = cdnAbsoluteUrl(product.images?.[0]);
     return {
       title: product.name,
       description: product.description?.slice(0, 160) || `Shop ${product.name} at Elysium Lifestyle`,
       openGraph: {
         title: product.name,
-        images: product.images?.[0] ? [{ url: product.images[0] }] : [],
+        images: ogImage ? [{ url: ogImage }] : [],
       },
     };
   } catch {

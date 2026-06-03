@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
+import { deleteFromCDN } from "@/lib/cdn";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -34,6 +35,18 @@ export async function PUT(request) {
   if (image !== undefined) update.image = image;
   if (address) update.address = address;
 
+  // When the avatar changes, delete the previous one from the CDN
+  // (no-ops for external avatars like Google sign-in photos).
+  let previousImage;
+  if (image !== undefined) {
+    const before = await User.findById(session.user.id).select("image").lean();
+    previousImage = before?.image;
+  }
+
   await User.findByIdAndUpdate(session.user.id, { $set: update });
+
+  if (previousImage && previousImage !== image) {
+    await deleteFromCDN(previousImage);
+  }
   return NextResponse.json({ success: true });
 }

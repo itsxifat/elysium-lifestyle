@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
@@ -18,6 +18,9 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
   const [masterSizes, setMasterSizes] = useState([]);
   const [sizeCharts, setSizeCharts] = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  // Images uploaded in this session but not yet persisted — safe to delete
+  // eagerly if removed. Already-saved images are cleaned up by the PUT diff.
+  const sessionUploads = useRef(new Set());
 
   const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm({
     defaultValues: defaultValues || {
@@ -52,7 +55,11 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
-      if (data.url) { setImages((prev) => [...prev, data.url]); toast.success("Image uploaded"); }
+      if (data.url) {
+        sessionUploads.current.add(data.url);
+        setImages((prev) => [...prev, data.url]);
+        toast.success("Image uploaded");
+      }
       else toast.error(data.error || "Upload failed");
     } catch { toast.error("Upload failed"); }
     finally { setUploadingImage(false); e.target.value = ""; }
@@ -60,7 +67,11 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
 
   const removeImage = async (url, index) => {
     setImages((prev) => prev.filter((_, j) => j !== index));
-    if (url.startsWith("/uploads/")) {
+    // Only delete from the CDN immediately if it was uploaded this session and
+    // never saved. Persisted images removed during an edit are deleted by the
+    // product PUT diff on save — so cancelling an edit never destroys them.
+    if (sessionUploads.current.has(url)) {
+      sessionUploads.current.delete(url);
       await fetch("/api/upload", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
