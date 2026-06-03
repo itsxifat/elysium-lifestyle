@@ -4,6 +4,17 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Settings from "@/models/Settings";
 import { requireAdmin } from "@/lib/auth";
+import { deleteFromCDN } from "@/lib/cdn";
+
+// Collect every image URL referenced by a set of hero slides.
+function slideImages(slides) {
+  const set = new Set();
+  for (const s of slides || []) {
+    if (s?.imageDesktop) set.add(s.imageDesktop);
+    if (s?.imageMobile) set.add(s.imageMobile);
+  }
+  return set;
+}
 
 export async function GET() {
   try {
@@ -23,7 +34,16 @@ export async function PUT(request) {
   try {
     await connectDB();
     const { heroSlides } = await request.json();
+
+    const before = await Settings.findOne({}).select("heroSlides").lean();
     await Settings.findOneAndUpdate({}, { $set: { heroSlides } }, { upsert: true });
+
+    // Delete from the CDN any image that a slide used before but doesn't now
+    // (slide removed, image cleared, or image replaced).
+    const next = slideImages(heroSlides);
+    const removed = [...slideImages(before?.heroSlides)].filter((u) => !next.has(u));
+    await Promise.all(removed.map((u) => deleteFromCDN(u)));
+
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });
