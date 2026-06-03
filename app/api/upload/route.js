@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { writeFile, unlink, mkdir } from "fs/promises";
-import path from "path";
-import { existsSync } from "fs";
+import { uploadToCDN, cdnProxyPath } from "@/lib/cdn";
+
+const ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+];
 
 export async function POST(request) {
   const { error } = await requireAdmin();
@@ -16,28 +21,23 @@ export async function POST(request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const ext = file.name.split(".").pop().toLowerCase();
-    const allowed = ["jpg", "jpeg", "png", "webp", "gif"];
-    if (!allowed.includes(ext)) {
+    if (file.type && !ALLOWED_MIME.includes(file.type)) {
       return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
     }
 
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { clientId, filename } = await uploadToCDN(
+      buffer,
+      file.name || "upload",
+      file.type || "application/octet-stream"
+    );
 
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    await writeFile(path.join(uploadsDir, filename), buffer);
-
-    return NextResponse.json({ url: `/uploads/${filename}` });
+    // Store the internal proxy path, not the raw CDN URL, so <Image> can
+    // optimize it (the proxy signs the request to bypass domain locking).
+    return NextResponse.json({ url: cdnProxyPath(clientId, filename) });
   } catch (err) {
     console.error("Upload error:", err);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Upload failed" }, { status: 500 });
   }
 }
 
@@ -45,18 +45,8 @@ export async function DELETE(request) {
   const { error } = await requireAdmin();
   if (error) return error;
 
-  try {
-    const { url } = await request.json();
-    if (!url || !url.startsWith("/uploads/")) {
-      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-    }
-
-    const filename = path.basename(url);
-    const filePath = path.join(process.cwd(), "public", "uploads", filename);
-    await unlink(filePath).catch(() => {});
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
-  }
+  // EnCDN exposes no delete API for client credentials, so removing an image
+  // from a document is enough — the orphaned CDN file is harmless. This
+  // endpoint is kept for backward compatibility with callers that still call it.
+  return NextResponse.json({ success: true });
 }

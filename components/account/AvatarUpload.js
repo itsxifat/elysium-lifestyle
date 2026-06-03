@@ -5,6 +5,7 @@ import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { Camera, X, Check, ZoomIn, ZoomOut } from "lucide-react";
 import toast from "react-hot-toast";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 async function getCroppedBlob(imageSrc, croppedAreaPixels) {
   const image = await new Promise((resolve, reject) => {
@@ -94,7 +95,7 @@ export default function AvatarUpload({ currentImage, name, onUpdate }) {
           className="relative w-20 h-20 rounded-full overflow-hidden ring-2 ring-brand-tan/20 hover:ring-brand-terracotta/40 transition-all"
         >
           {currentImage ? (
-            <Image src={currentImage} alt={name || ""} fill className="object-cover" unoptimized />
+            <Image src={currentImage} alt={name || ""} fill className="object-cover" unoptimized={shouldUnoptimizeImage(currentImage)} />
           ) : (
             <div className="w-full h-full bg-brand-brown flex items-center justify-center text-brand-cream text-xl font-semibold">
               {initials}

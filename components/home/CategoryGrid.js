@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 function CategoryCard({ cat, className = "", priority = false, size = "md" }) {
   const href =
@@ -24,7 +25,7 @@ function CategoryCard({ cat, className = "", priority = false, size = "md" }) {
           alt={cat.name}
           fill
           priority={priority}
-          unoptimized
+          unoptimized={shouldUnoptimizeImage(cat.image)}
           className="object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-[1.04]"
           sizes="(max-width: 768px) 100vw, 50vw"
         />

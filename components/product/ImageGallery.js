@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import Image from "next/image";
 import { ZoomIn } from "lucide-react";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 export default function ImageGallery({ images = [], name }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -90,7 +91,7 @@ export default function ImageGallery({ images = [], name }) {
             alt={name}
             fill
             priority
-            unoptimized
+            unoptimized={shouldUnoptimizeImage(src)}
             sizes="(max-width: 768px) 100vw, 55vw"
             className="object-cover pointer-events-none"
             style={{
@@ -143,7 +144,7 @@ export default function ImageGallery({ images = [], name }) {
                 src={img}
                 alt={`${name} view ${i + 1}`}
                 fill
-                unoptimized
+                unoptimized={shouldUnoptimizeImage(img)}
                 className="object-cover"
                 sizes="80px"
               />

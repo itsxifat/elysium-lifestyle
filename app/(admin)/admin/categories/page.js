@@ -8,7 +8,7 @@ import {
   Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   FolderTree, Check, X, Upload, Star,
 } from "lucide-react";
-import { slugify } from "@/lib/utils";
+import { slugify, shouldUnoptimizeImage } from "@/lib/utils";
 
 async function uploadFile(file) {
   const form = new FormData();
@@ -54,7 +54,7 @@ function CategoryRow({ cat, level, allCats, onEdit, onDelete, onAddChild }) {
             {/* Thumbnail */}
             {cat.image ? (
               <div className="w-8 h-8 flex-shrink-0 relative overflow-hidden bg-brand-cream">
-                <Image src={cat.image} alt={cat.name} fill className="object-cover" unoptimized />
+                <Image src={cat.image} alt={cat.name} fill className="object-cover" unoptimized={shouldUnoptimizeImage(cat.image)} />
               </div>
             ) : (
               <div className="w-8 h-8 flex-shrink-0 bg-brand-tan/10 flex items-center justify-center">
@@ -210,7 +210,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
           <div className="relative w-24 h-24 bg-brand-cream border border-brand-tan/20 flex-shrink-0 overflow-hidden">
             {imageUrl ? (
               <>
-                <Image src={imageUrl} alt="Category" fill className="object-cover" unoptimized />
+                <Image src={imageUrl} alt="Category" fill className="object-cover" unoptimized={shouldUnoptimizeImage(imageUrl)} />
                 <button
                   type="button"
                   onClick={() => setImageUrl("")}

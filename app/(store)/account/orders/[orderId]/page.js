@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
-import { serializeDoc, formatPrice } from "@/lib/utils";
+import { serializeDoc, formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -141,7 +141,7 @@ export default async function OrderDetailPage({ params }) {
                     alt={item.name}
                     fill
                     className="object-cover"
-                    unoptimized
+                    unoptimized={shouldUnoptimizeImage(item.image)}
                   />
                 ) : (
                   <div className="w-full h-full bg-stone-100 flex items-center justify-center">

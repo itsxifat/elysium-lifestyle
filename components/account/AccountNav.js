@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { User, Package, LogOut } from "lucide-react";
 import Image from "next/image";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 const navItems = [
   { href: "/account", label: "Profile", icon: User },
@@ -19,7 +20,7 @@ export default function AccountNav({ name, email, initials, image }) {
       <div className="flex items-center gap-4 pb-6 border-b border-stone-100">
         <div className="w-11 h-11 rounded-full shrink-0 overflow-hidden bg-brand-brown flex items-center justify-center text-brand-cream text-sm font-semibold relative">
           {image ? (
-            <Image src={image} alt={name || ""} fill className="object-cover" unoptimized />
+            <Image src={image} alt={name || ""} fill className="object-cover" unoptimized={shouldUnoptimizeImage(image)} />
           ) : (
             initials
           )}

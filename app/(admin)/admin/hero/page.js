@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { Trash2, Plus, MoveUp, MoveDown, Upload, Monitor, Smartphone } from "lucide-react";
+import { shouldUnoptimizeImage } from "@/lib/utils";
 
 async function uploadFile(file) {
   const form = new FormData();
@@ -21,7 +22,7 @@ function ImageUploadZone({ image, uploading, containerClass, onUpload, onClear }
     <div className={`relative overflow-hidden border border-brand-tan/20 bg-brand-cream/40 ${containerClass}`}>
       {image ? (
         <>
-          <Image src={image} alt="" fill className="object-cover" unoptimized />
+          <Image src={image} alt="" fill className="object-cover" unoptimized={shouldUnoptimizeImage(image)} />
           <div className="absolute inset-0 bg-black/0 hover:bg-black/50 transition-colors group flex items-center justify-center">
             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
               <button
