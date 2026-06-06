@@ -1,5 +1,7 @@
-"use client";
-
+// NOTE: intentionally NOT a client component. These are pure presentational
+// primitives (no hooks/state/browser APIs), so keeping them "shared" lets
+// Server Components pass props like `icon={SomeLucideIcon}` without tripping the
+// "Functions cannot be passed to Client Components" RSC boundary error.
 import { cn } from "@/lib/utils";
 
 // Shared admin UI kit — warm refined (brand cream/terracotta/brown).

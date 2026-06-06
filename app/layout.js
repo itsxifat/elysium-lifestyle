@@ -11,6 +11,9 @@ const manrope = Manrope({
 });
 
 export const metadata = {
+  // Resolves og:image / twitter image URLs. Falls back to the prod origin so it
+  // doesn't default to localhost in production (set NEXT_PUBLIC_SITE_URL on the VPS).
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://elyle.enfinito.cloud"),
   title: {
     default: "Elysium Lifestyle — Premium Fashion",
     template: "%s | Elysium Lifestyle",
