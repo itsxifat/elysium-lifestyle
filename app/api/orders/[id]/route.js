@@ -10,8 +10,19 @@ export async function GET(request, { params }) {
     await connectDB();
     const session = await getServerSession(authOptions);
 
-    const order = await Order.findById(params.id).populate("user", "name email").lean();
+    const order = await Order.findById(params.id)
+      .populate("user", "name email")
+      .populate("items.product", "variants")
+      .lean();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    // SKU isn't stored on the order item — resolve it from the product variant
+    // (matched by size), then flatten product back to its id.
+    for (const item of order.items || []) {
+      const variant = item.product?.variants?.find((v) => v.size === item.size);
+      item.sku = variant?.sku || null;
+      item.product = item.product?._id || item.product || null;
+    }
 
     const isAdmin = session?.user?.role === "admin";
     const isOwner = session?.user?.id && order.user?._id?.toString() === session.user.id;

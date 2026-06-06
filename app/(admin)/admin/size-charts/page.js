@@ -217,7 +217,7 @@ export default function AdminSizeChartsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName.trim(),
-          columns: ["Size", "Chest (cm)", "Waist (cm)", "Length (cm)"],
+          columns: ["Size", "Chest (in)", "Waist (in)", "Length (in)"],
           rows: [["S", "", "", ""], ["M", "", "", ""], ["L", "", "", ""], ["XL", "", "", ""]],
         }),
       });
@@ -312,7 +312,7 @@ export default function AdminSizeChartsPage() {
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
                   placeholder="e.g. Men's Tops, Kids' Bottoms…"
-                  className="w-full border border-brand-tan/30 px-4 py-3 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors bg-transparent"
+                  className="w-full rounded-lg border border-brand-tan/30 px-4 py-3 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors bg-transparent"
                 />
                 <div className="flex gap-2">
                   <button onClick={handleCreate} disabled={saving} className="flex-1 btn-primary disabled:opacity-60 text-sm">

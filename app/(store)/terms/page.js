@@ -34,7 +34,7 @@ export default function TermsPage() {
 
             <LegalSection title="2. Products and Pricing">
               <ul>
-                <li>All prices are displayed in Bangladeshi Taka (৳ / BDT) and include applicable taxes unless stated otherwise.</li>
+                <li>All prices are displayed in Bangladeshi Taka (Tk / BDT) and include applicable taxes unless stated otherwise.</li>
                 <li>We reserve the right to change prices at any time without prior notice. Once an order is confirmed, the price is locked in.</li>
                 <li>Product images are for illustrative purposes. Actual colours may vary slightly due to display settings.</li>
                 <li>We do not guarantee that all products are in stock. If an item becomes unavailable after your order, we will notify you and issue a full refund.</li>
@@ -56,7 +56,7 @@ export default function TermsPage() {
                 <li>We deliver across all 64 districts of Bangladesh.</li>
                 <li>Standard delivery takes 3–7 business days depending on your location.</li>
                 <li>Delivery times are estimates and are not guaranteed. We are not liable for delays caused by courier services or circumstances beyond our control.</li>
-                <li>Free shipping is available on orders over ৳1,500. A standard shipping fee applies to smaller orders.</li>
+                <li>Free shipping is available on orders over Tk 1,500. A standard shipping fee applies to smaller orders.</li>
                 <li>Risk of loss and title for items pass to you upon delivery.</li>
               </ul>
             </LegalSection>

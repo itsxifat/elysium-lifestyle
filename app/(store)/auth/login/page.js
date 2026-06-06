@@ -98,7 +98,7 @@ function LoginForm() {
                 <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </span>
-            <span className="text-brand-cream/40 text-[12px] tracking-wide">Free shipping over ৳1500</span>
+            <span className="text-brand-cream/40 text-[12px] tracking-wide">Free shipping over Tk 1500</span>
           </div>
           <div className="mt-3 flex items-center gap-3">
             <span className="w-6 h-6 rounded-full bg-brand-terracotta flex items-center justify-center">

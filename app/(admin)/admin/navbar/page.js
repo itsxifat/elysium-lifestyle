@@ -143,7 +143,7 @@ export default function AdminNavbarPage() {
                 <input
                   value={item.label}
                   onChange={(e) => update(i, "label", e.target.value)}
-                  className="flex-1 min-w-[100px] border border-brand-tan/20 px-2.5 py-1.5 text-sm text-brand-brown bg-transparent focus:outline-none focus:border-brand-brown transition-colors"
+                  className="flex-1 min-w-[100px] border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] px-2.5 py-1.5 text-sm text-brand-brown bg-transparent focus:outline-none focus:border-brand-brown transition-colors"
                   placeholder="Label"
                 />
 
@@ -151,7 +151,7 @@ export default function AdminNavbarPage() {
                 <input
                   value={item.href || ""}
                   onChange={(e) => update(i, "href", e.target.value)}
-                  className="flex-1 min-w-[120px] border border-brand-tan/20 px-2.5 py-1.5 text-sm text-brand-tan font-mono bg-transparent focus:outline-none focus:border-brand-brown transition-colors"
+                  className="flex-1 min-w-[120px] border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] px-2.5 py-1.5 text-sm text-brand-tan font-mono bg-transparent focus:outline-none focus:border-brand-brown transition-colors"
                   placeholder="/shop"
                 />
 
@@ -200,7 +200,7 @@ export default function AdminNavbarPage() {
 
         {/* ── Add panel ── */}
         <div className="space-y-4">
-          <div className="bg-white border border-brand-tan/20 p-5">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-5">
             <p className="text-[10px] uppercase tracking-[2px] text-brand-tan font-medium mb-4">Add Nav Item</p>
 
             {/* Type selector */}
@@ -226,7 +226,7 @@ export default function AdminNavbarPage() {
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
                   placeholder={addType === "category" ? "Leave blank to use category name" : "e.g. Sale"}
-                  className="w-full border border-brand-tan/30 px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown bg-transparent transition-colors"
+                  className="w-full rounded-lg border border-brand-tan/30 px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown bg-transparent transition-colors"
                 />
               </div>
 
@@ -236,7 +236,7 @@ export default function AdminNavbarPage() {
                   <select
                     value={newCatId}
                     onChange={(e) => setNewCatId(e.target.value)}
-                    className="w-full border border-brand-tan/30 px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown bg-white transition-colors"
+                    className="w-full rounded-lg border border-brand-tan/30 px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown bg-white transition-colors"
                   >
                     <option value="">Select category…</option>
                     {topLevelCats.map((c) => (
@@ -252,7 +252,7 @@ export default function AdminNavbarPage() {
                     value={newHref}
                     onChange={(e) => setNewHref(e.target.value)}
                     placeholder="/shop?onSale=true"
-                    className="w-full border border-brand-tan/30 px-3 py-2 text-sm font-mono text-brand-brown focus:outline-none focus:border-brand-brown bg-transparent transition-colors"
+                    className="w-full rounded-lg border border-brand-tan/30 px-3 py-2 text-sm font-mono text-brand-brown focus:outline-none focus:border-brand-brown bg-transparent transition-colors"
                   />
                 </div>
               )}
@@ -275,7 +275,7 @@ export default function AdminNavbarPage() {
           </div>
 
           {/* Highlight legend */}
-          <div className="bg-white border border-brand-tan/20 p-5">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-5">
             <p className="text-[10px] uppercase tracking-[2px] text-brand-tan font-medium mb-3">Legend</p>
             <div className="space-y-2 text-[12px]">
               <div className="flex items-center gap-2">

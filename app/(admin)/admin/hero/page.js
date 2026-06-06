@@ -283,7 +283,7 @@ export default function AdminHeroPage() {
       ) : (
         <div className="space-y-5">
           {slides.map((slide, i) => (
-            <div key={slide._uid} className="bg-white border border-brand-tan/20">
+            <div key={slide._uid} className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]">
               {/* Card toolbar */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-brand-tan/15 bg-brand-cream/30">
                 <div className="flex items-center gap-2.5">
@@ -370,7 +370,7 @@ export default function AdminHeroPage() {
                     value={slide.href || ""}
                     onChange={(e) => updateSlide(i, "href", e.target.value)}
                     placeholder="/shop?gender=women"
-                    className="w-full max-w-md border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown placeholder:text-brand-tan/40 focus:outline-none focus:border-brand-brown transition-colors"
+                    className="w-full max-w-md rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown placeholder:text-brand-tan/40 focus:outline-none focus:border-brand-brown transition-colors"
                   />
                   <p className="text-[10px] text-brand-tan/50 mt-1">Leave as “/” or empty to make the slide non-clickable</p>
                 </div>

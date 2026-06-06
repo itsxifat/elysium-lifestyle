@@ -49,7 +49,7 @@ function StatCard({ label, value, icon: Icon, accent }) {
     green: "bg-emerald-500/10 text-emerald-600",
   };
   return (
-    <div className="bg-white border border-brand-tan/20 p-5">
+    <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-brand-tan mb-1.5">{label}</p>
@@ -135,7 +135,7 @@ function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
                   <p className="text-[10px] text-brand-tan uppercase tracking-wider">Orders</p>
                 </div>
                 <div className="bg-brand-cream/60 p-3 text-center">
-                  <p className="text-lg font-bold text-brand-brown">৳{user.totalSpent?.toLocaleString()}</p>
+                  <p className="text-lg font-bold text-brand-brown">Tk {user.totalSpent?.toLocaleString()}</p>
                   <p className="text-[10px] text-brand-tan uppercase tracking-wider">Total Spent</p>
                 </div>
               </div>
@@ -193,7 +193,7 @@ function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
                       </div>
                       <div className="text-right">
                         <p className="text-[12px] font-semibold text-brand-brown">
-                          ৳{order.totalAmount.toLocaleString()}
+                          Tk {order.totalAmount.toLocaleString()}
                         </p>
                         <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 inline-block mt-0.5 ${
                           orderStatusCls[order.orderStatus] || "bg-brand-tan/15 text-brand-tan"
@@ -274,7 +274,7 @@ function UserFormModal({ mode, user, onClose, onSaved }) {
     }
   };
 
-  const inputCls = "w-full border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors";
+  const inputCls = "w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors";
   const labelCls = "block text-[10px] uppercase tracking-widest text-brand-tan mb-1.5";
 
   return (
@@ -493,7 +493,7 @@ export default function AdminUsersPage() {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search by name, email, or phone…"
-            className="w-full pl-9 pr-9 py-2.5 border border-brand-tan/30 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
+            className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-brand-tan/30 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
           />
           {search && (
             <button
@@ -507,7 +507,7 @@ export default function AdminUsersPage() {
         <select
           value={roleFilter}
           onChange={(e) => handleRoleChange(e.target.value)}
-          className="border border-brand-tan/30 px-3 py-2.5 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
+          className="rounded-lg border border-brand-tan/30 px-3 py-2.5 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
         >
           <option value="">All Roles</option>
           <option value="customer">Customers</option>
@@ -516,7 +516,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-brand-tan/20 overflow-hidden">
+      <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -574,7 +574,7 @@ export default function AdminUsersPage() {
                       {user.orderCount}
                     </td>
                     <td className="px-4 py-3 text-[13px] font-semibold text-brand-brown whitespace-nowrap">
-                      ৳{user.totalSpent.toLocaleString()}
+                      Tk {user.totalSpent.toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
                       {user.emailVerified ? (

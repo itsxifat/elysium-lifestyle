@@ -8,6 +8,7 @@ import { Plus, Trash2, Upload, X, TableProperties } from "lucide-react";
 import { shouldUnoptimizeImage, slugify } from "@/lib/utils";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import CategoryTreeSelect from "@/components/admin/CategoryTreeSelect";
 import Image from "next/image";
 
 export default function ProductForm({ categories, defaultValues, isEdit, productId }) {
@@ -123,10 +124,15 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
             />
           </div>
           <Input label="Slug" {...register("slug")} placeholder="auto-generated" />
-          <Select label="Category" {...register("category")}>
-            <option value="">Select category</option>
-            {categories.map((cat) => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
-          </Select>
+          <div>
+            <CategoryTreeSelect
+              label="Category"
+              categories={categories}
+              value={watch("category")}
+              onChange={(id) => setValue("category", id, { shouldDirty: true, shouldValidate: true })}
+            />
+            <input type="hidden" {...register("category")} />
+          </div>
           <Select label="Gender" {...register("gender")}>
             <option value="">Select gender</option>
             <option value="men">Men</option>

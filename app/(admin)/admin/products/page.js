@@ -3,10 +3,11 @@ export const dynamic = "force-dynamic";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
 import "@/models/Category";
-import { serializeDoc, formatPrice } from "@/lib/utils";
+import { serializeDoc } from "@/lib/utils";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Package } from "lucide-react";
 import AdminProductsClient from "./AdminProductsClient";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 async function getProducts() {
   await connectDB();
@@ -22,21 +23,16 @@ export default async function AdminProductsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Products</h1>
-          <p className="text-brand-tan text-sm mt-1">
-            {products.length} products total
-          </p>
-        </div>
-        <Link
-          href="/admin/products/new"
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={16} />
-          Add Product
-        </Link>
-      </div>
+      <PageHeader
+        title="Products"
+        subtitle={`${products.length} product${products.length === 1 ? "" : "s"} total`}
+        icon={Package}
+        actions={
+          <Button as={Link} href="/admin/products/new">
+            <Plus size={15} /> Add Product
+          </Button>
+        }
+      />
       <AdminProductsClient initialProducts={products} />
     </div>
   );

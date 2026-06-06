@@ -21,7 +21,7 @@ const TikTokIcon = () => (
 );
 
 const VALUE_PROPS = [
-  { icon: Truck, title: "Free Shipping", desc: "Orders over ৳1,500" },
+  { icon: Truck, title: "Free Shipping", desc: "Orders over Tk 1,500" },
   { icon: RotateCcw, title: "7-Day Returns", desc: "Hassle-free returns" },
   { icon: Shield, title: "Secure Payment", desc: "100% protected checkout" },
   { icon: Package, title: "Nationwide Delivery", desc: "Across Bangladesh" },

@@ -66,7 +66,7 @@ export async function GET() {
 
     const announcement = settings?.announcementBar ?? {
       enabled: true,
-      text: "Free shipping on orders over ৳1500 · Cash on Delivery Available",
+      text: "Free shipping on orders over Tk 1500 · Cash on Delivery Available",
       link: "",
     };
 

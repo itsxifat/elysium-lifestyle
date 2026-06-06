@@ -258,7 +258,7 @@ export default function CheckoutPage() {
                         </div>
                       </div>
                       <span className={`text-sm font-bold flex-shrink-0 ml-4 ${isFree ? "text-emerald-600" : "text-brand-brown"}`}>
-                        {isFree ? "Free" : `৳${opt.fee}`}
+                        {isFree ? "Free" : `Tk ${opt.fee}`}
                       </span>
                     </label>
                   );
@@ -266,7 +266,7 @@ export default function CheckoutPage() {
               </div>
               {!freeShippingEnabled && freeThreshold > 0 && subtotal < freeThreshold && (
                 <p className="text-xs text-brand-tan/70 mt-3">
-                  Add ৳{(freeThreshold - subtotal).toLocaleString()} more to qualify for free shipping
+                  Add Tk {(freeThreshold - subtotal).toLocaleString()} more to qualify for free shipping
                 </p>
               )}
             </div>

@@ -51,14 +51,14 @@ function ZoneCard({ icon: Icon, zone, label, description, examples, fee, onChang
             Delivery Fee
           </label>
           <div className="relative flex items-center">
-            <span className="absolute left-3 text-brand-tan text-sm font-medium">৳</span>
+            <span className="absolute left-3 text-brand-tan text-sm font-medium">Tk </span>
             <input
               type="number"
               min="0"
               value={fee}
               onChange={(e) => onChange(Number(e.target.value))}
               disabled={disabled}
-              className="w-full pl-8 pr-3 py-2.5 border border-brand-tan/30 bg-transparent text-brand-brown text-lg font-bold focus:outline-none focus:border-brand-brown transition-colors disabled:cursor-not-allowed"
+              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-brand-tan/30 bg-transparent text-brand-brown text-lg font-bold focus:outline-none focus:border-brand-brown transition-colors disabled:cursor-not-allowed"
             />
           </div>
           {fee === 0 && (
@@ -75,7 +75,7 @@ function ZoneCard({ icon: Icon, zone, label, description, examples, fee, onChang
             {examples.map((area) => (
               <span
                 key={area}
-                className="text-[10px] px-2 py-0.5 bg-brand-cream text-brand-tan border border-brand-tan/20"
+                className="text-[10px] px-2 py-0.5 bg-brand-cream text-brand-tan border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]"
               >
                 {area}
               </span>
@@ -201,7 +201,7 @@ export default function AdminShippingPage() {
       <div className="max-w-3xl space-y-6">
 
         {/* Free Shipping Panel */}
-        <div className="bg-white border border-brand-tan/20">
+        <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]">
           <div className="flex items-start gap-4 px-6 py-5 border-b border-brand-tan/10">
             <div className="w-9 h-9 bg-brand-cream flex items-center justify-center flex-shrink-0 mt-0.5">
               <BadgePercent size={16} className="text-brand-tan" strokeWidth={1.5} />
@@ -236,13 +236,13 @@ export default function AdminShippingPage() {
                 Auto-Free Threshold — orders above this amount get free shipping
               </label>
               <div className="relative flex items-center max-w-xs">
-                <span className="absolute left-3 text-brand-tan text-sm font-medium">৳</span>
+                <span className="absolute left-3 text-brand-tan text-sm font-medium">Tk </span>
                 <input
                   type="number"
                   min="0"
                   value={freeShippingThreshold}
                   onChange={(e) => setFreeShippingThreshold(Number(e.target.value))}
-                  className="w-full pl-8 pr-3 py-2.5 border border-brand-tan/30 bg-transparent text-brand-brown font-bold focus:outline-none focus:border-brand-brown transition-colors"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-brand-tan/30 bg-transparent text-brand-brown font-bold focus:outline-none focus:border-brand-brown transition-colors"
                 />
               </div>
               <p className="text-[10px] text-brand-tan/60 mt-1.5">
@@ -253,7 +253,7 @@ export default function AdminShippingPage() {
         </div>
 
         {/* Zone Cards */}
-        <div className="bg-white border border-brand-tan/20">
+        <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]">
           <div className="flex items-start gap-4 px-6 py-5 border-b border-brand-tan/10">
             <div className="w-9 h-9 bg-brand-cream flex items-center justify-center flex-shrink-0 mt-0.5">
               <Truck size={16} className="text-brand-tan" strokeWidth={1.5} />
@@ -287,7 +287,7 @@ export default function AdminShippingPage() {
         </div>
 
         {/* Preview */}
-        <div className="bg-white border border-brand-tan/20">
+        <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]">
           <div className="flex items-start gap-4 px-6 py-5 border-b border-brand-tan/10">
             <div className="w-9 h-9 bg-brand-cream flex items-center justify-center flex-shrink-0 mt-0.5">
               <Package size={16} className="text-brand-tan" strokeWidth={1.5} />
@@ -340,14 +340,14 @@ export default function AdminShippingPage() {
                     </div>
                   </div>
                   <span className={`text-sm font-bold ${opt.fee === 0 ? "text-emerald-600" : "text-brand-brown"}`}>
-                    {opt.fee === 0 ? "Free" : `৳${opt.fee}`}
+                    {opt.fee === 0 ? "Free" : `Tk ${opt.fee}`}
                   </span>
                 </div>
               ))
             )}
             {!freeShippingEnabled && freeShippingThreshold > 0 && (
               <p className="text-[11px] text-brand-tan/70 pt-2">
-                Orders above ৳{freeShippingThreshold.toLocaleString()} automatically qualify for free shipping
+                Orders above Tk {freeShippingThreshold.toLocaleString()} automatically qualify for free shipping
               </p>
             )}
           </div>

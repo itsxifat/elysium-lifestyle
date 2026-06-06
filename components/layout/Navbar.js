@@ -217,7 +217,7 @@ function SearchResults({ query, results, loading, onClose }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium text-brand-brown truncate">{product.name}</p>
-                <p className="text-[11px] text-brand-tan mt-0.5">৳{product.price.toLocaleString()}</p>
+                <p className="text-[11px] text-brand-tan mt-0.5">Tk {product.price.toLocaleString()}</p>
               </div>
             </Link>
           ))}

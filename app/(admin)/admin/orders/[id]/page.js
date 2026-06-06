@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { formatPrice } from "@/lib/utils";
+import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import toast from "react-hot-toast";
 
@@ -50,11 +52,11 @@ export default function AdminOrderDetailPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => router.back()} className="text-sm text-brand-tan hover:text-brand-brown">
-          ← Back
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-lg border border-brand-tan/30 text-brand-tan hover:text-brand-brown hover:bg-white transition-colors flex-shrink-0">
+          <ArrowLeft size={16} />
         </button>
-        <h1 className="text-2xl font-bold text-brand-brown">{order.orderNumber}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-brand-brown tracking-tight">{order.orderNumber}</h1>
         <Badge variant={order.orderStatus}>{order.orderStatus}</Badge>
       </div>
 
@@ -62,18 +64,34 @@ export default function AdminOrderDetailPage() {
         {/* Left: Items + Address */}
         <div className="lg:col-span-2 space-y-6">
           {/* Items */}
-          <div className="bg-white border border-brand-tan/20 p-6">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Order Items</h2>
             <div className="space-y-3">
               {order.items.map((item, i) => (
-                <div key={i} className="flex justify-between items-center border-b border-brand-tan/10 pb-3 last:border-0 last:pb-0">
-                  <div>
-                    <p className="font-medium text-brand-brown">{item.name}</p>
-                    <p className="text-sm text-brand-tan">
-                      {item.size} · {item.color} · Qty: {item.quantity}
-                    </p>
+                <div key={i} className="flex justify-between items-center gap-3 border-b border-brand-tan/10 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative w-12 h-14 flex-shrink-0 bg-brand-cream-dark overflow-hidden rounded">
+                      <Image
+                        src={item.image || "/placeholder.jpg"}
+                        alt={item.name}
+                        fill
+                        sizes="48px"
+                        unoptimized={shouldUnoptimizeImage(item.image)}
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-brand-brown line-clamp-1">{item.name}</p>
+                      <p className="text-sm text-brand-tan">
+                        {item.size}
+                        {item.color ? ` · ${item.color}` : ""} · Qty: {item.quantity}
+                      </p>
+                      {item.sku && (
+                        <p className="text-[11px] text-brand-tan/80 mt-0.5">SKU: {item.sku}</p>
+                      )}
+                    </div>
                   </div>
-                  <span className="font-semibold text-brand-brown">
+                  <span className="font-semibold text-brand-brown flex-shrink-0">
                     {formatPrice(item.price * item.quantity)}
                   </span>
                 </div>
@@ -96,7 +114,7 @@ export default function AdminOrderDetailPage() {
           </div>
 
           {/* Shipping */}
-          <div className="bg-white border border-brand-tan/20 p-6">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Shipping Address</h2>
             <div className="text-sm text-brand-brown space-y-1">
               <p className="font-medium">{order.shippingAddress.name}</p>
@@ -109,7 +127,7 @@ export default function AdminOrderDetailPage() {
 
         {/* Right: Status controls */}
         <div className="space-y-6">
-          <div className="bg-white border border-brand-tan/20 p-6">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Order Status</h2>
             <div className="space-y-2">
               {ORDER_STATUSES.map((status) => (
@@ -129,7 +147,7 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-brand-tan/20 p-6">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Payment</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -160,7 +178,7 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
 
-          <div className="bg-white border border-brand-tan/20 p-6">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-2">Order Date</h2>
             <p className="text-sm text-brand-brown">
               {new Date(order.createdAt).toLocaleString("en-BD")}

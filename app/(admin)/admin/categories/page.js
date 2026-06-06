@@ -195,7 +195,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
     onSave();
   };
 
-  const inputCls = "w-full border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors";
+  const inputCls = "w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors";
   const labelCls = "block text-[10px] uppercase tracking-widest text-brand-tan mb-1.5";
 
   const topLevelCats = allCats.filter((c) => !c.parent);
@@ -207,7 +207,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
       <div>
         <label className={labelCls}>Category Image</label>
         <div className="flex items-start gap-3">
-          <div className="relative w-24 h-24 bg-brand-cream border border-brand-tan/20 flex-shrink-0 overflow-hidden">
+          <div className="relative w-24 h-24 bg-brand-cream border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] flex-shrink-0 overflow-hidden">
             {imageUrl ? (
               <>
                 <Image src={imageUrl} alt="Category" fill className="object-cover" unoptimized={shouldUnoptimizeImage(imageUrl)} />
@@ -230,7 +230,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 border border-brand-tan/30 px-3 py-2 text-[11px] uppercase tracking-[2px] text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-brand-tan/30 px-3 py-2 text-[11px] uppercase tracking-[2px] text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-colors disabled:opacity-50"
             >
               <Upload size={13} strokeWidth={1.5} />
               {uploading ? "Uploading…" : imageUrl ? "Replace" : "Upload Image"}
@@ -369,7 +369,7 @@ export default function AdminCategoriesPage() {
       <div className={`grid gap-6 ${panel ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
         {/* Tree list */}
         <div className={panel ? "xl:col-span-2" : ""}>
-          <div className="bg-white border border-brand-tan/20 overflow-hidden">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-brand-tan text-sm">Loading…</div>
             ) : tree.length === 0 ? (
@@ -408,7 +408,7 @@ export default function AdminCategoriesPage() {
           </div>
 
           <div className="flex items-center gap-5 mt-3 text-[11px] text-brand-tan">
-            <span className="flex items-center gap-1.5"><span className="w-4 h-4 border border-brand-tan/20 bg-white" /> Top-level</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-4 border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] bg-white" /> Top-level</span>
             <span className="flex items-center gap-1.5"><span className="text-[9px] px-1.5 py-0.5 bg-brand-tan/15">Sub</span> Subcategory</span>
             <span className="flex items-center gap-1.5"><Star size={11} className="fill-amber-500 text-amber-500" /> Featured on homepage</span>
           </div>
@@ -416,7 +416,7 @@ export default function AdminCategoriesPage() {
 
         {/* Side panel */}
         {panel && (
-          <div className="bg-white border border-brand-tan/20 p-6 overflow-y-auto max-h-[90vh] sticky top-4">
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6 overflow-y-auto max-h-[90vh] sticky top-4">
             <div className="flex items-center justify-between mb-5">
               <p className="text-[11px] uppercase tracking-widest text-brand-tan font-medium">
                 {panel.mode === "edit" ? `Edit: ${panel.cat.name}` : panel.defaultParent ? `Add under: ${panel.defaultParent.name}` : "New Category"}

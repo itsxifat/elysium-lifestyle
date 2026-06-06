@@ -17,7 +17,7 @@ function Toggle({ checked, onChange }) {
 
 function SectionCard({ icon: Icon, title, description, children }) {
   return (
-    <div className="bg-white border border-brand-tan/20">
+    <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)]">
       <div className="flex items-start gap-4 px-6 py-5 border-b border-brand-tan/10">
         <div className="w-9 h-9 bg-brand-cream flex items-center justify-center flex-shrink-0 mt-0.5">
           <Icon size={16} className="text-brand-tan" strokeWidth={1.5} />
@@ -39,7 +39,7 @@ function FieldLabel({ children }) {
 function RawInput({ className = "", ...props }) {
   return (
     <input
-      className={`w-full border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors ${className}`}
+      className={`w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors ${className}`}
       {...props}
     />
   );
@@ -91,7 +91,7 @@ export default function AdminSettingsPage() {
           fromName: data.emailSettings?.fromName || "Elysium Lifestyle",
           fromEmail: data.emailSettings?.fromEmail || "",
           testEmailTo: "",
-          announcementText: data.announcementBar?.text ?? "Free shipping on orders over ৳1500 · Cash on Delivery Available",
+          announcementText: data.announcementBar?.text ?? "Free shipping on orders over Tk 1500 · Cash on Delivery Available",
           announcementLink: data.announcementBar?.link || "",
           promoBannerHeadline: data.promoBanner?.headline || "Season Sale.",
           promoBannerSubtext: data.promoBanner?.subtext || "Up to 40% off selected styles. Refresh your wardrobe with our finest pieces at unbeatable prices.",
@@ -223,7 +223,7 @@ export default function AdminSettingsPage() {
           <div className="space-y-4">
             <div>
               <FieldLabel>Announcement Text</FieldLabel>
-              <RawInput {...register("announcementText")} placeholder="e.g. Free shipping on orders over ৳1500 · New arrivals every week" />
+              <RawInput {...register("announcementText")} placeholder="e.g. Free shipping on orders over Tk 1500 · New arrivals every week" />
             </div>
             <div>
               <FieldLabel>Link URL <span className="normal-case text-brand-tan/60">(optional — makes bar clickable)</span></FieldLabel>
@@ -257,7 +257,7 @@ export default function AdminSettingsPage() {
               <textarea
                 {...register("promoBannerSubtext")}
                 rows={2}
-                className="w-full border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors resize-none"
+                className="w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors resize-none"
                 placeholder="Up to 40% off selected styles…"
               />
             </div>
@@ -299,7 +299,7 @@ export default function AdminSettingsPage() {
         <SectionCard icon={MessageSquare} title="Customer Testimonials" description="Reviews shown in the homepage carousel. Leave empty to hide the section.">
           <div className="space-y-3">
             {testimonialFields.map((field, index) => (
-              <div key={field.id} className="border border-brand-tan/20 p-4 space-y-3 relative">
+              <div key={field.id} className="border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-4 space-y-3 relative">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-[10px] uppercase tracking-widest text-brand-tan font-medium">Review #{index + 1}</p>
                   <button
@@ -324,7 +324,7 @@ export default function AdminSettingsPage() {
                   <FieldLabel>Rating (1–5)</FieldLabel>
                   <select
                     {...register(`testimonials.${index}.rating`)}
-                    className="border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors"
+                    className="rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors"
                   >
                     {[5, 4, 3, 2, 1].map((n) => (
                       <option key={n} value={n}>{n} star{n !== 1 ? "s" : ""}</option>
@@ -336,7 +336,7 @@ export default function AdminSettingsPage() {
                   <textarea
                     {...register(`testimonials.${index}.text`)}
                     rows={3}
-                    className="w-full border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors resize-none"
+                    className="w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors resize-none"
                     placeholder="Share your experience…"
                   />
                 </div>
@@ -368,8 +368,8 @@ export default function AdminSettingsPage() {
             </div>
             <Input label="Business Address" {...register("address")} />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Free Shipping Threshold (৳)" type="number" {...register("freeShippingThreshold")} />
-              <Input label="Standard Shipping Fee (৳)" type="number" {...register("shippingFee")} />
+              <Input label="Free Shipping Threshold (Tk)" type="number" {...register("freeShippingThreshold")} />
+              <Input label="Standard Shipping Fee (Tk)" type="number" {...register("shippingFee")} />
             </div>
           </div>
         </SectionCard>
@@ -386,7 +386,7 @@ export default function AdminSettingsPage() {
         {/* Payment Gateways */}
         <SectionCard icon={CreditCard} title="Payment Gateways" description="Control which payment methods customers can use at checkout">
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 border border-brand-tan/20 rounded-sm">
+            <div className="flex items-center justify-between p-4 border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] rounded-sm">
               <div>
                 <p className="text-[13px] font-medium text-brand-brown">Cash on Delivery</p>
                 <p className="text-[11px] text-brand-tan mt-0.5">Customer pays when the order arrives</p>
@@ -394,7 +394,7 @@ export default function AdminSettingsPage() {
               <Toggle checked={codEnabled} onChange={setCodEnabled} />
             </div>
 
-            <div className="border border-brand-tan/20 rounded-sm">
+            <div className="border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] rounded-sm">
               <div className="flex items-center justify-between p-4">
                 <div>
                   <p className="text-[13px] font-medium text-brand-brown">SSLCommerz · bKash · Cards</p>
@@ -442,7 +442,7 @@ export default function AdminSettingsPage() {
                   {...register("testEmailTo")}
                   type="email"
                   placeholder="recipient@example.com"
-                  className="flex-1 border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors"
+                  className="flex-1 rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors"
                 />
                 <button
                   type="button"

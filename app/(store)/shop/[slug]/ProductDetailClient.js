@@ -44,7 +44,7 @@ function SizeChartModal({ chart, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-tan/15 flex-shrink-0">
           <div>
             <h3 className="text-[12px] font-bold text-brand-brown uppercase tracking-wider">{chart.name}</h3>
-            <p className="text-[10px] text-brand-tan mt-0.5">All measurements in cm unless stated</p>
+            <p className="text-[10px] text-brand-tan mt-0.5">All measurements in inches unless stated</p>
           </div>
           <button onClick={onClose} className="text-brand-tan hover:text-brand-brown transition-colors">
             <X size={18} strokeWidth={1.5} />
@@ -224,7 +224,7 @@ export default function ProductDetailClient({ product, related = [] }) {
             {/* Trust strip */}
             <div className="grid grid-cols-3 border border-brand-tan/15">
               {[
-                { Icon: Truck,        title: "Free shipping", sub: "Over ৳1500"   },
+                { Icon: Truck,        title: "Free shipping", sub: "Over Tk 1500"   },
                 { Icon: RotateCcw,    title: "7-day returns", sub: "Easy returns"  },
                 { Icon: ShieldCheck,  title: "COD available", sub: "Pay on arrival" },
               ].map(({ Icon, title, sub }) => (

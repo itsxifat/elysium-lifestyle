@@ -119,10 +119,10 @@ export default function FilterSidebar({ categories = [], onClose }) {
       <FilterGroup title="Price Range">
         <div className="space-y-3">
           {[
-            { label: "Under ৳500", min: "", max: "500" },
-            { label: "৳500 – ৳1000", min: "500", max: "1000" },
-            { label: "৳1000 – ৳2000", min: "1000", max: "2000" },
-            { label: "৳2000+", min: "2000", max: "" },
+            { label: "Under Tk 500", min: "", max: "500" },
+            { label: "Tk 500 – Tk 1000", min: "500", max: "1000" },
+            { label: "Tk 1000 – Tk 2000", min: "1000", max: "2000" },
+            { label: "Tk 2000+", min: "2000", max: "" },
           ].map((range) => {
             const isActive =
               currentMinPrice === range.min && currentMaxPrice === range.max;

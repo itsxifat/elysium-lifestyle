@@ -101,14 +101,14 @@ export default function AdminMasterSizesPage() {
       <div className="max-w-2xl space-y-5">
 
         {/* Quick presets */}
-        <div className="bg-white border border-brand-tan/20 px-6 py-5">
+        <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] px-6 py-5">
           <p className="text-[10px] uppercase tracking-widest text-brand-tan font-medium mb-3">Quick Presets</p>
           <div className="flex flex-wrap gap-2">
             {presets.map((p) => (
               <button
                 key={p.label}
                 onClick={() => applyPreset(p.sizes)}
-                className="text-[11px] px-3 py-1.5 border border-brand-tan/30 text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-colors"
+                className="text-[11px] px-3 py-1.5 rounded-lg border border-brand-tan/30 text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-colors"
               >
                 {p.label}
               </button>
@@ -118,7 +118,7 @@ export default function AdminMasterSizesPage() {
         </div>
 
         {/* Size chips */}
-        <div className="bg-white border border-brand-tan/20 px-6 py-5">
+        <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] px-6 py-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[10px] uppercase tracking-widest text-brand-tan font-medium">
               Current Sizes <span className="ml-1 text-brand-brown/60">({sizes.length})</span>
@@ -141,7 +141,7 @@ export default function AdminMasterSizesPage() {
                   onDragEnter={() => handleDragEnter(index)}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => e.preventDefault()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-tan/30 group cursor-grab active:cursor-grabbing hover:border-brand-brown transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-brand-tan/30 group cursor-grab active:cursor-grabbing hover:border-brand-brown transition-colors"
                 >
                   <GripVertical size={11} className="text-brand-tan/40 group-hover:text-brand-tan" />
                   <span className="text-[12px] font-medium text-brand-brown">{size}</span>
@@ -164,7 +164,7 @@ export default function AdminMasterSizesPage() {
               onChange={(e) => setNewSize(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addSize(); }}
               placeholder="e.g. XXL, 32, 10Y…"
-              className="flex-1 border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors uppercase"
+              className="flex-1 rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors uppercase"
             />
             <button
               onClick={addSize}
