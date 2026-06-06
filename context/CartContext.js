@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useReducer, useEffect, useState } from "react";
+import { track } from "@/lib/tracking/client";
 
 const CartContext = createContext(null);
 
@@ -68,6 +69,18 @@ export function CartProvider({ children }) {
   const addItem = (product, size, quantity = 1) => {
     dispatch({ type: "ADD_ITEM", payload: { product, size, quantity } });
     dispatch({ type: "OPEN_DRAWER" });
+    // Single choke point for add-to-cart (button + quick-add modal both call this).
+    track.addToCart({
+      customData: {
+        value: (product.price || 0) * quantity,
+        currency: "BDT",
+        content_type: "product",
+        content_ids: [product.id],
+        content_name: product.name,
+        contents: [{ id: product.id, quantity, item_price: product.price }],
+        num_items: quantity,
+      },
+    });
   };
   const removeItem = (productId, size) => dispatch({ type: "REMOVE_ITEM", payload: { productId, size } });
   const updateQuantity = (productId, size, quantity) => dispatch({ type: "UPDATE_QUANTITY", payload: { productId, size, quantity } });

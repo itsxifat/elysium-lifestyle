@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema(
     emailVerified: { type: Boolean, default: false },
     verificationOTP: { type: String, select: false },
     verificationOTPExpiry: { type: Date },
+    verificationOTPAttempts: { type: Number, default: 0, select: false },
     resetToken: { type: String, select: false },
     resetTokenExpiry: { type: Date },
   },

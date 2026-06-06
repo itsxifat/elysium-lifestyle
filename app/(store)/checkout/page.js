@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "next-auth/react";
@@ -11,6 +11,7 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 import Input from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
+import { track } from "@/lib/tracking/client";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -20,6 +21,23 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [shippingZone, setShippingZone] = useState("inside_dhaka");
   const [placing, setPlacing] = useState(false);
+
+  // InitiateCheckout — fires once when the cart has hydrated with items.
+  const icFired = useRef(false);
+  useEffect(() => {
+    if (icFired.current || !items.length) return;
+    icFired.current = true;
+    track.initiateCheckout({
+      customData: {
+        value: subtotal,
+        currency: "BDT",
+        content_type: "product",
+        num_items: items.reduce((n, i) => n + i.quantity, 0),
+        content_ids: items.map((i) => i.productId),
+        contents: items.map((i) => ({ id: i.productId, quantity: i.quantity, item_price: i.price })),
+      },
+    });
+  }, [items, subtotal]);
 
   const {
     register,

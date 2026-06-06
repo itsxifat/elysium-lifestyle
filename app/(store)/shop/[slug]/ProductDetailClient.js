@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ChevronRight, ChevronDown, X,
@@ -11,6 +11,7 @@ import ImageGallery from "@/components/product/ImageGallery";
 import VariantSelector from "@/components/product/VariantSelector";
 import AddToCartButton from "@/components/product/AddToCartButton";
 import ProductCard from "@/components/shop/ProductCard";
+import { track } from "@/lib/tracking/client";
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -97,6 +98,22 @@ export default function ProductDetailClient({ product, related = [] }) {
     : 0;
   const hasPriceRange = minPrice !== maxPrice;
   const displayPrice = selectedVariant ? selectedVariant.price : minPrice;
+
+  const productId = product._id || product.id;
+  // ViewContent — fires once per product view.
+  useEffect(() => {
+    track.viewContent({
+      customData: {
+        value: minPrice,
+        currency: "BDT",
+        content_type: "product",
+        content_ids: [productId],
+        content_name: product.name,
+        contents: [{ id: productId, quantity: 1, item_price: minPrice }],
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
 
   const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "8801700000000";
   const whatsappMsg = encodeURIComponent(`Hi, I'm interested in: ${product.name}`);

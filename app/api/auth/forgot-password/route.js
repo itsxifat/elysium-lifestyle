@@ -3,9 +3,13 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import { sendEmail, forgotPasswordTemplate } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request) {
   try {
+    const limited = checkRateLimit(request, "forgot-password", { limit: 5, windowMs: 15 * 60 * 1000 });
+    if (limited) return limited;
+
     const { email } = await request.json();
     if (!email) return NextResponse.json({ error: "Email is required" }, { status: 400 });
 

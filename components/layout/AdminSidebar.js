@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
-  Layers, FolderTree, Navigation, Truck, Ruler, TableProperties,
+  Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -34,6 +34,12 @@ const navGroups = [
     items: [
       { href: "/admin/hero",   label: "Hero Slides",   icon: Layers },
       { href: "/admin/navbar", label: "Navbar Config", icon: Navigation },
+    ],
+  },
+  {
+    label: "Marketing",
+    items: [
+      { href: "/admin/tracking", label: "Tracking",  icon: Radio },
     ],
   },
   {

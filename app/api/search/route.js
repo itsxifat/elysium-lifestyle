@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
+import { escapeRegExp } from "@/lib/utils";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -8,14 +9,17 @@ export async function GET(request) {
 
   if (!q || q.length < 2) return NextResponse.json([]);
 
+  const safe = escapeRegExp(q);
+  if (!safe) return NextResponse.json([]);
+
   try {
     await connectDB();
 
     const products = await Product.find({
       isPublished: true,
       $or: [
-        { name: { $regex: q, $options: "i" } },
-        { tags: { $regex: q, $options: "i" } },
+        { name: { $regex: safe, $options: "i" } },
+        { tags: { $regex: safe, $options: "i" } },
       ],
     })
       .select("name slug images variants")

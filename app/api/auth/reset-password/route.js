@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request) {
   try {
+    const limited = checkRateLimit(request, "reset-password", { limit: 10, windowMs: 15 * 60 * 1000 });
+    if (limited) return limited;
+
     const { token, password } = await request.json();
     if (!token || !password) return NextResponse.json({ error: "Token and password are required" }, { status: 400 });
     if (password.length < 6) return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });

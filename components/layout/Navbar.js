@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { shouldUnoptimizeImage } from "@/lib/utils";
+import { track } from "@/lib/tracking/client";
 
 let _navCache = null;
 let _navCacheTs = 0;
@@ -189,6 +190,7 @@ function SearchResults({ query, results, loading, onClose }) {
   if (!query || query.length < 2) return null;
 
   const goToAll = () => {
+    track.search({ customData: { search_string: query.trim() } });
     router.push(`/shop?search=${encodeURIComponent(query.trim())}`);
     onClose();
   };
@@ -336,6 +338,7 @@ export default function Navbar() {
     e?.preventDefault();
     const q = searchQuery.trim();
     if (q) {
+      track.search({ customData: { search_string: q } });
       router.push(`/shop?search=${encodeURIComponent(q)}`);
       closeSearch();
     }

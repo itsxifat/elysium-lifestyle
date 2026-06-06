@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import { sendEmail, otpTemplate } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -10,6 +11,9 @@ function generateOTP() {
 
 export async function POST(request) {
   try {
+    const limited = checkRateLimit(request, "register", { limit: 5, windowMs: 15 * 60 * 1000 });
+    if (limited) return limited;
+
     const { name, email, password } = await request.json();
 
     if (!name || !email || !password) {
@@ -29,6 +33,7 @@ export async function POST(request) {
         await User.findByIdAndUpdate(existingUser._id, {
           verificationOTP: otp,
           verificationOTPExpiry: new Date(Date.now() + 15 * 60 * 1000),
+          verificationOTPAttempts: 0,
         });
         await sendEmail({
           to: email,

@@ -6,6 +6,8 @@ import Order from "@/models/Order";
 import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
+import { escapeRegExp } from "@/lib/utils";
+import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 
 export async function GET(request) {
   const { error } = await requireAdmin(request);
@@ -21,11 +23,12 @@ export async function GET(request) {
 
     const query = {};
     if (status && status !== "all") query.orderStatus = status;
-    if (search) {
+    const safeSearch = escapeRegExp(search);
+    if (safeSearch) {
       query.$or = [
-        { orderNumber: { $regex: search, $options: "i" } },
-        { "shippingAddress.name": { $regex: search, $options: "i" } },
-        { "shippingAddress.phone": { $regex: search, $options: "i" } },
+        { orderNumber: { $regex: safeSearch, $options: "i" } },
+        { "shippingAddress.name": { $regex: safeSearch, $options: "i" } },
+        { "shippingAddress.phone": { $regex: safeSearch, $options: "i" } },
       ];
     }
 
@@ -127,6 +130,10 @@ export async function POST(request) {
           html: orderConfirmationTemplate(populatedOrder),
         }).catch(console.error);
       }
+
+      // Primary, unblockable Purchase signal (server-side, real customer IP/UA
+      // from this request). Fire-and-forget so it never delays the response.
+      trackPurchaseFromOrder(order, { request }).catch(() => {});
     }
 
     return NextResponse.json({ orderId: order._id.toString() }, { status: 201 });

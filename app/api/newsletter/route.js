@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request) {
   try {
+    const limited = checkRateLimit(request, "newsletter", { limit: 5, windowMs: 10 * 60 * 1000 });
+    if (limited) return limited;
+
     const { email } = await request.json();
 
     if (!email || !email.includes("@")) {

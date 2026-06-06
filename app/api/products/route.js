@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
+import mongoose from "mongoose";
 import { requireAdmin } from "@/lib/auth";
-import { slugify } from "@/lib/utils";
+import { slugify, escapeRegExp } from "@/lib/utils";
 
 export async function GET(request) {
   try {
@@ -30,10 +31,13 @@ export async function GET(request) {
       ).default.find({ gender }).select("_id");
       query.category = { $in: categories.map((c) => c._id) };
     }
-    if (category) query.category = category;
+    if (category && mongoose.isValidObjectId(category)) query.category = category;
     if (search) query.$text = { $search: search };
     if (size) query["variants.size"] = size;
-    if (color) query["variants.color"] = { $regex: color, $options: "i" };
+    if (color) {
+      const safeColor = escapeRegExp(color);
+      if (safeColor) query["variants.color"] = { $regex: safeColor, $options: "i" };
+    }
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);

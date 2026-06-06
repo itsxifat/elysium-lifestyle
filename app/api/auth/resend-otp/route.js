@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import { sendEmail, otpTemplate } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request) {
   try {
+    const limited = checkRateLimit(request, "resend-otp", { limit: 4, windowMs: 15 * 60 * 1000 });
+    if (limited) return limited;
+
     const { email } = await request.json();
     if (!email) return NextResponse.json({ error: "Email is required" }, { status: 400 });
 
@@ -18,6 +22,7 @@ export async function POST(request) {
     await User.findByIdAndUpdate(user._id, {
       verificationOTP: otp,
       verificationOTPExpiry: new Date(Date.now() + 15 * 60 * 1000),
+      verificationOTPAttempts: 0,
     });
 
     await sendEmail({

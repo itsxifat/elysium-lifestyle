@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Package, Truck, Clock } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import PurchaseTracker from "@/components/tracking/PurchaseTracker";
 
 async function getOrder(orderId) {
   await connectDB();
@@ -22,6 +23,18 @@ export default async function OrderConfirmationPage({ params }) {
 
   return (
     <div className="bg-brand-cream min-h-screen py-16">
+      {/* Client Purchase (dedups with the server Purchase via purchase_<orderId>) */}
+      <PurchaseTracker
+        order={{
+          id: order._id,
+          orderNumber: order.orderNumber,
+          value: order.totalAmount,
+          currency: "BDT",
+          contentIds: (order.items || []).map((i) => String(i.product || i.name)),
+          numItems: (order.items || []).reduce((s, i) => s + (i.quantity || 0), 0),
+          userData: { email: order.shippingAddress?.email || order.guestEmail || undefined },
+        }}
+      />
       <div className="container-custom max-w-2xl">
         {/* Success header */}
         <div className="text-center mb-10">

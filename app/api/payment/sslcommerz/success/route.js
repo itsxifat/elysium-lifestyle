@@ -4,6 +4,7 @@ import Order from "@/models/Order";
 import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import { validateSSLCommerz } from "@/lib/sslcommerz";
+import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 
 export async function POST(request) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -72,6 +73,11 @@ export async function POST(request) {
         { $inc: { "variants.$.stock": -item.quantity } }
       );
     }
+
+    // Server-side Purchase. This callback comes from SSLCommerz (not the
+    // customer's browser), so we don't pass the request — the customer's IP/UA
+    // arrive via the deduped client Purchase fired on the confirmation page.
+    trackPurchaseFromOrder(order).catch(() => {});
 
     return NextResponse.redirect(
       `${baseUrl}/order-confirmation/${order._id.toString()}`

@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import bcrypt from "bcryptjs";
+import { escapeRegExp } from "@/lib/utils";
 
 export async function GET(request) {
   const session = await getServerSession(authOptions);
@@ -20,11 +21,12 @@ export async function GET(request) {
   await connectDB();
 
   const filter = {};
-  if (q) {
+  const safeQ = escapeRegExp(q);
+  if (safeQ) {
     filter.$or = [
-      { name: { $regex: q, $options: "i" } },
-      { email: { $regex: q, $options: "i" } },
-      { phone: { $regex: q, $options: "i" } },
+      { name: { $regex: safeQ, $options: "i" } },
+      { email: { $regex: safeQ, $options: "i" } },
+      { phone: { $regex: safeQ, $options: "i" } },
     ];
   }
   if (role) filter.role = role;
