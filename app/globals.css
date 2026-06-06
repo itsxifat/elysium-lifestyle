@@ -14,7 +14,7 @@
   body {
     background-color: #F5F0E8;
     color: #2C1810;
-    font-family: var(--font-jakarta), system-ui, sans-serif;
+    font-family: var(--font-manrope), system-ui, Arial, sans-serif;
     font-weight: 400;
     letter-spacing: 0.01em;
     -ms-overflow-style: none;
@@ -36,10 +36,10 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-cormorant), Georgia, serif;
-    font-weight: 500;
+    font-family: var(--font-manrope), system-ui, Arial, sans-serif;
+    font-weight: 600;
     line-height: 1.15;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 
   a {

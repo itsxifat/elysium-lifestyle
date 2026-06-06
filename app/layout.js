@@ -1,18 +1,12 @@
-import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 
-const jakarta = Plus_Jakarta_Sans({
+// Single clean, premium-neutral sans for the whole site (body + headings).
+// Variable font → full weight range available for hierarchy.
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-jakarta",
-  weight: ["300", "400", "500", "600"],
-  display: "swap",
-});
-
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  variable: "--font-cormorant",
-  weight: ["300", "400", "500", "600"],
+  variable: "--font-manrope",
   display: "swap",
 });
 
@@ -36,7 +30,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className={`${jakarta.variable} ${cormorant.variable} font-sans antialiased bg-brand-cream text-brand-brown`}
+        className={`${manrope.variable} font-sans antialiased bg-brand-cream text-brand-brown`}
       >
         <Providers>{children}</Providers>
       </body>

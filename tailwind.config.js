@@ -20,8 +20,10 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-jakarta)", "system-ui", "sans-serif"],
-        display: ["var(--font-cormorant)", "Georgia", "serif"],
+        // Unified on Manrope: `font-display` (used on headings/accents across
+        // the site) now resolves to the same clean sans as the body.
+        sans: ["var(--font-manrope)", "system-ui", "Arial", "sans-serif"],
+        display: ["var(--font-manrope)", "system-ui", "Arial", "sans-serif"],
       },
       animation: {
         "fade-in": "fadeIn 0.3s ease-in-out",
