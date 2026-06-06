@@ -3,24 +3,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Truck, MapPin, CheckCircle2, Package, BadgePercent, Building2, Globe } from "lucide-react";
-
-function Toggle({ checked, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-7 w-[52px] items-center rounded-full transition-colors duration-200 focus:outline-none ${
-        checked ? "bg-brand-terracotta" : "bg-brand-tan/30"
-      }`}
-    >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-          checked ? "translate-x-7" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
-}
+import { PageHeader, Button, Toggle } from "@/components/admin/ui";
 
 function ZoneCard({ icon: Icon, zone, label, description, examples, fee, onChange, disabled, accentClass }) {
   return (
@@ -180,23 +163,16 @@ export default function AdminShippingPage() {
 
   return (
     <div>
-      {/* Page Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Shipping & Delivery</h1>
-          <p className="text-sm text-brand-tan mt-1">
-            Set delivery fees by zone — customers select their zone at checkout
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary text-[11px] tracking-[2px] disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save Changes"}
-        </button>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title="Shipping & Delivery"
+        subtitle="Set delivery fees by zone — customers select their zone at checkout"
+        actions={
+          <Button type="button" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        }
+      />
 
       <div className="max-w-3xl space-y-6">
 
@@ -353,14 +329,9 @@ export default function AdminShippingPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary disabled:opacity-60"
-        >
+        <Button type="button" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save Shipping Settings"}
-        </button>
+        </Button>
       </div>
     </div>
   );

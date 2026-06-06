@@ -169,3 +169,39 @@ export function EmptyState({ icon: Icon, title, hint, action, className }) {
     </div>
   );
 }
+
+// Canonical on/off switch — one size/look everywhere. onChange receives the new
+// boolean value. Replaces the per-page toggle implementations.
+export function Toggle({ checked, onChange, disabled = false }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none",
+        checked ? "bg-brand-terracotta" : "bg-brand-tan/30",
+        disabled && "opacity-50 cursor-not-allowed"
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-[22px]" : "translate-x-0.5"
+        )}
+      />
+    </button>
+  );
+}
+
+// Order/payment status → consistent colored pill.
+const STATUS_TONE = {
+  paid: "green", delivered: "green", success: "green",
+  pending: "amber", processing: "blue", shipped: "blue",
+  failed: "red", cancelled: "red", error: "red",
+};
+export function StatusBadge({ status, children }) {
+  return <Pill tone={STATUS_TONE[status] || "gray"}>{children ?? status}</Pill>;
+}

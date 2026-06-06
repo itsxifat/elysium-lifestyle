@@ -13,10 +13,5 @@ async function getCategories() {
 
 export default async function NewProductPage() {
   const categories = await getCategories();
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-brand-brown mb-6">Add New Product</h1>
-      <ProductForm categories={categories} />
-    </div>
-  );
+  return <ProductForm categories={categories} />;
 }

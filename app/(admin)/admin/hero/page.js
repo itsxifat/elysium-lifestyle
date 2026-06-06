@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import { Trash2, Plus, MoveUp, MoveDown, Upload, Monitor, Smartphone, ImageOff } from "lucide-react";
+import { Trash2, Plus, MoveUp, MoveDown, Upload, Monitor, Smartphone, ImageOff, Layers } from "lucide-react";
 import { shouldUnoptimizeImage } from "@/lib/utils";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -233,29 +234,24 @@ export default function AdminHeroPage() {
   return (
     <div className="max-w-5xl">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown tracking-tight">Hero Slider</h1>
-          <p className="text-sm text-brand-tan mt-1">
-            Full-width homepage banners · {slides.length} slide{slides.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          {dirty && (
-            <span className="text-[11px] uppercase tracking-wider text-brand-terracotta flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-terracotta animate-pulse" />
-              Unsaved changes
-            </span>
-          )}
-          <button
-            onClick={saveSlides}
-            disabled={saving || !dirty}
-            className="btn-primary text-[11px] tracking-[2px] disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Layers}
+        title="Hero Slider"
+        subtitle={`Full-width homepage banners · ${slides.length} slide${slides.length !== 1 ? "s" : ""}`}
+        actions={
+          <>
+            {dirty && (
+              <span className="text-[11px] uppercase tracking-wider text-brand-terracotta flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-terracotta animate-pulse" />
+                Unsaved changes
+              </span>
+            )}
+            <Button onClick={saveSlides} disabled={saving || !dirty}>
+              {saving ? "Saving…" : "Save Changes"}
+            </Button>
+          </>
+        }
+      />
 
       {/* Compact size guidance */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 mb-6 bg-brand-cream/50 border border-brand-tan/15 text-[11px] text-brand-tan">

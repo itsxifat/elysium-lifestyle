@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
-  Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio,
+  Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -18,6 +18,7 @@ const navGroups = [
       { href: "/admin",           label: "Dashboard",  icon: LayoutDashboard, exact: true },
       { href: "/admin/products",  label: "Products",   icon: Package },
       { href: "/admin/orders",    label: "Orders",     icon: ShoppingCart },
+      { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert },
       { href: "/admin/customers", label: "Users",      icon: Users },
     ],
   },

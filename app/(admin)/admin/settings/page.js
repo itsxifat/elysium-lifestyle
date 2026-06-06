@@ -3,17 +3,9 @@
 import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings, ShieldAlert } from "lucide-react";
 import Input from "@/components/ui/Input";
-
-function Toggle({ checked, onChange }) {
-  return (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
-      <div className="w-11 h-6 bg-brand-tan/40 rounded-full peer peer-checked:bg-brand-terracotta transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-5" />
-    </label>
-  );
-}
+import { PageHeader, Button, Toggle } from "@/components/admin/ui";
 
 function SectionCard({ icon: Icon, title, description, children }) {
   return (
@@ -53,6 +45,8 @@ export default function AdminSettingsPage() {
   const [codEnabled, setCodEnabled] = useState(true);
   const [announcementEnabled, setAnnouncementEnabled] = useState(true);
   const [promoBannerEnabled, setPromoBannerEnabled] = useState(false);
+  const [fraudAutoCheck, setFraudAutoCheck] = useState(true);
+  const [fraudAutoProcess, setFraudAutoProcess] = useState(true);
 
   const { register, handleSubmit, reset, getValues, control } = useForm({
     defaultValues: { testimonials: [] },
@@ -71,7 +65,11 @@ export default function AdminSettingsPage() {
         setCodEnabled(data.paymentGateways?.cod?.enabled ?? true);
         setAnnouncementEnabled(data.announcementBar?.enabled ?? true);
         setPromoBannerEnabled(data.promoBanner?.enabled ?? false);
+        setFraudAutoCheck(data.fraud?.autoCheck ?? true);
+        setFraudAutoProcess(data.fraud?.autoProcess ?? true);
         reset({
+          fraudMinDelivery: data.fraud?.minDelivery ?? 10,
+          fraudMinSuccessful: data.fraud?.minSuccessfulDelivery ?? 10,
           siteName: data.siteInfo?.siteName || "",
           whatsappNumber: data.siteInfo?.whatsappNumber || "",
           freeShippingThreshold: data.siteInfo?.freeShippingThreshold || 1500,
@@ -117,6 +115,12 @@ export default function AdminSettingsPage() {
     setSaving(true);
     try {
       const payload = {
+        fraud: {
+          autoCheck: fraudAutoCheck,
+          autoProcess: fraudAutoProcess,
+          minDelivery: Number(data.fraudMinDelivery) || 0,
+          minSuccessfulDelivery: Number(data.fraudMinSuccessful) || 0,
+        },
         announcementBar: {
           enabled: announcementEnabled,
           text: data.announcementText,
@@ -206,15 +210,16 @@ export default function AdminSettingsPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Settings</h1>
-          <p className="text-sm text-brand-tan mt-1">Configure your store, payments, and email</p>
-        </div>
-        <button type="button" onClick={handleSubmit(onSubmit)} disabled={saving} className="btn-primary text-[11px] tracking-[2px] disabled:opacity-60">
-          {saving ? "Saving…" : "Save All"}
-        </button>
-      </div>
+      <PageHeader
+        icon={Settings}
+        title="Settings"
+        subtitle="Configure your store, payments, and email"
+        actions={
+          <Button type="button" onClick={handleSubmit(onSubmit)} disabled={saving}>
+            {saving ? "Saving…" : "Save All"}
+          </Button>
+        }
+      />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-w-2xl">
 
@@ -444,23 +449,55 @@ export default function AdminSettingsPage() {
                   placeholder="recipient@example.com"
                   className="flex-1 rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2.5 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors"
                 />
-                <button
-                  type="button"
-                  onClick={sendTestEmail}
-                  disabled={testEmailLoading}
-                  className="btn-outline text-sm px-4 py-2 disabled:opacity-60 whitespace-nowrap"
-                >
+                <Button type="button" variant="outline" onClick={sendTestEmail} disabled={testEmailLoading} className="whitespace-nowrap">
                   {testEmailLoading ? "Sending…" : "Send Test"}
-                </button>
+                </Button>
               </div>
               <p className="text-[10px] text-brand-tan/60 mt-2">Save your settings before sending a test email</p>
             </div>
           </div>
         </SectionCard>
 
-        <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
+        <SectionCard
+          icon={ShieldAlert}
+          title="Fraud Check & Auto-Processing"
+          description="New orders stay Pending until the customer's Steadfast courier history clears these thresholds — then they auto-move to Processing."
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Auto fraud check on new orders</p>
+                <p className="text-[11px] text-brand-tan">Looks up the order&apos;s phone on Steadfast automatically</p>
+              </div>
+              <Toggle checked={fraudAutoCheck} onChange={setFraudAutoCheck} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Auto-move to Processing</p>
+                <p className="text-[11px] text-brand-tan">When both thresholds below are met; otherwise stays Pending</p>
+              </div>
+              <Toggle checked={fraudAutoProcess} onChange={setFraudAutoProcess} />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <FieldLabel>Min total deliveries</FieldLabel>
+                <RawInput type="number" min="0" {...register("fraudMinDelivery")} />
+              </div>
+              <div>
+                <FieldLabel>Min successful deliveries</FieldLabel>
+                <RawInput type="number" min="0" {...register("fraudMinSuccessful")} />
+              </div>
+            </div>
+            <p className="text-[11px] text-brand-tan">
+              Manage Steadfast accounts on the{" "}
+              <a href="/admin/frauds" className="text-brand-terracotta underline">Fraud Check</a> page.
+            </p>
+          </div>
+        </SectionCard>
+
+        <Button type="submit" disabled={saving}>
           {saving ? "Saving…" : "Save All Settings"}
-        </button>
+        </Button>
       </form>
     </div>
   );

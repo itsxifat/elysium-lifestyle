@@ -19,7 +19,7 @@ const nextConfig = {
   // Don't advertise the framework/version to attackers.
   poweredByHeader: false,
   experimental: {
-    serverComponentsExternalPackages: ["mongoose", "nodemailer"],
+    serverComponentsExternalPackages: ["mongoose", "nodemailer", "steadfast-fraud"],
   },
   images: {
     // Keep the optimizer's disk-cache TTL in sync with the image proxy's

@@ -16,6 +16,21 @@ async function getOrders() {
 const STATUS_TONE = { pending: "amber", processing: "blue", shipped: "blue", delivered: "green", cancelled: "red" };
 const PAYMENT_TONE = { paid: "green", failed: "red", pending: "amber" };
 
+// Compact courier-history indicator (delivered/total, flags frauds).
+function FraudBadge({ fc }) {
+  if (!fc) return null;
+  if (fc.status === "checking" || fc.status === "pending") {
+    return <span className="text-[10px] text-brand-tan/60">checking…</span>;
+  }
+  if (fc.status !== "done") return null;
+  const tone = fc.frauds > 0 ? "bg-red-100 text-red-700" : fc.successRate >= 70 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700";
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${tone}`}>
+      {fc.delivered}/{fc.totalParcels} ✓{fc.frauds > 0 ? ` · ${fc.frauds}⚠` : ""}
+    </span>
+  );
+}
+
 export default async function AdminOrdersPage() {
   const orders = await getOrders();
 
@@ -48,6 +63,7 @@ export default async function AdminOrdersPage() {
                         <td className="px-4 py-3 text-brand-brown/80">
                           {order.user?.name || order.shippingAddress?.name || "Guest"}
                           <div className="text-xs text-brand-tan">{order.shippingAddress?.phone}</div>
+                          <div className="mt-1"><FraudBadge fc={order.fraudCheck} /></div>
                         </td>
                         <td className="px-4 py-3 text-brand-brown/70 whitespace-nowrap">{order.items.length} item{order.items.length > 1 ? "s" : ""}</td>
                         <td className="px-4 py-3 font-medium text-brand-brown whitespace-nowrap">{formatPrice(order.totalAmount)}</td>
@@ -79,9 +95,10 @@ export default async function AdminOrdersPage() {
                     <p className="text-xs text-brand-tan mt-0.5 truncate">
                       {order.user?.name || order.shippingAddress?.name || "Guest"} · {order.items.length} item{order.items.length > 1 ? "s" : ""}
                     </p>
-                    <div className="flex items-center gap-1.5 mt-2">
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <Pill tone={PAYMENT_TONE[order.paymentStatus] || "gray"}>{order.paymentStatus}</Pill>
                       <Pill tone={STATUS_TONE[order.orderStatus] || "gray"}>{order.orderStatus}</Pill>
+                      <FraudBadge fc={order.fraudCheck} />
                       <span className="text-[11px] text-brand-tan ml-auto">{new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>
                     </div>
                   </div>

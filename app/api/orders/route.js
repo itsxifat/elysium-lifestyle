@@ -8,6 +8,7 @@ import Settings from "@/models/Settings";
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { escapeRegExp } from "@/lib/utils";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
+import { runFraudCheckForOrder } from "@/lib/fraud";
 
 export async function GET(request) {
   const { error } = await requireAdmin(request);
@@ -119,17 +120,22 @@ export async function POST(request) {
           { $inc: { "variants.$.stock": -item.quantity } }
         );
       }
-      await Order.findByIdAndUpdate(order._id, { orderStatus: "processing" });
+      // Order intentionally stays "pending". The Steadfast fraud check below
+      // may auto-advance it to "processing" once the customer's courier history
+      // clears the thresholds configured in Settings.
 
       const toEmail = session?.user?.email || data.guestEmail;
       if (toEmail) {
-        const populatedOrder = { ...order.toObject(), orderStatus: "processing" };
         sendEmail({
           to: toEmail,
           subject: `Order Confirmed — ${orderNumber}`,
-          html: orderConfirmationTemplate(populatedOrder),
+          html: orderConfirmationTemplate(order.toObject()),
         }).catch(console.error);
       }
+
+      // Auto fraud/delivery-history check on the order's phone — stores the
+      // result on the order and may auto-move it to "processing".
+      runFraudCheckForOrder(order._id, data.shippingAddress?.phone).catch(() => {});
 
       // Primary, unblockable Purchase signal (server-side, real customer IP/UA
       // from this request). Fire-and-forget so it never delays the response.

@@ -9,6 +9,7 @@ import {
   FolderTree, Check, X, Upload, Star,
 } from "lucide-react";
 import { slugify, shouldUnoptimizeImage } from "@/lib/utils";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 async function uploadFile(file) {
   const form = new FormData();
@@ -300,13 +301,12 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button type="submit" className="btn-primary text-[11px] tracking-[2px] flex items-center gap-2">
-          <Check size={13} strokeWidth={2} />
-          {editing ? "Save Changes" : "Create Category"}
-        </button>
-        <button type="button" onClick={onCancel} className="btn-outline text-[11px] tracking-[2px]">
+        <Button type="submit">
+          <Check size={13} /> {editing ? "Save Changes" : "Create Category"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -351,20 +351,16 @@ export default function AdminCategoriesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Categories</h1>
-          <p className="text-sm text-brand-tan mt-1">
-            Manage category hierarchy · <span className="text-amber-600 font-medium">{featuredCount}/3 featured</span> on homepage
-          </p>
-        </div>
-        <button
-          onClick={() => setPanel({ mode: "add", defaultParent: null })}
-          className="btn-primary text-[11px] tracking-[2px] flex items-center gap-2"
-        >
-          <Plus size={14} strokeWidth={2} /> Add Category
-        </button>
-      </div>
+      <PageHeader
+        icon={FolderTree}
+        title="Categories"
+        subtitle={<>Manage category hierarchy · <span className="text-amber-600 font-medium">{featuredCount}/3 featured</span> on homepage</>}
+        actions={
+          <Button onClick={() => setPanel({ mode: "add", defaultParent: null })}>
+            <Plus size={14} /> Add Category
+          </Button>
+        }
+      />
 
       <div className={`grid gap-6 ${panel ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
         {/* Tree list */}

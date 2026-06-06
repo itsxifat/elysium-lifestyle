@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { Plus, X, GripVertical, Ruler } from "lucide-react";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 export default function AdminMasterSizesPage() {
   const [sizes, setSizes] = useState([]);
@@ -86,17 +87,16 @@ export default function AdminMasterSizesPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Master Sizes</h1>
-          <p className="text-sm text-brand-tan mt-1">
-            Define the global size pool — these appear when adding variants to any product
-          </p>
-        </div>
-        <button onClick={handleSave} disabled={saving} className="btn-primary text-[11px] tracking-[2px] disabled:opacity-60">
-          {saving ? "Saving…" : "Save Sizes"}
-        </button>
-      </div>
+      <PageHeader
+        icon={Ruler}
+        title="Master Sizes"
+        subtitle="Define the global size pool — these appear when adding variants to any product"
+        actions={
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Sizes"}
+          </Button>
+        }
+      />
 
       <div className="max-w-2xl space-y-5">
 
@@ -182,9 +182,9 @@ export default function AdminMasterSizesPage() {
           </p>
         </div>
 
-        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+        <Button onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save Master Sizes"}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import { validateSSLCommerz } from "@/lib/sslcommerz";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
+import { runFraudCheckForOrder } from "@/lib/fraud";
 
 export async function POST(request) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -78,6 +79,10 @@ export async function POST(request) {
     // customer's browser), so we don't pass the request — the customer's IP/UA
     // arrive via the deduped client Purchase fired on the confirmation page.
     trackPurchaseFromOrder(order).catch(() => {});
+
+    // Store the courier fraud history on the order too (paid orders keep their
+    // "processing" status — this is for the admin's visibility).
+    runFraudCheckForOrder(order._id, order.shippingAddress?.phone).catch(() => {});
 
     return NextResponse.redirect(
       `${baseUrl}/order-confirmation/${order._id.toString()}`

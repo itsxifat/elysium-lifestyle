@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal, Activity, BarChart3 } from "lucide-react";
+import { SlidersHorizontal, Activity, BarChart3, Radio } from "lucide-react";
+import { PageHeader } from "@/components/admin/ui";
 import ConfigPanel from "./ConfigPanel";
 import EventsPanel from "./EventsPanel";
 import DashboardPanel from "./DashboardPanel";
@@ -17,12 +18,11 @@ export default function TrackingClient() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-brand-brown">Tracking & Conversions</h1>
-        <p className="text-[13px] text-gray-400 mt-0.5">
-          First-party, server-side event forwarding to Meta CAPI & GA4 — config, live monitoring and health.
-        </p>
-      </div>
+      <PageHeader
+        icon={Radio}
+        title="Tracking & Conversions"
+        subtitle="First-party, server-side event forwarding to Meta CAPI & GA4 — config, live monitoring and health."
+      />
 
       <div className="flex gap-1 mb-6 border-b border-gray-200">
         {TABS.map((t) => (

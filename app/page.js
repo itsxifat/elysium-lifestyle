@@ -6,6 +6,7 @@ import Category from "@/models/Category";
 import Settings from "@/models/Settings";
 import { serializeDoc } from "@/lib/utils";
 import HeroSlider from "@/components/home/HeroSlider";
+import ValueProps from "@/components/home/ValueProps";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import FeaturedProducts from "@/components/home/FeaturedProducts";
 import PromoBanner from "@/components/home/PromoBanner";
@@ -16,6 +17,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import CartDrawer from "@/components/layout/CartDrawer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
+import TrackingBootstrap from "@/components/tracking/TrackingBootstrap";
 
 async function getHomeData() {
   try {
@@ -45,9 +47,23 @@ async function getHomeData() {
         .lean();
     }
 
+    // Graceful fallback: if nothing is flagged featured / new-arrival yet, show
+    // the most recent products so the homepage never collapses to empty.
+    let featured = featuredProducts;
+    let arrivals = newArrivals;
+    if (featured.length === 0 || arrivals.length === 0) {
+      const recent = await Product.find({ isPublished: true })
+        .populate("category", "name slug gender")
+        .sort({ createdAt: -1 })
+        .limit(16)
+        .lean();
+      if (featured.length === 0) featured = recent.slice(0, 8);
+      if (arrivals.length === 0) arrivals = recent.slice(8, 16);
+    }
+
     return {
-      featuredProducts: serializeDoc(featuredProducts),
-      newArrivals: serializeDoc(newArrivals),
+      featuredProducts: serializeDoc(featured),
+      newArrivals: serializeDoc(arrivals),
       categories: serializeDoc(categories),
       heroSlides: serializeDoc(settings?.heroSlides || []),
       promoBanner: serializeDoc(settings?.promoBanner || null),
@@ -63,9 +79,11 @@ export default async function HomePage() {
 
   return (
     <>
+      <TrackingBootstrap />
       <Navbar />
       <main className="pt-[100px] lg:pt-[146px]">
         <HeroSlider slides={heroSlides} />
+        <ValueProps />
         <CategoryGrid categories={categories} />
         <FeaturedProducts products={featuredProducts} />
         <PromoBanner promoBanner={promoBanner} />

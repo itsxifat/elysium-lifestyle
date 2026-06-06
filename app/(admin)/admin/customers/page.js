@@ -7,6 +7,7 @@ import {
   Trash2, Pencil, ChevronLeft, ChevronRight, Eye,
   Mail, Phone, MapPin, Calendar, CheckCircle, XCircle,
 } from "lucide-react";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function RoleBadge({ role }) {
@@ -212,12 +213,9 @@ function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
         {/* Footer actions */}
         {user && (
           <div className="flex gap-3 px-6 py-4 border-t border-brand-tan/20 flex-shrink-0">
-            <button
-              onClick={() => onEdit(user)}
-              className="btn-primary text-[11px] tracking-[2px] flex-1 flex items-center justify-center gap-2"
-            >
-              <Pencil size={13} strokeWidth={2} /> Edit User
-            </button>
+            <Button onClick={() => onEdit(user)} className="flex-1">
+              <Pencil size={13} /> Edit User
+            </Button>
             <button
               onClick={() => onDelete(user)}
               className="flex items-center gap-2 px-4 py-2.5 text-[11px] uppercase tracking-[2px] border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
@@ -361,22 +359,18 @@ function UserFormModal({ mode, user, onClose, onSaved }) {
                   onChange={(e) => set("emailVerified", e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-9 h-5 bg-brand-tan/40 rounded-full peer peer-checked:bg-brand-terracotta transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-all peer-checked:after:translate-x-4" />
+                <div className="w-11 h-6 bg-brand-tan/40 rounded-full peer peer-checked:bg-brand-terracotta transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-all peer-checked:after:translate-x-5" />
               </label>
             </div>
           )}
 
           <div className="flex gap-3 pt-2">
-            <button
-              onClick={submit}
-              disabled={saving}
-              className="btn-primary text-[11px] tracking-[2px] flex-1 flex items-center justify-center gap-2 disabled:opacity-60"
-            >
+            <Button onClick={submit} disabled={saving} className="flex-1">
               {saving ? "Saving…" : mode === "edit" ? "Save Changes" : "Create User"}
-            </button>
-            <button onClick={onClose} className="btn-outline text-[11px] tracking-[2px]">
+            </Button>
+            <Button variant="outline" onClick={onClose}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -459,21 +453,16 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">User Management</h1>
-          <p className="text-sm text-brand-tan mt-1">
-            {total} {total === 1 ? "user" : "users"} total
-          </p>
-        </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="btn-primary text-[11px] tracking-[2px] flex items-center gap-2"
-        >
-          <Plus size={14} strokeWidth={2} /> Add User
-        </button>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="User Management"
+        subtitle={`${total} ${total === 1 ? "user" : "users"} total`}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus size={14} /> Add User
+          </Button>
+        }
+      />
 
       {/* Stats */}
       {stats && (

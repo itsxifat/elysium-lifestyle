@@ -54,6 +54,24 @@ const orderSchema = new mongoose.Schema(
     transactionId: { type: String },
     valId: { type: String },
     notes: { type: String },
+
+    // Steadfast (Packzy) courier fraud/delivery history for the order's phone,
+    // fetched automatically on order creation. See lib/fraud.js.
+    fraudCheck: {
+      status: {
+        type: String,
+        enum: ["pending", "checking", "done", "error", "skipped", "unavailable"],
+        default: "pending",
+      },
+      delivered: { type: Number, default: 0 },
+      cancelled: { type: Number, default: 0 },
+      frauds: { type: Number, default: 0 },
+      totalParcels: { type: Number, default: 0 },
+      successRate: { type: Number, default: 0 }, // delivered / total, %
+      autoProcessed: { type: Boolean, default: false }, // did it auto-move to processing
+      checkedAt: { type: Date, default: null },
+      error: { type: String, default: "" },
+    },
   },
   { timestamps: true }
 );

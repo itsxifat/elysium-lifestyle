@@ -21,14 +21,11 @@ export default async function EditProductPage({ params }) {
   if (!product) notFound();
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-brand-brown mb-6">Edit Product</h1>
-      <ProductForm
-        categories={categories}
-        defaultValues={product}
-        isEdit
-        productId={params.id}
-      />
-    </div>
+    <ProductForm
+      categories={categories}
+      defaultValues={product}
+      isEdit
+      productId={params.id}
+    />
   );
 }

@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { Button } from "@/components/admin/ui";
+import { FraudStats } from "@/components/admin/FraudsClient";
 import Badge from "@/components/ui/Badge";
 import toast from "react-hot-toast";
 
@@ -16,6 +18,27 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
+
+  const recheckFraud = async () => {
+    setRechecking(true);
+    try {
+      const res = await fetch("/api/admin/fraud/recheck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: id }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setOrder((o) => ({ ...o, fraudCheck: d.fraudCheck, orderStatus: d.orderStatus }));
+        toast.success("Fraud check refreshed");
+      } else toast.error(d.error || "Recheck failed");
+    } catch {
+      toast.error("Recheck failed");
+    } finally {
+      setRechecking(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/orders/${id}`)
@@ -147,6 +170,42 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
 
+          {/* Steadfast fraud / delivery history (fetched automatically on order) */}
+          <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-brand-brown flex items-center gap-2">
+                <ShieldAlert size={16} className="text-brand-terracotta" /> Fraud Check
+              </h2>
+              <button onClick={recheckFraud} disabled={rechecking} className="text-[11px] text-brand-terracotta hover:underline disabled:opacity-50">
+                {rechecking ? "Checking…" : "Recheck"}
+              </button>
+            </div>
+            {(() => {
+              const fc = order.fraudCheck;
+              if (fc?.status === "done") {
+                return (
+                  <>
+                    <FraudStats data={fc} />
+                    <p className="text-[11px] text-brand-tan mt-3">
+                      Checked {fc.checkedAt ? new Date(fc.checkedAt).toLocaleString() : ""}
+                      {fc.autoProcessed && <span className="text-emerald-600"> · auto-moved to processing</span>}
+                    </p>
+                  </>
+                );
+              }
+              if (fc?.status === "checking" || fc?.status === "pending") {
+                return <p className="text-sm text-brand-tan animate-pulse">Checking courier history…</p>;
+              }
+              if (fc?.status === "skipped") {
+                return <p className="text-sm text-brand-tan">Auto fraud check is disabled in Settings.</p>;
+              }
+              if (fc?.status === "unavailable") {
+                return <p className="text-sm text-amber-700">Steadfast package not installed on the server.</p>;
+              }
+              return <p className="text-sm text-red-600">{fc?.error || "No fraud data available."}</p>;
+            })()}
+          </div>
+
           <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Payment</h2>
             <div className="space-y-2 text-sm">
@@ -168,13 +227,13 @@ export default function AdminOrderDetailPage() {
               )}
             </div>
             {order.paymentMethod === "cod" && order.paymentStatus === "pending" && (
-              <button
+              <Button
                 onClick={() => updateStatus("paymentStatus", "paid")}
                 disabled={updating}
-                className="btn-primary w-full text-center mt-4 py-2 text-xs"
+                className="w-full mt-4"
               >
                 Mark as Paid
-              </button>
+              </Button>
             )}
           </div>
 

@@ -6,28 +6,8 @@ import { cn } from "@/lib/utils";
 // Shared, dependency-free UI primitives for the tracking admin (toggles,
 // badges, stat cards, JSON inspector, and lightweight SVG charts).
 
-export function Toggle({ checked, onChange, disabled }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-brand-terracotta" : "bg-gray-300",
-        disabled && "opacity-40 cursor-not-allowed"
-      )}
-      aria-pressed={checked}
-    >
-      <span
-        className={cn(
-          "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-[18px]" : "translate-x-[3px]"
-        )}
-      />
-    </button>
-  );
-}
+// Use the single canonical Toggle so tracking matches the rest of the admin.
+export { Toggle } from "@/components/admin/ui";
 
 const STATUS_STYLES = {
   success: "bg-green-100 text-green-700 border-green-200",

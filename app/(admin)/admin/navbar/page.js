@@ -4,19 +4,9 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import {
   Plus, Trash2, MoveUp, MoveDown, Zap, ZapOff,
-  Eye, EyeOff, Tag, Link as LinkIcon, Save,
+  Eye, EyeOff, Tag, Link as LinkIcon, Save, Navigation,
 } from "lucide-react";
-
-function Toggle({ checked, onChange, size = "sm" }) {
-  const w = size === "sm" ? "w-9 h-5" : "w-11 h-6";
-  const dot = size === "sm" ? "after:w-4 after:h-4 peer-checked:after:translate-x-4" : "after:w-5 after:h-5 peer-checked:after:translate-x-5";
-  return (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
-      <div className={`${w} bg-brand-tan/40 rounded-full peer peer-checked:bg-brand-terracotta transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all ${dot}`} />
-    </label>
-  );
-}
+import { PageHeader, Button, Toggle } from "@/components/admin/ui";
 
 export default function AdminNavbarPage() {
   const [navItems, setNavItems] = useState([]);
@@ -96,16 +86,16 @@ export default function AdminNavbarPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Navbar Configuration</h1>
-          <p className="text-sm text-brand-tan mt-1">Configure what appears in the top navigation. Highlighted items show in terracotta with a shake effect.</p>
-        </div>
-        <button onClick={save} disabled={saving} className="btn-primary text-[11px] tracking-[2px] flex items-center gap-2 disabled:opacity-60">
-          <Save size={13} strokeWidth={2} />
-          {saving ? "Saving…" : "Save Navbar"}
-        </button>
-      </div>
+      <PageHeader
+        icon={Navigation}
+        title="Navbar Configuration"
+        subtitle="Configure what appears in the top navigation. Highlighted items show in terracotta with a shake effect."
+        actions={
+          <Button onClick={save} disabled={saving}>
+            <Save size={13} /> {saving ? "Saving…" : "Save Navbar"}
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -265,12 +255,9 @@ export default function AdminNavbarPage() {
                 <Toggle checked={newHighlight} onChange={setNewHighlight} />
               </div>
 
-              <button
-                onClick={addItem}
-                className="w-full btn-primary text-[11px] tracking-[2px] flex items-center justify-center gap-2"
-              >
-                <Plus size={14} strokeWidth={2} /> Add Item
-              </button>
+              <Button onClick={addItem} className="w-full">
+                <Plus size={14} /> Add Item
+              </Button>
             </div>
           </div>
 
@@ -302,10 +289,9 @@ export default function AdminNavbarPage() {
       {/* Floating save */}
       {navItems.length > 0 && (
         <div className="fixed bottom-6 right-6 z-50">
-          <button onClick={save} disabled={saving} className="btn-primary shadow-lg flex items-center gap-2 disabled:opacity-60">
-            <Save size={15} strokeWidth={2} />
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
+          <Button onClick={save} disabled={saving} className="shadow-lg">
+            <Save size={15} /> {saving ? "Saving…" : "Save Changes"}
+          </Button>
         </div>
       )}
     </div>

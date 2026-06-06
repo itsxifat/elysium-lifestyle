@@ -6,6 +6,7 @@ import {
   Plus, Trash2, ChevronRight, ArrowLeft,
   TableProperties, PenLine, ColumnSpacingIcon,
 } from "lucide-react";
+import { PageHeader, Button } from "@/components/admin/ui";
 
 function EmptyState({ onNew }) {
   return (
@@ -15,9 +16,9 @@ function EmptyState({ onNew }) {
       </div>
       <h3 className="text-[13px] font-semibold text-brand-brown uppercase tracking-wider mb-1">No Size Charts Yet</h3>
       <p className="text-[12px] text-brand-tan mb-6">Create your first chart to assign it to products</p>
-      <button onClick={onNew} className="btn-primary text-[11px] tracking-[2px]">
-        <Plus size={13} className="inline mr-2" /> Create First Chart
-      </button>
+      <Button onClick={onNew}>
+        <Plus size={13} /> Create First Chart
+      </Button>
     </div>
   );
 }
@@ -274,17 +275,16 @@ export default function AdminSizeChartsPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-brown">Size Charts</h1>
-          <p className="text-sm text-brand-tan mt-1">Create spreadsheet-style charts and assign them to products</p>
-        </div>
-        {draft && (
-          <button onClick={handleSave} disabled={saving} className="btn-primary text-[11px] tracking-[2px] disabled:opacity-60">
+      <PageHeader
+        icon={TableProperties}
+        title="Size Charts"
+        subtitle="Create spreadsheet-style charts and assign them to products"
+        actions={draft ? (
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save Chart"}
-          </button>
-        )}
-      </div>
+          </Button>
+        ) : null}
+      />
 
       <div className="bg-white border border-brand-tan/20 flex" style={{ minHeight: 500 }}>
         {/* Sidebar list */}
@@ -315,12 +315,12 @@ export default function AdminSizeChartsPage() {
                   className="w-full rounded-lg border border-brand-tan/30 px-4 py-3 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors bg-transparent"
                 />
                 <div className="flex gap-2">
-                  <button onClick={handleCreate} disabled={saving} className="flex-1 btn-primary disabled:opacity-60 text-sm">
+                  <Button onClick={handleCreate} disabled={saving} className="flex-1">
                     {saving ? "Creating…" : "Create Chart"}
-                  </button>
-                  <button onClick={() => setCreatingNew(false)} className="btn-outline text-sm px-4">
+                  </Button>
+                  <Button variant="outline" onClick={() => setCreatingNew(false)}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

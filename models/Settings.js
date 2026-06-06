@@ -36,6 +36,15 @@ const settingsSchema = new mongoose.Schema(
       fromName: { type: String, default: "Elysium Lifestyle" },
       fromEmail: { type: String, default: "" },
     },
+    // Steadfast fraud check + auto-processing rules. A new order stays PENDING
+    // until the courier history clears the thresholds below — then it auto-moves
+    // to "processing".
+    fraud: {
+      autoCheck: { type: Boolean, default: true }, // run the Steadfast check on new orders
+      autoProcess: { type: Boolean, default: true }, // auto-move to processing when thresholds met
+      minDelivery: { type: Number, default: 10 }, // min total parcels in history
+      minSuccessfulDelivery: { type: Number, default: 10 }, // min successful (delivered) parcels
+    },
     // Desktop: 1920×750 px (16:6.25 ≈ 2.56:1) — Mobile: 750×1000 px (3:4)
     heroSlides: [
       {
