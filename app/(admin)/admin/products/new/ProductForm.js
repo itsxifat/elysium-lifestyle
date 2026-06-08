@@ -104,6 +104,7 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
       if (!res.ok) { toast.error(result.error || "Failed to save"); return; }
       toast.success(isEdit ? "Product updated!" : "Product created!");
       router.push("/admin/products");
+      router.refresh(); // invalidate the App Router cache so the list + re-edit show fresh data
     } catch { toast.error("Something went wrong"); }
     finally { setSaving(false); }
   };

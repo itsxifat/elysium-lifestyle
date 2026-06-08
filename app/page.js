@@ -6,7 +6,6 @@ import Category from "@/models/Category";
 import Settings from "@/models/Settings";
 import { serializeDoc } from "@/lib/utils";
 import HeroSlider from "@/components/home/HeroSlider";
-import ValueProps from "@/components/home/ValueProps";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import FeaturedProducts from "@/components/home/FeaturedProducts";
 import PromoBanner from "@/components/home/PromoBanner";
@@ -83,7 +82,6 @@ export default async function HomePage() {
       <Navbar />
       <main className="pt-[100px] lg:pt-[146px]">
         <HeroSlider slides={heroSlides} />
-        <ValueProps />
         <CategoryGrid categories={categories} />
         <FeaturedProducts products={featuredProducts} />
         <PromoBanner promoBanner={promoBanner} />

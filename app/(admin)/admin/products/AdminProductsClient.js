@@ -3,14 +3,40 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Edit, Trash2, Eye, EyeOff, Search, Package } from "lucide-react";
+import { Edit, Trash2, Eye, EyeOff, Search, Package, Copy, X } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import toast from "react-hot-toast";
-import { Card, TextInput, Pill, EmptyState, TableWrap } from "@/components/admin/ui";
+import { Card, TextInput, Pill, EmptyState, TableWrap, Button, Field } from "@/components/admin/ui";
 
 export default function AdminProductsClient({ initialProducts }) {
   const [products, setProducts] = useState(initialProducts);
   const [search, setSearch] = useState("");
+  const [dupTarget, setDupTarget] = useState(null);
+  const [dupCount, setDupCount] = useState(1);
+  const [duplicating, setDuplicating] = useState(false);
+
+  const handleDuplicate = async () => {
+    if (!dupTarget) return;
+    const count = Math.min(20, Math.max(1, Number(dupCount) || 1));
+    setDuplicating(true);
+    try {
+      const res = await fetch(`/api/products/${dupTarget._id}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      setProducts((prev) => [...(d.products || []), ...prev]); // show new drafts at the top
+      toast.success(`Created ${d.created} duplicate${d.created > 1 ? "s" : ""} (draft)`);
+      setDupTarget(null);
+      setDupCount(1);
+    } catch (err) {
+      toast.error(err.message || "Failed to duplicate");
+    } finally {
+      setDuplicating(false);
+    }
+  };
 
   const filtered = products.filter(
     (p) =>
@@ -58,6 +84,9 @@ export default function AdminProductsClient({ initialProducts }) {
       <button onClick={() => handleTogglePublish(product)} className="p-1.5 rounded-md text-brand-tan hover:text-brand-brown hover:bg-brand-cream/70 transition-colors" title={product.isPublished ? "Unpublish" : "Publish"}>
         {product.isPublished ? <EyeOff size={15} /> : <Eye size={15} />}
       </button>
+      <button onClick={() => { setDupTarget(product); setDupCount(1); }} className="p-1.5 rounded-md text-brand-tan hover:text-brand-brown hover:bg-brand-cream/70 transition-colors" title="Duplicate">
+        <Copy size={15} />
+      </button>
       <Link href={`/admin/products/${product._id}/edit`} className="p-1.5 rounded-md text-brand-tan hover:text-brand-brown hover:bg-brand-cream/70 transition-colors" title="Edit">
         <Edit size={15} />
       </Link>
@@ -68,6 +97,7 @@ export default function AdminProductsClient({ initialProducts }) {
   );
 
   return (
+    <>
     <Card padded={false}>
       <div className="p-4 border-b border-brand-tan/12">
         <div className="relative max-w-sm">
@@ -149,5 +179,34 @@ export default function AdminProductsClient({ initialProducts }) {
         </>
       )}
     </Card>
+
+    {/* Duplicate modal */}
+    {dupTarget && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !duplicating && setDupTarget(null)}>
+        <div className="absolute inset-0 bg-brand-brown/40 backdrop-blur-sm" />
+        <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Copy size={16} className="text-brand-terracotta flex-shrink-0" />
+              <h3 className="font-semibold text-brand-brown">Duplicate product</h3>
+            </div>
+            <button onClick={() => setDupTarget(null)} className="text-brand-tan hover:text-brand-brown"><X size={16} /></button>
+          </div>
+          <p className="text-[13px] text-brand-tan mb-4">
+            Make copies of <span className="font-medium text-brand-brown">{dupTarget.name}</span> — same name, images and variants. Copies are created as <span className="font-medium">drafts</span> so you can change the photos, then publish.
+          </p>
+          <Field label="How many duplicates?">
+            <TextInput type="number" min="1" max="20" value={dupCount} onChange={(e) => setDupCount(e.target.value)} autoFocus />
+          </Field>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDupTarget(null)} disabled={duplicating}>Cancel</Button>
+            <Button onClick={handleDuplicate} disabled={duplicating}>
+              {duplicating ? "Duplicating…" : `Create ${Math.min(20, Math.max(1, Number(dupCount) || 1))}`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

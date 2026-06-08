@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
-import { deleteFromCDN } from "@/lib/cdn";
+import { deleteImageIfUnreferenced } from "@/lib/images";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -46,7 +46,7 @@ export async function PUT(request) {
   await User.findByIdAndUpdate(session.user.id, { $set: update });
 
   if (previousImage && previousImage !== image) {
-    await deleteFromCDN(previousImage);
+    await deleteImageIfUnreferenced(previousImage);
   }
   return NextResponse.json({ success: true });
 }

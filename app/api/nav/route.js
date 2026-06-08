@@ -1,3 +1,7 @@
+// Must run per-request — otherwise Next statically caches this and the storefront
+// navbar freezes on the first response, ignoring admin nav changes.
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Settings from "@/models/Settings";

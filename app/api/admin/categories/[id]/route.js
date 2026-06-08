@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/mongoose";
 import Category from "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
-import { deleteFromCDN } from "@/lib/cdn";
+import { deleteImageIfUnreferenced } from "@/lib/images";
 
 export async function GET(_, { params }) {
   try {
@@ -39,7 +39,7 @@ export async function PUT(request, { params }) {
     if (!cat) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     if (before?.image && before.image !== data.image) {
-      await deleteFromCDN(before.image);
+      await deleteImageIfUnreferenced(before.image);
     }
     return NextResponse.json(cat);
   } catch (err) {
@@ -63,7 +63,7 @@ export async function DELETE(_, { params }) {
       );
     }
     const cat = await Category.findByIdAndDelete(params.id);
-    if (cat?.image) await deleteFromCDN(cat.image);
+    if (cat?.image) await deleteImageIfUnreferenced(cat.image);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });

@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
 import "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
-import { deleteFromCDN } from "@/lib/cdn";
+import { deleteImageIfUnreferenced } from "@/lib/images";
 
 export async function GET(request, { params }) {
   try {
@@ -53,7 +53,7 @@ export async function PUT(request, { params }) {
     // Delete from the CDN any image that was on the product but isn't anymore.
     if (before) {
       const removed = (before.images || []).filter((u) => !data.images.includes(u));
-      await Promise.all(removed.map((u) => deleteFromCDN(u)));
+      await Promise.all(removed.map((u) => deleteImageIfUnreferenced(u)));
     }
 
     return NextResponse.json(product);
@@ -72,8 +72,9 @@ export async function DELETE(request, { params }) {
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
-    // Remove the product's images from the CDN so they stop using storage.
-    await Promise.all((product.images || []).map((u) => deleteFromCDN(u)));
+    // Remove the product's images from the CDN — but only those no longer used
+    // by any other product/category/duplicate.
+    await Promise.all((product.images || []).map((u) => deleteImageIfUnreferenced(u)));
     return NextResponse.json({ message: "Product deleted successfully" });
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });

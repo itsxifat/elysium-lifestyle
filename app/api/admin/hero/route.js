@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Settings from "@/models/Settings";
 import { requireAdmin } from "@/lib/auth";
-import { deleteFromCDN } from "@/lib/cdn";
+import { deleteImageIfUnreferenced } from "@/lib/images";
 
 // Collect every image URL referenced by a set of hero slides.
 function slideImages(slides) {
@@ -42,7 +42,7 @@ export async function PUT(request) {
     // (slide removed, image cleared, or image replaced).
     const next = slideImages(heroSlides);
     const removed = [...slideImages(before?.heroSlides)].filter((u) => !next.has(u));
-    await Promise.all(removed.map((u) => deleteFromCDN(u)));
+    await Promise.all(removed.map((u) => deleteImageIfUnreferenced(u)));
 
     return NextResponse.json({ ok: true });
   } catch {
