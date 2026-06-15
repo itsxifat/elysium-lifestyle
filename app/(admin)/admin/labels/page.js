@@ -213,6 +213,7 @@ export default function LabelsPage() {
 
   const [sizeKey, setSizeKey] = useState("3x2");
   const [orientation, setOrientation] = useState("landscape");
+  const [printerRotation, setPrinterRotation] = useState("reverse");
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
   const [opts, setOpts] = useState({ showLogo: true, showBarcode: true, showPrices: true, showCod: true });
@@ -263,6 +264,9 @@ export default function LabelsPage() {
   const portraitH = [baseW, baseH].sort((a, b) => parseFloat(a) - parseFloat(b))[1];
   const w = orientation === "landscape" ? portraitH : portraitW;
   const h = orientation === "landscape" ? portraitW : portraitH;
+  const reversePrint = printerRotation === "reverse";
+  const printW = reversePrint ? h : w;
+  const printH = reversePrint ? w : h;
   const pad = size.pad;
   const labelLayout = orientation === "landscape" ? "landscape" : "portrait";
 
@@ -281,7 +285,7 @@ export default function LabelsPage() {
       html,
       body,
       body > div {
-        width: ${w};
+        width: ${printW};
         height: auto;
         min-height: 0 !important;
         margin: 0 !important;
@@ -303,7 +307,7 @@ export default function LabelsPage() {
       .admin-main,
       .admin-main-inner {
         display: block !important;
-        width: ${w} !important;
+        width: ${printW} !important;
         min-width: 0 !important;
         height: auto !important;
         min-height: 0 !important;
@@ -324,7 +328,7 @@ export default function LabelsPage() {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
-        width: ${w};
+        width: ${printW};
         min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -332,16 +336,30 @@ export default function LabelsPage() {
       }
       .label-sheet {
         display: block !important;
-        width: ${w};
-        height: ${h};
+        position: relative !important;
+        width: ${printW};
+        height: ${printH};
         margin: 0 !important;
-        padding: ${pad};
+        padding: 0 !important;
         box-sizing: border-box;
         overflow: hidden;
         break-inside: avoid;
         page-break-inside: avoid;
         break-after: page;
         page-break-after: always;
+      }
+      .label-print-frame {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: ${w};
+        height: ${h};
+        padding: ${pad};
+        box-sizing: border-box;
+        overflow: hidden;
+        background: #fff !important;
+        transform-origin: top left;
+        ${reversePrint ? `transform: rotate(90deg) translateY(-100%);` : `transform: none;`}
       }
       .label-content--landscape,
       .label-content--portrait {
@@ -350,7 +368,7 @@ export default function LabelsPage() {
         height: 100% !important;
       }
       .label-sheet:last-child { page-break-after: auto; break-after: auto; }
-      @page { size: ${w} ${h}; margin: 0; }
+      @page { size: ${printW} ${printH}; margin: 0; }
     }
   `;
 
@@ -453,8 +471,14 @@ export default function LabelsPage() {
                 <option value="portrait">Vertical / portrait</option>
               </Select>
             </Field>
+            <Field label="Printer rotation">
+              <Select value={printerRotation} onChange={(e) => setPrinterRotation(e.target.value)}>
+                <option value="reverse">Reverse for GP-3120TUD</option>
+                <option value="normal">Normal browser orientation</option>
+              </Select>
+            </Field>
             <p className="text-[11px] text-brand-tan">
-              Print size: {w} x {h}. For GP-3120TUD, use horizontal with 3&quot; x 2&quot; or 2&quot; x 3&quot; media when the printer feeds sideways.
+              Preview size: {w} x {h}. Printer page: {printW} x {printH}.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
@@ -491,7 +515,9 @@ export default function LabelsPage() {
       <div id="label-print-root">
         {selectedOrders.map((o) => (
           <div key={o._id} className="label-sheet">
-            <Label order={o} shop={shop} opts={opts} layout={labelLayout} />
+            <div className="label-print-frame">
+              <Label order={o} shop={shop} opts={opts} layout={labelLayout} />
+            </div>
           </div>
         ))}
       </div>
