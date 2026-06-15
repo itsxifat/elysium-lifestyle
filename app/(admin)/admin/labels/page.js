@@ -286,23 +286,60 @@ export default function LabelsPage() {
       overflow: hidden;
     }
     @media print {
-      html, body {
+      html,
+      body,
+      body > div {
         width: ${w};
-        min-height: ${h};
+        height: auto;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
         overflow: visible !important;
       }
+      *,
+      *::before,
+      *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        box-shadow: none !important;
+      }
+      body * { visibility: hidden !important; }
       .no-print { display: none !important; }
-      #label-print-root {
+      .admin-shell,
+      .admin-shell-body,
+      .admin-main,
+      .admin-main-inner {
         display: block !important;
-        position: static !important;
-        width: ${w};
+        width: ${w} !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
+        background: #fff !important;
+      }
+      .admin-mobile-spacer {
+        display: none !important;
+      }
+      #label-print-root,
+      #label-print-root * {
+        visibility: visible !important;
+      }
+      #label-print-root {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: ${w};
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
       }
       .label-sheet {
+        display: block !important;
         width: ${w};
         height: ${h};
         margin: 0 !important;
@@ -313,6 +350,12 @@ export default function LabelsPage() {
         page-break-inside: avoid;
         break-after: page;
         page-break-after: always;
+      }
+      .label-content--landscape,
+      .label-content--portrait {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
       }
       .label-sheet:last-child { page-break-after: auto; break-after: auto; }
       @page { size: ${w} ${h}; margin: 0; }
