@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Printer, Search, CheckSquare, Square, RefreshCw } from "lucide-react";
+import { Printer, Search, CheckSquare, Square, RefreshCw, Download, FileText } from "lucide-react";
 import { PageHeader, Card, Button, Select, Field, TextInput, Toggle, SectionTitle } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { useSettings } from "@/context/SettingsContext";
@@ -244,6 +244,7 @@ export default function LabelsPage() {
   const [sizeKey, setSizeKey] = useState("3x2");
   const [rotation, setRotation] = useState("90");
   const [margins, setMargins] = useState("default"); // "default" = centered, "none" = edge-to-edge
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
   const [opts, setOpts] = useState({ showLogo: true, showBarcode: true, showPrices: true, showCod: true });
@@ -369,6 +370,60 @@ export default function LabelsPage() {
     window.print();
   };
 
+  // Build an exact-size PDF — one label per page at the real label dimensions —
+  // and either print or download it. A PDF's page size is authoritative, so the
+  // printer stops re-fitting/scaling the way the browser print dialog does.
+  const generatePdf = async (mode) => {
+    if (selectedOrders.length === 0) return toast.error("Select at least one order");
+    // Open the print tab synchronously (inside the click) so it isn't popup-blocked.
+    const win = mode === "print" ? window.open("", "_blank") : null;
+    setPdfBusy(true);
+    try {
+      const [{ jsPDF }, html2canvasMod] = await Promise.all([import("jspdf"), import("html2canvas")]);
+      const html2canvas = html2canvasMod.default;
+
+      const wMm = parseFloat(Mw) || 100;
+      const hMm = parseFloat(Mh) || 150;
+      const orient = wMm >= hMm ? "landscape" : "portrait";
+      const doc = new jsPDF({ unit: "mm", format: [wMm, hMm], orientation: orient });
+
+      for (let i = 0; i < selectedOrders.length; i++) {
+        const el = document.getElementById(`cap-${selectedOrders[i]._id}`);
+        if (!el) continue;
+        const src = await html2canvas(el, { scale: 4, backgroundColor: "#ffffff", logging: false });
+
+        // Compose onto a physical-page canvas with the chosen rotation baked in.
+        const out = document.createElement("canvas");
+        out.width = swap ? src.height : src.width;
+        out.height = swap ? src.width : src.height;
+        const ctx = out.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, out.width, out.height);
+        ctx.translate(out.width / 2, out.height / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        ctx.drawImage(src, -src.width / 2, -src.height / 2);
+
+        if (i > 0) doc.addPage([wMm, hMm], orient);
+        doc.addImage(out.toDataURL("image/png"), "PNG", 0, 0, wMm, hMm);
+      }
+
+      if (mode === "print") {
+        doc.autoPrint();
+        const url = doc.output("bloburl");
+        if (win) win.location.href = url;
+        else window.open(url, "_blank");
+      } else {
+        doc.save(`labels-${Date.now()}.pdf`);
+      }
+    } catch (e) {
+      console.error("PDF error:", e);
+      toast.error("Failed to build PDF");
+      if (win) win.close();
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <div>
       {/* eslint-disable-next-line react/no-danger */}
@@ -381,8 +436,14 @@ export default function LabelsPage() {
           icon={Printer}
           actions={
             <>
-              <Button variant="outline" onClick={load}><RefreshCw size={14} /> Refresh</Button>
-              <Button onClick={doPrint} disabled={selected.size === 0}><Printer size={14} /> Print ({selected.size})</Button>
+              <Button variant="ghost" onClick={load} title="Reload orders"><RefreshCw size={14} /></Button>
+              <Button variant="ghost" onClick={doPrint} disabled={selected.size === 0} title="Browser print (fallback)"><Printer size={14} /></Button>
+              <Button variant="outline" onClick={() => generatePdf("save")} disabled={pdfBusy || selected.size === 0}>
+                <Download size={14} /> Save PDF
+              </Button>
+              <Button onClick={() => generatePdf("print")} disabled={pdfBusy || selected.size === 0}>
+                <FileText size={14} /> {pdfBusy ? "Building…" : `Print PDF (${selected.size})`}
+              </Button>
             </>
           }
         />
@@ -502,6 +563,16 @@ export default function LabelsPage() {
             <p className="text-[11px] text-brand-tan mt-2">Actual size · 1 of {selectedOrders.length || 0} selected · prints one exact page each.</p>
           </Card>
         </div>
+      </div>
+
+      {/* Off-screen capture source for the PDF export (rendered, not display:none,
+          so html2canvas can read it — and the real Bengali text renders correctly). */}
+      <div aria-hidden className="no-print" style={{ position: "fixed", left: "-99999px", top: 0, pointerEvents: "none" }}>
+        {selectedOrders.map((o) => (
+          <div key={o._id} id={`cap-${o._id}`} style={{ width: Cw, height: Ch, padding: pad, boxSizing: "border-box", background: "#fff" }}>
+            <Label order={o} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
+          </div>
+        ))}
       </div>
 
       {/* Print labels — portal'd to <body> so on print we can simply hide the

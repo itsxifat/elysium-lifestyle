@@ -11,6 +11,8 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.16.0",
     "mongoose": "^9.6.2",
     "next": "14.2.35",
