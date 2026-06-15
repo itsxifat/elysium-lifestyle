@@ -243,6 +243,7 @@ export default function LabelsPage() {
 
   const [sizeKey, setSizeKey] = useState("3x2");
   const [rotation, setRotation] = useState("90");
+  const [margins, setMargins] = useState("default"); // "default" = centered, "none" = edge-to-edge
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
   const [opts, setOpts] = useState({ showLogo: true, showBarcode: true, showPrices: true, showCod: true });
@@ -314,7 +315,9 @@ export default function LabelsPage() {
     #label-print-root { display: none; }
 
     @media print {
-      @page { size: ${Mw} ${Mh}; margin: 0; }
+      /* "none" = edge-to-edge; "default" = let the printer keep its margins so the
+         label stays centered on the media (and the top isn't clipped). */
+      @page { size: ${Mw} ${Mh};${margins === "none" ? " margin: 0;" : ""} }
       html, body {
         margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important;
       }
@@ -456,9 +459,15 @@ export default function LabelsPage() {
                 {ROTATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </Field>
+            <Field label="Margins">
+              <Select value={margins} onChange={(e) => setMargins(e.target.value)}>
+                <option value="default">Default — centered</option>
+                <option value="none">None — edge to edge</option>
+              </Select>
+            </Field>
             <p className="text-[11px] text-brand-tan leading-relaxed">
-              Page = {Mw} × {Mh} (matches your driver). If it prints sideways, change the rotation
-              until it&apos;s upright. In Chrome&apos;s print dialog set <b>Margins: None</b> and <b>Scale: 100%</b>.
+              Page = {Mw} × {Mh}. If it prints sideways, change the rotation until it&apos;s upright.
+              In Chrome&apos;s print dialog set <b>Margins: {margins === "none" ? "None" : "Default"}</b> and <b>Scale: 100%</b>.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
