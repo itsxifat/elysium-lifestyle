@@ -44,71 +44,63 @@ function Label({ order, shop, opts, layout }) {
   if (layout === "landscape") {
     return (
       <div className="label-content label-content--landscape text-black bg-white" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-        <div className="grid grid-cols-[1.05fr_0.95fr] gap-2 h-full">
+        <div className="grid grid-cols-[1fr_32mm] gap-[2mm] h-full">
           <div className="min-w-0 flex flex-col">
-            <div className="border-b-2 border-black pb-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  {opts.showLogo && <p className="font-bold text-[12px] leading-tight truncate">{shop.name}</p>}
-                  <p className="text-[8px] leading-tight">{shop.phone}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[8px] uppercase">Invoice</p>
-                  <p className="font-bold text-[10px] leading-tight">{order.orderNumber}</p>
-                </div>
-              </div>
+            <div className="border-b border-black pb-[1mm] min-w-0">
+              {opts.showLogo && <p className="font-bold text-[8px] leading-none truncate">{shop.name}</p>}
+              <p className="text-[6.5px] leading-tight truncate">{shop.phone}</p>
             </div>
 
-            <div className="py-1 border-b border-black/40">
-              <p className="text-[7px] uppercase text-black/60">Deliver to</p>
-              <p className="font-bold text-[11px] leading-tight truncate">{a.name}</p>
-              <p className="text-[10px] font-semibold leading-tight">{a.phone}</p>
-              <p className="text-[8px] leading-tight label-address">{address}</p>
+            <div className="py-[1mm] border-b border-black/35 min-w-0">
+              <p className="text-[5.5px] uppercase text-black/60 leading-none">Deliver to</p>
+              <p className="font-bold text-[8.5px] leading-tight truncate">{a.name}</p>
+              <p className="text-[8px] font-semibold leading-tight truncate">{a.phone}</p>
+              <p className="text-[6.5px] leading-tight label-address">{address}</p>
             </div>
 
-            <div className="mt-auto pt-1 flex items-end justify-between gap-2">
-              <div className="text-[7px] leading-tight">
+            <div className="mt-auto pt-[1mm] flex items-end justify-between gap-[1mm] min-w-0">
+              <div className="text-[5.8px] leading-tight min-w-0">
                 <p className="capitalize">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
                 {order.courier?.consignmentId && <p>CN: {order.courier.consignmentId}</p>}
                 <p>{new Date(order.createdAt).toLocaleDateString("en-GB")}</p>
               </div>
               {opts.showCod && (
-                <div className="text-right">
-                  <p className="text-[7px] uppercase">{cod > 0 ? "Collect" : "Paid"}</p>
-                  <p className="font-bold text-[15px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[5.5px] uppercase leading-none">{cod > 0 ? "Collect" : "Paid"}</p>
+                  <p className="font-bold text-[12px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="min-w-0 flex flex-col border-l border-black/30 pl-2">
+          <div className="min-w-0 flex flex-col border-l border-black/30 pl-[2mm]">
             {opts.showBarcode && (
-              <div className="border-b border-dashed border-black/60 pb-1">
-                <Barcode value={scan} height={30} />
-                <p className="font-mono font-bold text-[8px] leading-tight text-center truncate">{scan}</p>
+              <div className="border-b border-dashed border-black/60 pb-[0.8mm]">
+                <Barcode value={scan} height={18} />
+                <p className="font-mono font-bold text-[6.5px] leading-none text-center truncate">{scan}</p>
               </div>
             )}
-            <table className="w-full text-[8px] mt-1">
+            <table className="w-full text-[6.5px] mt-[0.8mm] table-fixed">
               <thead>
                 <tr className="border-b border-black/50">
-                  <th className="text-left font-semibold py-0.5">Item</th>
-                  <th className="text-center font-semibold">Sz</th>
-                  <th className="text-center font-semibold">Q</th>
+                  <th className="text-left font-semibold py-[0.4mm]">Item</th>
+                  <th className="text-center font-semibold w-[7mm]">Sz</th>
+                  <th className="text-center font-semibold w-[5mm]">Q</th>
                 </tr>
               </thead>
               <tbody>
-                {items.slice(0, 5).map((it, i) => (
+                {items.slice(0, 4).map((it, i) => (
                   <tr key={i} className="border-b border-black/15 align-top">
-                    <td className="py-0.5 pr-1 leading-tight truncate">{it.name}</td>
+                    <td className="py-[0.4mm] pr-[1mm] leading-tight truncate">{it.name}</td>
                     <td className="text-center">{it.size}</td>
                     <td className="text-center">{it.quantity}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {items.length > 5 && <p className="text-[7px] mt-0.5">+{items.length - 5} more item(s)</p>}
+            {items.length > 4 && <p className="text-[5.5px] mt-[0.5mm] leading-none">+{items.length - 4} more item(s)</p>}
             {opts.showPrices && (
-              <div className="mt-auto pt-1 border-t border-black text-[8px] leading-tight">
+              <div className="mt-auto pt-[0.8mm] border-t border-black text-[6.2px] leading-tight">
                 {moneyLine("Subtotal", formatPrice(order.subtotal))}
                 {moneyLine("Shipping", order.shippingFee ? formatPrice(order.shippingFee) : "Free")}
                 {order.discount > 0 && moneyLine("Discount", `-${formatPrice(order.discount)}`)}
@@ -281,7 +273,7 @@ export default function LabelsPage() {
     .label-content { width: 100%; height: 100%; overflow: hidden; }
     .label-address {
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
