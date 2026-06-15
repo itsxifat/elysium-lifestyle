@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings, ShieldAlert } from "lucide-react";
@@ -28,14 +28,18 @@ function FieldLabel({ children }) {
   return <label className="block text-[10px] uppercase tracking-widest text-brand-tan mb-1.5">{children}</label>;
 }
 
-function RawInput({ className = "", ...props }) {
+// forwardRef so react-hook-form's register() can bind the ref. Without this the
+// ref is dropped and the field never populates or saves (the bug that hit the
+// fraud thresholds + promo/announcement/testimonial inputs).
+const RawInput = forwardRef(function RawInput({ className = "", ...props }, ref) {
   return (
     <input
+      ref={ref}
       className={`w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors ${className}`}
       {...props}
     />
   );
-}
+});
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { Printer, Search, CheckSquare, Square, RefreshCw } from "lucide-react";
 import { PageHeader, Card, Button, Select, Field, TextInput, Toggle, SectionTitle } from "@/components/admin/ui";
@@ -197,12 +198,25 @@ function Label({ order, shop, opts, layout }) {
   );
 }
 
+// Rotation options. The printed @page is ALWAYS the physical label size; the
+// design is rotated inside that fixed page to compensate for how the printer
+// feeds the stock. GP-3120TUD typically needs 90°.
+const ROTATIONS = [
+  { value: "0", label: "None (0°)" },
+  { value: "90", label: "90° — GP-3120TUD" },
+  { value: "180", label: "180°" },
+  { value: "270", label: "270°" },
+];
+
 export default function LabelsPage() {
   const { settings } = useSettings();
   const shop = {
     name: settings?.siteInfo?.siteName || "Elysium Lifestyle",
     phone: settings?.siteInfo?.whatsappNumber || "",
   };
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,8 +226,7 @@ export default function LabelsPage() {
   const [selected, setSelected] = useState(() => new Set());
 
   const [sizeKey, setSizeKey] = useState("3x2");
-  const [orientation, setOrientation] = useState("landscape");
-  const [printerRotation, setPrinterRotation] = useState("reverse");
+  const [rotation, setRotation] = useState("90");
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
   const [opts, setOpts] = useState({ showLogo: true, showBarcode: true, showPrices: true, showCod: true });
@@ -258,22 +271,20 @@ export default function LabelsPage() {
     /^(\d{1,4}(\.\d+)?(mm|cm|in|px))$/.test(String(v).trim()) ? String(v).trim() : fallback;
 
   const size = SIZES[sizeKey];
-  const baseW = sizeKey === "custom" ? safeDim(customW, "100mm") : size.w;
-  const baseH = sizeKey === "custom" ? safeDim(customH, "150mm") : size.h;
-  const portraitW = [baseW, baseH].sort((a, b) => parseFloat(a) - parseFloat(b))[0];
-  const portraitH = [baseW, baseH].sort((a, b) => parseFloat(a) - parseFloat(b))[1];
-  const w = orientation === "landscape" ? portraitH : portraitW;
-  const h = orientation === "landscape" ? portraitW : portraitH;
-  const reversePrint = printerRotation === "reverse";
-  const printW = reversePrint ? h : w;
-  const printH = reversePrint ? w : h;
   const pad = size.pad;
-  const labelLayout = orientation === "landscape" ? "landscape" : "portrait";
+  // M = the physical label (what the printer driver is set to). NEVER swapped.
+  const Mw = sizeKey === "custom" ? safeDim(customW, "100mm") : size.w;
+  const Mh = sizeKey === "custom" ? safeDim(customH, "150mm") : size.h;
+
+  // The design canvas C is rotated by `rot` to exactly fill M. For 90°/270° the
+  // canvas dimensions are swapped (so the rotated box equals M).
+  const rot = Number(rotation) || 0;
+  const swap = rot === 90 || rot === 270;
+  const Cw = swap ? Mh : Mw;
+  const Ch = swap ? Mw : Mh;
+  const labelLayout = parseFloat(Cw) >= parseFloat(Ch) ? "landscape" : "portrait";
 
   const printCss = `
-    @media screen {
-      #label-print-root { position: fixed; left: -10000px; top: 0; }
-    }
     .label-content { width: 100%; height: 100%; overflow: hidden; }
     .label-address {
       display: -webkit-box;
@@ -281,94 +292,51 @@ export default function LabelsPage() {
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    /* Off-screen on screen; revealed only for print. */
+    #label-print-root { display: none; }
+
     @media print {
-      html,
-      body,
-      body > div {
-        width: ${printW};
-        height: auto;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
-        overflow: visible !important;
+      @page { size: ${Mw} ${Mh}; margin: 0; }
+      html, body {
+        margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important;
       }
-      *,
-      *::before,
-      *::after {
+      *, *::before, *::after {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         box-shadow: none !important;
       }
-      body * { visibility: hidden !important; }
-      .no-print { display: none !important; }
-      .admin-shell,
-      .admin-shell-body,
-      .admin-main,
-      .admin-main-inner {
-        display: block !important;
-        width: ${printW} !important;
-        min-width: 0 !important;
-        height: auto !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-        background: #fff !important;
-      }
-      .admin-mobile-spacer {
-        display: none !important;
-      }
-      #label-print-root,
-      #label-print-root * {
-        visibility: visible !important;
-      }
-      #label-print-root {
-        display: block !important;
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: ${printW};
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
-      }
+      /* The whole app UI is hidden; only the portal'd labels print. */
+      .admin-shell, .no-print { display: none !important; }
+
+      #label-print-root { display: block !important; }
       .label-sheet {
-        display: block !important;
         position: relative !important;
-        width: ${printW};
-        height: ${printH};
+        width: ${Mw} !important;
+        height: ${Mh} !important;
         margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box;
-        overflow: hidden;
-        break-inside: avoid;
-        page-break-inside: avoid;
-        break-after: page;
-        page-break-after: always;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        break-after: page !important;
+        page-break-after: always !important;
       }
-      .label-print-frame {
+      .label-sheet:last-child { break-after: auto !important; page-break-after: auto !important; }
+
+      /* The design canvas, centered and rotated to fill the physical page. */
+      .label-rot {
         position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: ${w};
-        height: ${h};
-        padding: ${pad};
-        box-sizing: border-box;
-        overflow: hidden;
+        top: 50% !important;
+        left: 50% !important;
+        width: ${Cw} !important;
+        height: ${Ch} !important;
+        padding: ${pad} !important;
+        box-sizing: border-box !important;
+        transform: translate(-50%, -50%) rotate(${rot}deg) !important;
+        transform-origin: center center !important;
+        overflow: hidden !important;
         background: #fff !important;
-        transform-origin: top left;
-        ${reversePrint ? `transform: rotate(90deg) translateY(-100%);` : `transform: none;`}
       }
-      .label-content--landscape,
-      .label-content--portrait {
-        display: block !important;
-        width: 100% !important;
-        height: 100% !important;
-      }
-      .label-sheet:last-child { page-break-after: auto; break-after: auto; }
-      @page { size: ${printW} ${printH}; margin: 0; }
     }
   `;
 
@@ -454,7 +422,7 @@ export default function LabelsPage() {
         <div className="space-y-4">
           <Card className="space-y-3">
             <SectionTitle>Print settings</SectionTitle>
-            <Field label="Paper size">
+            <Field label="Label size (physical)">
               <Select value={sizeKey} onChange={(e) => setSizeKey(e.target.value)}>
                 {Object.entries(SIZES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </Select>
@@ -465,20 +433,14 @@ export default function LabelsPage() {
                 <Field label="Height"><TextInput value={customH} onChange={(e) => setCustomH(e.target.value)} placeholder="150mm" /></Field>
               </div>
             )}
-            <Field label="Orientation">
-              <Select value={orientation} onChange={(e) => setOrientation(e.target.value)}>
-                <option value="landscape">Horizontal / landscape</option>
-                <option value="portrait">Vertical / portrait</option>
+            <Field label="Rotate for printer">
+              <Select value={rotation} onChange={(e) => setRotation(e.target.value)}>
+                {ROTATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </Field>
-            <Field label="Printer rotation">
-              <Select value={printerRotation} onChange={(e) => setPrinterRotation(e.target.value)}>
-                <option value="reverse">Reverse for GP-3120TUD</option>
-                <option value="normal">Normal browser orientation</option>
-              </Select>
-            </Field>
-            <p className="text-[11px] text-brand-tan">
-              Preview size: {w} x {h}. Printer page: {printW} x {printH}.
+            <p className="text-[11px] text-brand-tan leading-relaxed">
+              Page = {Mw} × {Mh} (matches your driver). If it prints sideways, change the rotation
+              until it&apos;s upright. In Chrome&apos;s print dialog set <b>Margins: None</b> and <b>Scale: 100%</b>.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
@@ -494,11 +456,11 @@ export default function LabelsPage() {
             <SectionTitle>Preview</SectionTitle>
             <div className="bg-brand-cream/40 rounded-lg p-3 overflow-auto" style={{ maxHeight: "55vh" }}>
               {selectedOrders[0] ? (
-                // Exact print dimensions (border-box + padding + height) so the
-                // preview is true-to-print, not a roomier approximation.
+                // Shows the design upright at actual canvas size — how it reads on
+                // the label once the printer rotation is dialed in.
                 <div
                   className="bg-white shadow mx-auto border border-brand-tan/40"
-                  style={{ width: w, height: h, padding: pad, boxSizing: "border-box" }}
+                  style={{ width: Cw, height: Ch, padding: pad, boxSizing: "border-box" }}
                 >
                   <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} />
                 </div>
@@ -506,21 +468,25 @@ export default function LabelsPage() {
                 <p className="text-center text-brand-tan text-sm py-6">Select an order to preview its label.</p>
               )}
             </div>
-            <p className="text-[11px] text-brand-tan mt-2">Actual size · 1 of {selectedOrders.length || 0} selected · prints one per page.</p>
+            <p className="text-[11px] text-brand-tan mt-2">Actual size · 1 of {selectedOrders.length || 0} selected · prints one exact page each.</p>
           </Card>
         </div>
       </div>
 
-      {/* Hidden print root — every selected label, one per page */}
-      <div id="label-print-root">
-        {selectedOrders.map((o) => (
-          <div key={o._id} className="label-sheet">
-            <div className="label-print-frame">
-              <Label order={o} shop={shop} opts={opts} layout={labelLayout} />
+      {/* Print labels — portal'd to <body> so on print we can simply hide the
+          whole admin shell. One exact physical page per selected order. */}
+      {mounted && createPortal(
+        <div id="label-print-root">
+          {selectedOrders.map((o) => (
+            <div key={o._id} className="label-sheet">
+              <div className="label-rot">
+                <Label order={o} shop={shop} opts={opts} layout={labelLayout} />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
