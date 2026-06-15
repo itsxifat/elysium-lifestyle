@@ -73,10 +73,6 @@ function CategoryRow({ cat, level, allCats, onEdit, onDelete, onAddChild }) {
         </td>
         {/* Slug */}
         <td className="py-3 pr-4 text-[12px] text-brand-tan font-mono hidden sm:table-cell">{cat.slug}</td>
-        {/* Gender */}
-        <td className="py-3 pr-4 hidden md:table-cell">
-          <span className="text-[11px] capitalize text-brand-tan">{cat.gender}</span>
-        </td>
         {/* Featured */}
         <td className="py-3 pr-4">
           {cat.isFeatured ? (
@@ -268,15 +264,6 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
         <p className="text-[10px] text-brand-tan/60 mt-1">Max 3 levels: Category › Sub › Sub·Sub</p>
       </div>
       <div>
-        <label className={labelCls}>Gender</label>
-        <select {...register("gender")} className={inputCls}>
-          <option value="all">All</option>
-          <option value="women">Women</option>
-          <option value="men">Men</option>
-          <option value="kids">Kids</option>
-        </select>
-      </div>
-      <div>
         <label className={labelCls}>Description</label>
         <input {...register("description")} className={inputCls} placeholder="Short description shown on cards" />
       </div>
@@ -380,7 +367,6 @@ export default function AdminCategoriesPage() {
                     <tr className="border-b border-brand-tan/15 bg-brand-cream/40">
                       <th className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium">Name</th>
                       <th className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium hidden sm:table-cell">Slug</th>
-                      <th className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium hidden md:table-cell">Gender</th>
                       <th className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium">Featured</th>
                       <th className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium">Actions</th>
                     </tr>

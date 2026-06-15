@@ -13,6 +13,10 @@ function redact(settings) {
   if (s.emailSettings?.smtpPass) {
     s.emailSettings.smtpPass = "••••••••";
   }
+  // This endpoint is public (the storefront reads shipping/site info from it), so
+  // never expose courier API credentials here. The admin Courier page reads them
+  // from the guarded /api/admin/steadfast endpoint instead.
+  delete s.steadfast;
   return s;
 }
 

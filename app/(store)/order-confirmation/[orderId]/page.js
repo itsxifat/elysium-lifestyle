@@ -129,6 +129,7 @@ export default async function OrderConfirmationPage({ params }) {
                   <p className="text-brand-tan text-xs">
                     {item.size} · {item.color} · Qty: {item.quantity}
                   </p>
+                  {item.sku && <p className="text-brand-tan/80 text-[11px]">SKU: {item.sku}</p>}
                 </div>
                 <span className="font-medium text-brand-brown">
                   {formatPrice(item.price * item.quantity)}

@@ -28,6 +28,7 @@ export default function AddToCartButton({ product, selectedSize, selectedVariant
         name: product.name,
         image: product.images?.[0],
         price: selectedVariant.price,
+        sku: selectedVariant.sku || "",
       },
       selectedSize,
       quantity

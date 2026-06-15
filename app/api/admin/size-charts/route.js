@@ -14,7 +14,7 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

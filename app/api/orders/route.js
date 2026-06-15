@@ -5,13 +5,15 @@ import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import Product from "@/models/Product";
 import Settings from "@/models/Settings";
+import "@/models/User"; // ensure User schema is registered for .populate("user")
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { escapeRegExp } from "@/lib/utils";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
+import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
 
 export async function GET(request) {
-  const { error } = await requireAdmin(request);
+  const { error } = await requireAdmin("orders.view");
   if (error) return error;
 
   try {
@@ -70,6 +72,7 @@ export async function POST(request) {
         product: product._id,
         name: product.name,
         image: product.images?.[0] || "",
+        sku: variant.sku || "",
         size: item.size,
         price: variant.price,
         quantity: item.quantity,
@@ -93,7 +96,36 @@ export async function POST(request) {
         else shippingFee = s.insideDhaka ?? 60;
       }
     }
-    const totalAmount = subtotal + shippingFee;
+
+    // ── Discounts (re-validated server-side; never trust client amounts) ──────
+    let discount = 0;
+    let discountCodes = [];
+    let appliedDiscounts = [];
+    try {
+      const engineItems = await priceCartItems(data.items);
+      const dres = await applyDiscounts({
+        items: engineItems,
+        codes: data.discountCodes || [],
+        shippingFee,
+        userId: session?.user?.id || null,
+        phone: data.shippingAddress?.phone || null,
+      });
+      discount = dres.discountTotal || 0;
+      if (dres.freeShipping) shippingFee = 0;
+      appliedDiscounts = (dres.applied || []).map((a) => ({
+        discount: a.discountId || undefined,
+        code: a.code,
+        title: a.title,
+        type: a.type,
+        amount: a.amount,
+        freeShipping: a.freeShipping,
+      }));
+      discountCodes = appliedDiscounts.filter((a) => a.code).map((a) => a.code);
+    } catch (e) {
+      console.error("discount apply error:", e.message);
+    }
+
+    const totalAmount = Math.max(0, subtotal + shippingFee - discount);
 
     const count = await Order.countDocuments();
     const orderNumber = `ELY-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
@@ -110,8 +142,14 @@ export async function POST(request) {
       orderStatus: "pending",
       subtotal,
       shippingFee,
+      discount,
+      discountCodes,
+      appliedDiscounts,
       totalAmount,
     });
+
+    // Count the usage now that the order exists.
+    if (appliedDiscounts.length) recordDiscountUsage(appliedDiscounts).catch(() => {});
 
     if (data.paymentMethod === "cod") {
       for (const item of orderItems) {

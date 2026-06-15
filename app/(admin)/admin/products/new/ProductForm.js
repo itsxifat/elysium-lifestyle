@@ -150,25 +150,14 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
         {/* Organization */}
         <Card>
           <SectionTitle>Organization</SectionTitle>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <CategoryTreeSelect
-                label="Category"
-                categories={categories}
-                value={watch("category")}
-                onChange={(id) => setValue("category", id, { shouldDirty: true, shouldValidate: true })}
-              />
-              <input type="hidden" {...register("category")} />
-            </div>
-            <Field label="Gender">
-              <select className={inputClass} {...register("gender")}>
-                <option value="">Select gender</option>
-                <option value="men">Men</option>
-                <option value="women">Women</option>
-                <option value="kids">Kids</option>
-                <option value="unisex">Unisex</option>
-              </select>
-            </Field>
+          <div>
+            <CategoryTreeSelect
+              label="Category"
+              categories={categories}
+              value={watch("category")}
+              onChange={(id) => setValue("category", id, { shouldDirty: true, shouldValidate: true })}
+            />
+            <input type="hidden" {...register("category")} />
           </div>
           <div className="flex flex-wrap gap-2 mt-4">
             {[{ name: "featured", label: "Featured" }, { name: "isNewArrival", label: "New Arrival" }, { name: "isPublished", label: "Published" }].map((t) => (

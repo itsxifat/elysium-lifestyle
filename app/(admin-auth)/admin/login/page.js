@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import { Eye, EyeOff, Lock, AlertTriangle } from "lucide-react";
+import { isStaff } from "@/lib/permissions";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -30,7 +31,7 @@ function AdminLoginForm() {
   // If already signed in as admin, go straight to dashboard
   useEffect(() => {
     if (status === "authenticated") {
-      if (session.user.role === "admin") {
+      if (isStaff(session.user.role)) {
         router.replace("/admin");
       } else {
         setError("This account does not have admin access.");
@@ -146,7 +147,7 @@ function AdminLoginForm() {
               <AlertTriangle size={15} className="text-red-400 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
               <div className="flex-1">
                 <p className="text-red-400 text-[12px] leading-relaxed">{error}</p>
-                {status === "authenticated" && session?.user?.role !== "admin" && (
+                {status === "authenticated" && !isStaff(session?.user?.role) && (
                   <button onClick={handleSignOutAndRetry} className="text-white/50 hover:text-white text-[11px] mt-1.5 underline underline-offset-2 transition-colors">
                     Sign out and try a different account
                   </button>

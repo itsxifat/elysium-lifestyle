@@ -23,7 +23,7 @@ function cartReducer(state, action) {
         ...state,
         items: [
           ...state.items,
-          { productId: product.id, slug: product.slug, name: product.name, image: product.image, price: product.price, size, quantity },
+          { productId: product.id, slug: product.slug, name: product.name, image: product.image, price: product.price, sku: product.sku || "", size, quantity },
         ],
       };
     }

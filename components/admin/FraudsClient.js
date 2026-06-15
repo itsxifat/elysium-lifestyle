@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
-import { ShieldAlert, Plus, Trash2, Search, CheckCircle2, XCircle, Star } from "lucide-react";
-import { PageHeader, Card, SectionTitle, Field, TextInput, Button, Pill, EmptyState } from "@/components/admin/ui";
+import {
+  ShieldAlert, Plus, Trash2, Search, CheckCircle2, XCircle, Star,
+  Users, Package, Clock,
+} from "lucide-react";
+import {
+  PageHeader, Card, SectionTitle, Field, TextInput, Button, Pill, EmptyState, StatCard,
+} from "@/components/admin/ui";
 
 export default function FraudsClient() {
   const [data, setData] = useState(null);
@@ -22,9 +27,7 @@ export default function FraudsClient() {
       .then(setData)
       .catch(() => toast.error("Failed to load accounts"));
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const addAccount = async (e) => {
     e.preventDefault();
@@ -64,9 +67,15 @@ export default function FraudsClient() {
     try {
       const res = await fetch("/api/admin/fraud/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const d = await res.json();
-      if (d.ok) toast.success("All accounts working ✓");
-      else toast.error(d.error || "Test failed");
-      load();
+      if (d.perAccount) {
+        const msg = `${d.working}/${d.total} account${d.total === 1 ? "" : "s"} working`;
+        d.working === d.total ? toast.success(msg) : d.working > 0 ? toast(msg, { icon: "⚠️" }) : toast.error(msg);
+      } else if (d.ok) {
+        toast.success("Accounts working ✓");
+      } else {
+        toast.error(d.error || "Test failed");
+      }
+      await load();
     } finally {
       setTesting(false);
     }
@@ -96,18 +105,38 @@ export default function FraudsClient() {
   const accounts = data?.accounts || [];
   const available = data?.available;
 
+  const stats = useMemo(() => ({
+    total: accounts.length,
+    working: accounts.filter((a) => a.lastTestOk === true).length,
+    failed: accounts.filter((a) => a.lastTestedAt && a.lastTestOk === false).length,
+  }), [accounts]);
+
+  const statusOf = (a) => {
+    if (!a.lastTestedAt) return { tone: "gray", label: "Untested", Icon: Clock, color: "text-brand-tan" };
+    if (a.lastTestOk) return { tone: "green", label: "Working", Icon: CheckCircle2, color: "text-emerald-600" };
+    return { tone: "red", label: "Failed", Icon: XCircle, color: "text-red-600" };
+  };
+
   return (
     <div>
       <PageHeader
         icon={ShieldAlert}
         title="Fraud Accounts"
-        subtitle="Steadfast (Packzy) merchant accounts used to check a customer's courier history"
+        subtitle="Steadfast merchant accounts used to check a customer's courier history"
         actions={
           <Button variant="outline" onClick={testConnection} disabled={testing || !accounts.length}>
-            {testing ? "Testing…" : "Test connection"}
+            {testing ? "Testing each…" : "Test all accounts"}
           </Button>
         }
       />
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <StatCard label="Accounts" value={stats.total} icon={Users} accent="text-brand-brown" />
+        <StatCard label="Working" value={stats.working} icon={CheckCircle2} accent="text-emerald-600" />
+        <StatCard label="Failed" value={stats.failed} icon={XCircle} accent={stats.failed ? "text-red-600" : "text-brand-tan"} />
+        <StatCard label="Package" value={available === false ? "Missing" : "Installed"} icon={Package} accent={available === false ? "text-amber-600" : "text-emerald-600"} />
+      </div>
 
       {available === false && (
         <Card className="mb-5 border-amber-300 bg-amber-50">
@@ -119,58 +148,80 @@ export default function FraudsClient() {
         </Card>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-5">
-        {/* Accounts list */}
-        <div className="lg:col-span-2 space-y-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
+        {/* Accounts list + add */}
+        <div className="xl:col-span-2 space-y-5">
           <Card padded={false}>
-            <div className="px-5 py-3.5 border-b border-brand-tan/12">
+            <div className="px-5 py-3.5 border-b border-brand-tan/12 flex items-center justify-between">
               <SectionTitle className="mb-0">Configured accounts ({accounts.length})</SectionTitle>
             </div>
             {accounts.length === 0 ? (
               <EmptyState icon={ShieldAlert} title="No accounts yet" hint="Add a Steadfast merchant account to enable fraud checks." />
             ) : (
               <div className="divide-y divide-brand-tan/10">
-                {accounts.map((a) => (
-                  <div key={a.email} className="flex items-center gap-3 px-5 py-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-brand-brown truncate">{a.email}</p>
-                        {a.primary && <Pill tone="terracotta"><Star size={9} className="inline -mt-0.5 mr-0.5" />Primary</Pill>}
-                        {a.label && <Pill tone="gray">{a.label}</Pill>}
+                {accounts.map((a) => {
+                  const st = statusOf(a);
+                  return (
+                    <div key={a.email} className="flex items-center gap-3 px-5 py-3.5">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${a.lastTestOk ? "bg-emerald-50" : a.lastTestedAt ? "bg-red-50" : "bg-brand-cream"}`}>
+                        <st.Icon size={16} className={st.color} />
                       </div>
-                      <p className="text-[11px] text-brand-tan mt-0.5">
-                        {a.lastTestedAt ? (
-                          a.lastTestOk ? (
-                            <span className="text-emerald-600 inline-flex items-center gap-1"><CheckCircle2 size={11} /> Working · {new Date(a.lastTestedAt).toLocaleString()}</span>
-                          ) : (
-                            <span className="text-red-600 inline-flex items-center gap-1"><XCircle size={11} /> {a.lastTestMessage || "Failed"}</span>
-                          )
-                        ) : (
-                          "Not tested yet"
-                        )}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-brand-brown truncate">{a.email}</p>
+                          {a.primary && <Pill tone="terracotta"><Star size={9} className="inline -mt-0.5 mr-0.5" />Primary</Pill>}
+                          {a.label && <Pill tone="gray">{a.label}</Pill>}
+                          <Pill tone={st.tone}>{st.label}</Pill>
+                        </div>
+                        <p className="text-[11px] text-brand-tan mt-0.5">
+                          {a.lastTestedAt
+                            ? `${a.lastTestOk ? "Verified" : a.lastTestMessage || "Failed"} · ${new Date(a.lastTestedAt).toLocaleString()}`
+                            : "Not tested yet"}
+                        </p>
+                      </div>
+                      <button onClick={() => removeAccount(a.email)} className="p-2 rounded-md text-brand-tan hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0" title="Remove">
+                        <Trash2 size={15} />
+                      </button>
                     </div>
-                    <button onClick={() => removeAccount(a.email)} className="p-2 rounded-md text-brand-tan hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
 
-          {/* Add account */}
-          <Card as="form" onSubmit={addAccount}>
+          {/* Add account — autofill disabled so it doesn't pre-fill the admin's own login */}
+          <Card as="form" onSubmit={addAccount} autoComplete="off">
             <SectionTitle>Add account</SectionTitle>
+            {/* Decoy fields swallow aggressive browser autofill before the real ones */}
+            <input type="text" name="username" autoComplete="username" className="hidden" tabIndex={-1} aria-hidden />
+            <input type="password" name="password" autoComplete="current-password" className="hidden" tabIndex={-1} aria-hidden />
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Steadfast email">
-                <TextInput type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" />
+                <TextInput
+                  type="email"
+                  name="sf-acct-email"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="you@example.com"
+                />
               </Field>
               <Field label="Password">
-                <TextInput type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" />
+                <TextInput
+                  type="password"
+                  name="sf-acct-pass"
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="••••••••"
+                />
               </Field>
               <Field label="Label (optional)" className="sm:col-span-2">
-                <TextInput value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="e.g. Main store account" />
+                <TextInput value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="e.g. Main store account" autoComplete="off" />
               </Field>
             </div>
             <p className="text-[11px] text-brand-tan mt-2">Stored encrypted by the package — the password is never saved in our database.</p>
@@ -189,17 +240,12 @@ export default function FraudsClient() {
             <p className="text-[12px] text-brand-tan mb-3">Look up any customer&apos;s Steadfast delivery history.</p>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-tan" />
-              <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01700000000" className="pl-9" />
+              <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01700000000" className="pl-9" autoComplete="off" />
             </div>
             <Button type="submit" disabled={looking || !phone} className="w-full mt-3">
               {looking ? "Checking…" : "Check history"}
             </Button>
-
-            {lookup && (
-              <div className="mt-4">
-                <FraudStats data={lookup} />
-              </div>
-            )}
+            {lookup && <div className="mt-4"><FraudStats data={lookup} /></div>}
           </Card>
         </div>
       </div>

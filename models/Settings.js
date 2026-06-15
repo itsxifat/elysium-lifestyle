@@ -45,6 +45,19 @@ const settingsSchema = new mongoose.Schema(
       minDelivery: { type: Number, default: 10 }, // min total parcels in history
       minSuccessfulDelivery: { type: Number, default: 10 }, // min successful (delivered) parcels
     },
+    // Steadfast Courier (Packzy) order-placement API + webhook. Separate from the
+    // fraud-history package above — these are the portal Api-Key/Secret-Key.
+    steadfast: {
+      enabled: { type: Boolean, default: false },
+      apiKey: { type: String, default: "" },
+      secretKey: { type: String, default: "" },
+      baseUrl: { type: String, default: "https://portal.packzy.com/api/v1" },
+      // When an order reaches "processing", auto-create the consignment.
+      autoSendOnProcessing: { type: Boolean, default: true },
+      // Webhook auth: Steadfast sends `Authorization: Bearer <token>`. Defaults to
+      // the apiKey; set a custom token here to verify against that instead.
+      webhookToken: { type: String, default: "" },
+    },
     // Desktop: 1920×750 px (16:6.25 ≈ 2.56:1) — Mobile: 750×1000 px (3:4)
     heroSlides: [
       {

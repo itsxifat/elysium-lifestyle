@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {
@@ -30,7 +30,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

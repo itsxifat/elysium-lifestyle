@@ -85,7 +85,7 @@ function SizeChartModal({ chart, onClose }) {
   );
 }
 
-export default function ProductDetailClient({ product, related = [] }) {
+export default function ProductDetailClient({ product, related = [], categoryPath = [] }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [showSizeChart, setShowSizeChart] = useState(false);
 
@@ -127,17 +127,14 @@ export default function ProductDetailClient({ product, related = [] }) {
           <Link href="/" className="hover:text-brand-brown transition-colors">Home</Link>
           <ChevronRight size={10} strokeWidth={2.5} />
           <Link href="/shop" className="hover:text-brand-brown transition-colors">Shop</Link>
-          {product.category && (
-            <>
+          {categoryPath.map((c) => (
+            <span key={c._id} className="flex items-center gap-1.5">
               <ChevronRight size={10} strokeWidth={2.5} />
-              <Link
-                href={`/shop?gender=${product.category.gender}`}
-                className="hover:text-brand-brown transition-colors"
-              >
-                {product.category.name}
+              <Link href={`/shop?category=${c.slug}`} className="hover:text-brand-brown transition-colors">
+                {c.name}
               </Link>
-            </>
-          )}
+            </span>
+          ))}
           <ChevronRight size={10} strokeWidth={2.5} />
           <span className="text-brand-brown/60 truncate max-w-[180px] normal-case tracking-normal text-[11px]">
             {product.name}
@@ -157,7 +154,7 @@ export default function ProductDetailClient({ product, related = [] }) {
             <div className="flex items-center gap-2.5">
               {product.category && (
                 <Link
-                  href={`/shop?gender=${product.category.gender}`}
+                  href={`/shop?category=${product.category.slug}`}
                   className="text-[10px] uppercase tracking-[3px] text-brand-tan hover:text-brand-brown transition-colors"
                 >
                   {product.category.name}
@@ -191,6 +188,12 @@ export default function ProductDetailClient({ product, related = [] }) {
                 <span className="text-[10px] text-brand-tan uppercase tracking-wider">varies by size</span>
               )}
             </div>
+
+            {selectedVariant?.sku && (
+              <p className="text-[11px] text-brand-tan tracking-wide">
+                SKU: <span className="text-brand-brown/70 font-medium">{selectedVariant.sku}</span>
+              </p>
+            )}
 
             <div className="h-px bg-brand-tan/15" />
 

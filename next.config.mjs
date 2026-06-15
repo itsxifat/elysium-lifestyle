@@ -22,11 +22,13 @@ const nextConfig = {
     serverComponentsExternalPackages: ["mongoose", "nodemailer", "steadfast-fraud"],
   },
   images: {
-    // Keep the optimizer's disk-cache TTL in sync with the image proxy's
-    // max-age so a deleted CDN file is re-validated (and purged) within minutes.
-    minimumCacheTTL: 600,
-    // Serve AVIF/WebP when the browser supports them — smaller, faster loads.
-    formats: ["image/avif", "image/webp"],
+    // Image URLs are content-addressed (a changed image gets a new URL), so the
+    // optimized output is effectively immutable — cache it as long as possible
+    // to avoid ever re-optimizing the same image. (1 year.)
+    minimumCacheTTL: 31536000,
+    // WebP only. AVIF compresses a touch smaller but encodes ~5-10x slower,
+    // which is the main cause of slow first loads — WebP is the fast sweet spot.
+    formats: ["image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "cdn.enfinito.cloud" },
       { protocol: "https", hostname: "res.cloudinary.com" },

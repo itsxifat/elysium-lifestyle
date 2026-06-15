@@ -14,7 +14,7 @@ const ALLOWED_MIME = [
 ];
 
 export async function POST(request) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {
@@ -58,7 +58,7 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

@@ -3,10 +3,7 @@ import Image from "next/image";
 import { shouldUnoptimizeImage } from "@/lib/utils";
 
 function CategoryCard({ cat, className = "", priority = false, size = "md" }) {
-  const href =
-    cat.gender && !cat.parent
-      ? `/shop?gender=${cat.gender}`
-      : `/shop?category=${cat.slug}`;
+  const href = `/shop?category=${cat.slug}`;
 
   return (
     <Link href={href} className={`group relative overflow-hidden flex flex-col ${className}`}>

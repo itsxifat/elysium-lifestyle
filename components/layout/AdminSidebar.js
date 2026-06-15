@@ -8,46 +8,52 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
+  Tag, PackageCheck, Printer, ScanLine,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
+// `perm` gates visibility. Items with no `perm` show for every staff member.
 const navGroups = [
   {
     label: "Store",
     items: [
       { href: "/admin",           label: "Dashboard",  icon: LayoutDashboard, exact: true },
-      { href: "/admin/products",  label: "Products",   icon: Package },
-      { href: "/admin/orders",    label: "Orders",     icon: ShoppingCart },
-      { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert },
-      { href: "/admin/customers", label: "Users",      icon: Users },
+      { href: "/admin/products",  label: "Products",   icon: Package,      perm: "products.manage" },
+      { href: "/admin/orders",    label: "Orders",     icon: ShoppingCart, perm: "orders.view" },
+      { href: "/admin/labels",    label: "Labels",     icon: Printer,      perm: "orders.view" },
+      { href: "/admin/scan",      label: "Scan",       icon: ScanLine,     perm: "orders.view" },
+      { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert, perm: "orders.manage" },
+      { href: "/admin/customers", label: "Users",      icon: Users,        perm: "users.manage" },
     ],
   },
   {
     label: "Catalog",
     items: [
-      { href: "/admin/categories",  label: "Categories",    icon: FolderTree },
-      { href: "/admin/size-charts", label: "Size Charts",   icon: TableProperties },
-      { href: "/admin/master-sizes",label: "Master Sizes",  icon: Ruler },
+      { href: "/admin/categories",  label: "Categories",    icon: FolderTree,      perm: "categories.manage" },
+      { href: "/admin/discounts",   label: "Discounts",     icon: Tag,             perm: "discounts.manage" },
+      { href: "/admin/size-charts", label: "Size Charts",   icon: TableProperties, perm: "products.manage" },
+      { href: "/admin/master-sizes",label: "Master Sizes",  icon: Ruler,           perm: "products.manage" },
     ],
   },
   {
     label: "Content",
     items: [
-      { href: "/admin/hero",   label: "Hero Slides",   icon: Layers },
-      { href: "/admin/navbar", label: "Navbar Config", icon: Navigation },
+      { href: "/admin/hero",   label: "Hero Slides",   icon: Layers,     perm: "content.manage" },
+      { href: "/admin/navbar", label: "Navbar Config", icon: Navigation, perm: "content.manage" },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { href: "/admin/tracking", label: "Tracking",  icon: Radio },
+      { href: "/admin/tracking", label: "Tracking",  icon: Radio, perm: "tracking.manage" },
     ],
   },
   {
     label: "System",
     items: [
-      { href: "/admin/shipping", label: "Shipping",  icon: Truck },
-      { href: "/admin/settings", label: "Settings",  icon: Settings },
+      { href: "/admin/shipping",  label: "Shipping",   icon: Truck,        perm: "settings.manage" },
+      { href: "/admin/steadfast", label: "Courier",    icon: PackageCheck, perm: "settings.manage" },
+      { href: "/admin/settings",  label: "Settings",   icon: Settings,     perm: "settings.manage" },
     ],
   },
 ];
@@ -73,9 +79,15 @@ function NavItem({ item, pathname, onClick }) {
   );
 }
 
-export default function AdminSidebar({ user }) {
+export default function AdminSidebar({ user, permissions = [] }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Show an item if it has no permission requirement, or the user holds it.
+  const canSee = (item) => !item.perm || permissions.includes(item.perm);
+  const visibleGroups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter(canSee) }))
+    .filter((g) => g.items.length > 0);
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
@@ -96,7 +108,7 @@ export default function AdminSidebar({ user }) {
 
       {/* Nav groups */}
       <nav className="flex-1 px-3 py-5 space-y-6 overflow-y-auto">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label}>
             <p className="text-[9px] text-white/20 uppercase tracking-[3px] px-4 mb-2">{group.label}</p>
             <div className="space-y-0.5">

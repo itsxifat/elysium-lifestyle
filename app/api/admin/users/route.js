@@ -1,16 +1,28 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import bcrypt from "bcryptjs";
 import { escapeRegExp } from "@/lib/utils";
+import {
+  canManageRole,
+  getEffectivePermissions,
+  PERMISSIONS,
+  ROLES,
+} from "@/lib/permissions";
+
+// Keep only valid permission keys the actor is actually allowed to grant.
+function sanitizePermissions(requested, actor) {
+  if (!Array.isArray(requested)) return [];
+  const actorPerms = getEffectivePermissions(actor);
+  const valid = Object.keys(PERMISSIONS);
+  return requested.filter((p) => valid.includes(p) && actorPerms.includes(p));
+}
 
 export async function GET(request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "admin")
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { error, session } = await requireAdmin("users.manage");
+  if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q") || "";
@@ -43,7 +55,8 @@ export async function GET(request) {
         $group: {
           _id: null,
           total: { $sum: 1 },
-          admins: { $sum: { $cond: [{ $eq: ["$role", "admin"] }, 1, 0] } },
+          admins: { $sum: { $cond: [{ $in: ["$role", ["admin", "superadmin"]] }, 1, 0] } },
+          staff: { $sum: { $cond: [{ $ne: ["$role", "customer"] }, 1, 0] } },
           customers: { $sum: { $cond: [{ $eq: ["$role", "customer"] }, 1, 0] } },
           verified: { $sum: { $cond: ["$emailVerified", 1, 0] } },
         },
@@ -64,6 +77,7 @@ export async function GET(request) {
     email: u.email,
     image: u.image || null,
     role: u.role,
+    permissions: u.permissions || [],
     phone: u.phone || null,
     emailVerified: u.emailVerified || false,
     createdAt: u.createdAt,
@@ -76,23 +90,29 @@ export async function GET(request) {
     total,
     page,
     pages: Math.ceil(total / limit),
-    stats: statsArr[0] || { total: 0, admins: 0, customers: 0, verified: 0 },
+    stats: statsArr[0] || { total: 0, admins: 0, staff: 0, customers: 0, verified: 0 },
   });
 }
 
 export async function POST(request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "admin")
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { error, session } = await requireAdmin("users.manage");
+  if (error) return error;
 
   const data = await request.json();
-  const { name, email, password, role = "customer", phone } = data;
+  const { name, email, password, role = ROLES.CUSTOMER, phone } = data;
 
   if (!name?.trim() || !email?.trim() || !password)
     return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 });
 
   if (password.length < 6)
     return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+
+  // Privilege-escalation guard: never let an actor create a user at or above
+  // their own authority (only superadmins can mint admins/superadmins).
+  if (!canManageRole(session.user.role, role))
+    return NextResponse.json({ error: "You cannot assign that role" }, { status: 403 });
+
+  const permissions = sanitizePermissions(data.permissions, session.user);
 
   await connectDB();
 
@@ -106,6 +126,7 @@ export async function POST(request) {
     email: email.toLowerCase().trim(),
     password: hashed,
     role,
+    permissions,
     phone: phone?.trim() || undefined,
     emailVerified: true,
   });
@@ -116,6 +137,7 @@ export async function POST(request) {
       name: user.name,
       email: user.email,
       role: user.role,
+      permissions: user.permissions || [],
       phone: user.phone || null,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,

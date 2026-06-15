@@ -50,9 +50,7 @@ export async function GET() {
             item.href && item.href !== "/"
               ? item.href
               : cat
-              ? cat.parent
-                ? `/shop?category=${cat.slug}`
-                : `/shop?gender=${cat.gender}`
+              ? `/shop?category=${cat.slug}`
               : "/shop",
           highlighted: item.highlighted,
           children: cat ? buildChildren(allCats, cat._id, 2) : [],

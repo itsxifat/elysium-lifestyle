@@ -151,10 +151,11 @@ export default async function OrderDetailPage({ params }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-brand-brown text-[13px] leading-snug">{item.name}</p>
-                <div className="flex gap-3 mt-1.5">
+                <div className="flex gap-3 mt-1.5 flex-wrap">
                   <span className="text-[11px] text-brand-tan">Size: {item.size}</span>
                   {item.color && <span className="text-[11px] text-brand-tan">Color: {item.color}</span>}
                   <span className="text-[11px] text-brand-tan">Qty: {item.quantity}</span>
+                  {item.sku && <span className="text-[11px] text-brand-tan">SKU: {item.sku}</span>}
                 </div>
               </div>
               <div className="shrink-0 text-right">

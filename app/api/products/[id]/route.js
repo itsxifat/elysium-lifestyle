@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
       : { slug: id };
 
     const product = await Product.findOne(query)
-      .populate("category", "name slug gender")
+      .populate("category", "name slug")
       .lean();
 
     if (!product) {
@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
-  const { error } = await requireAdmin(request);
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {
@@ -63,7 +63,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const { error } = await requireAdmin(request);
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

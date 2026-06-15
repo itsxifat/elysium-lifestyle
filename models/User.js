@@ -14,7 +14,14 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, select: false },
     image: { type: String },
-    role: { type: String, enum: ["customer", "admin"], default: "customer" },
+    role: {
+      type: String,
+      enum: ["customer", "staff", "moderator", "admin", "superadmin"],
+      default: "customer",
+    },
+    // Additive permission grants beyond the role's defaults (managed by a
+    // superadmin). See lib/permissions.js for the catalog of keys.
+    permissions: { type: [String], default: [] },
     address: addressSchema,
     phone: { type: String, trim: true },
     emailVerified: { type: Boolean, default: false },

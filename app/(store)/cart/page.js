@@ -64,6 +64,7 @@ export default function CartPage() {
                       {item.name}
                     </Link>
                     <p className="text-[11px] text-brand-tan uppercase tracking-widest mt-1">Size: {item.size}</p>
+                    {item.sku && <p className="text-[10px] text-brand-tan/80 mt-0.5">SKU: {item.sku}</p>}
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center border border-brand-tan/40">
                         <button className="w-8 h-8 flex items-center justify-center text-brand-brown hover:text-brand-terracotta" onClick={() => updateQuantity(item.productId, item.size, item.quantity - 1)}>

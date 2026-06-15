@@ -2,14 +2,16 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, X } from "lucide-react";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
-const GENDERS = [
-  { value: "men", label: "Men" },
-  { value: "women", label: "Women" },
-  { value: "kids", label: "Kids" },
-];
+
+function buildTree(cats, parentId = null) {
+  return cats
+    .filter((c) => String(c.parent || "") === String(parentId || ""))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+    .map((c) => ({ ...c, children: buildTree(cats, c._id) }));
+}
 
 function FilterGroup({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -27,18 +29,46 @@ function FilterGroup({ title, children, defaultOpen = true }) {
   );
 }
 
+function CatNode({ cat, depth, current, onPick }) {
+  const [open, setOpen] = useState(depth === 0);
+  const hasChildren = cat.children?.length > 0;
+  const active = current === cat.slug;
+  return (
+    <div>
+      <div className="flex items-center" style={{ paddingLeft: depth * 10 }}>
+        {hasChildren ? (
+          <button type="button" onClick={() => setOpen((o) => !o)} className="p-0.5 text-brand-tan hover:text-brand-brown">
+            {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        ) : (
+          <span className="w-[18px] flex-shrink-0" />
+        )}
+        <button
+          type="button"
+          onClick={() => onPick(cat.slug)}
+          className={`flex-1 text-left text-[13px] py-1 transition-colors ${active ? "text-brand-terracotta font-semibold" : "text-brand-brown hover:text-brand-terracotta"}`}
+        >
+          {cat.name}
+        </button>
+      </div>
+      {hasChildren && open && cat.children.map((ch) => (
+        <CatNode key={ch._id} cat={ch} depth={depth + 1} current={current} onPick={onPick} />
+      ))}
+    </div>
+  );
+}
+
 export default function FilterSidebar({ categories = [], onClose }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const tree = buildTree(categories);
+
   const updateParam = (key, value) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
-    }
+    if (value) params.set(key, value);
+    else params.delete(key);
     params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
     onClose?.();
@@ -49,50 +79,47 @@ export default function FilterSidebar({ categories = [], onClose }) {
     updateParam(key, current === value ? null : value);
   };
 
+  const pickCategory = (slug) => {
+    const current = searchParams.get("category");
+    updateParam("category", current === slug ? null : slug);
+  };
+
   const clearAll = () => {
     router.push(pathname);
     onClose?.();
   };
 
-  const currentGender = searchParams.get("gender");
+  const currentCategory = searchParams.get("category");
   const currentSize = searchParams.get("size");
   const currentMinPrice = searchParams.get("minPrice");
   const currentMaxPrice = searchParams.get("maxPrice");
-  const hasFilters = currentGender || currentSize || currentMinPrice || currentMaxPrice;
+  const hasFilters = currentCategory || currentSize || currentMinPrice || currentMaxPrice;
 
   return (
     <div className="bg-brand-cream">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-base font-semibold text-brand-brown uppercase tracking-wider">
-          Filters
-        </h3>
+        <h3 className="text-base font-semibold text-brand-brown uppercase tracking-wider">Filters</h3>
         {hasFilters && (
-          <button
-            onClick={clearAll}
-            className="text-xs text-brand-terracotta hover:underline flex items-center gap-1"
-          >
+          <button onClick={clearAll} className="text-xs text-brand-terracotta hover:underline flex items-center gap-1">
             <X size={12} /> Clear all
           </button>
         )}
       </div>
 
-      {/* Gender */}
-      <FilterGroup title="Category">
-        <div className="space-y-2">
-          {GENDERS.map((g) => (
-            <label key={g.value} className="flex items-center gap-3 cursor-pointer group">
-              <input
-                type="radio"
-                name="gender"
-                checked={currentGender === g.value}
-                onChange={() => toggleParam("gender", g.value)}
-                className="accent-brand-terracotta"
-              />
-              <span className="text-sm text-brand-brown group-hover:text-brand-terracotta transition-colors">
-                {g.label}
-              </span>
-            </label>
+      {/* Categories (tree) */}
+      <FilterGroup title="Categories">
+        <div className="space-y-0.5">
+          <button
+            type="button"
+            onClick={() => updateParam("category", null)}
+            className={`text-[13px] py-1 ${!currentCategory ? "text-brand-terracotta font-semibold" : "text-brand-tan hover:text-brand-brown"}`}
+          >
+            All Products
+          </button>
+          {tree.map((cat) => (
+            <CatNode key={cat._id} cat={cat} depth={0} current={currentCategory} onPick={pickCategory} />
           ))}
+          {tree.length === 0 && <p className="text-[12px] text-brand-tan/60">No categories yet.</p>}
         </div>
       </FilterGroup>
 
@@ -104,9 +131,7 @@ export default function FilterSidebar({ categories = [], onClose }) {
               key={size}
               onClick={() => toggleParam("size", size)}
               className={`px-3 py-1.5 text-xs border font-medium transition-colors ${
-                currentSize === size
-                  ? "bg-brand-brown text-brand-cream border-brand-brown"
-                  : "border-brand-tan text-brand-brown hover:border-brand-brown"
+                currentSize === size ? "bg-brand-brown text-brand-cream border-brand-brown" : "border-brand-tan text-brand-brown hover:border-brand-brown"
               }`}
             >
               {size}
@@ -124,8 +149,7 @@ export default function FilterSidebar({ categories = [], onClose }) {
             { label: "Tk 1000 – Tk 2000", min: "1000", max: "2000" },
             { label: "Tk 2000+", min: "2000", max: "" },
           ].map((range) => {
-            const isActive =
-              currentMinPrice === range.min && currentMaxPrice === range.max;
+            const isActive = currentMinPrice === range.min && currentMaxPrice === range.max;
             return (
               <label key={range.label} className="flex items-center gap-3 cursor-pointer group">
                 <input
@@ -148,9 +172,7 @@ export default function FilterSidebar({ categories = [], onClose }) {
                   }}
                   className="accent-brand-terracotta"
                 />
-                <span className="text-sm text-brand-brown group-hover:text-brand-terracotta transition-colors">
-                  {range.label}
-                </span>
+                <span className="text-sm text-brand-brown group-hover:text-brand-terracotta transition-colors">{range.label}</span>
               </label>
             );
           })}
@@ -174,9 +196,7 @@ export default function FilterSidebar({ categories = [], onClose }) {
                 }}
                 className="accent-brand-terracotta"
               />
-              <span className="text-sm text-brand-brown group-hover:text-brand-terracotta transition-colors">
-                {item.label}
-              </span>
+              <span className="text-sm text-brand-brown group-hover:text-brand-terracotta transition-colors">{item.label}</span>
             </label>
           ))}
         </div>

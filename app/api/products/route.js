@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
-import mongoose from "mongoose";
+import Category from "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { slugify, escapeRegExp } from "@/lib/utils";
+import { findCategory, getSubtreeIds } from "@/lib/categories";
 
 export async function GET(request) {
   try {
@@ -11,7 +12,6 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
 
     const query = { isPublished: true };
-    const gender = searchParams.get("gender");
     const search = searchParams.get("search");
     const category = searchParams.get("category");
     const size = searchParams.get("size");
@@ -25,13 +25,14 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get("limit") || "12");
     const sort = searchParams.get("sort") || "newest";
 
-    if (gender) {
-      const categories = await (
-        await import("@/models/Category")
-      ).default.find({ gender }).select("_id");
-      query.category = { $in: categories.map((c) => c._id) };
+    // Filter by category (slug OR id) including the whole subtree, so a parent
+    // category lists everything nested under it (child + grandchild).
+    if (category) {
+      const allCats = await Category.find({}).select("_id slug parent").lean();
+      const root = findCategory(allCats, category);
+      // Unmatched category → return nothing rather than silently showing all.
+      query.category = { $in: root ? getSubtreeIds(allCats, root._id) : [] };
     }
-    if (category && mongoose.isValidObjectId(category)) query.category = category;
     if (search) query.$text = { $search: search };
     if (size) query["variants.size"] = size;
     if (color) {
@@ -59,7 +60,7 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
     const [products, total] = await Promise.all([
       Product.find(query)
-        .populate("category", "name slug gender")
+        .populate("category", "name slug")
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
@@ -80,7 +81,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { error } = await requireAdmin(request);
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

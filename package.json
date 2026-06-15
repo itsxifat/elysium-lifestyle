@@ -22,6 +22,7 @@
     "react-easy-crop": "^5.5.7",
     "react-hook-form": "^7.76.0",
     "react-hot-toast": "^2.6.0",
+    "sharp": "^0.35.1",
     "sslcommerz-lts": "^1.2.0",
     "steadfast-fraud": "^1.0.2",
     "swiper": "^12.1.4"

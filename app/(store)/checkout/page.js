@@ -21,6 +21,10 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [shippingZone, setShippingZone] = useState("inside_dhaka");
   const [placing, setPlacing] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCodes, setAppliedCodes] = useState([]);
+  const [discountResult, setDiscountResult] = useState(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
   // InitiateCheckout — fires once when the cart has hydrated with items.
   const icFired = useRef(false);
@@ -58,10 +62,66 @@ export default function CheckoutPage() {
   };
   const freeShippingEnabled = s.freeShippingEnabled ?? false;
   const freeThreshold = s.freeShippingThreshold ?? settings?.siteInfo?.freeShippingThreshold ?? 1500;
-  const shipping = freeShippingEnabled || (freeThreshold > 0 && subtotal >= freeThreshold)
+  const baseShipping = freeShippingEnabled || (freeThreshold > 0 && subtotal >= freeThreshold)
     ? 0
     : (zoneFees[shippingZone] ?? 60);
-  const total = subtotal + shipping;
+  const discountTotal = discountResult?.discountTotal || 0;
+  const freeShip = !!discountResult?.freeShipping;
+  const shipping = freeShip ? 0 : baseShipping;
+  const total = Math.max(0, subtotal + shipping - discountTotal);
+
+  // Re-evaluate automatic + applied-code discounts whenever the cart, zone, or
+  // codes change. Prices/eligibility are computed server-side.
+  useEffect(() => {
+    if (items.length === 0) { setDiscountResult(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/discounts/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity })),
+            codes: appliedCodes,
+            shippingFee: baseShipping,
+          }),
+        });
+        const d = await res.json();
+        if (!cancelled) setDiscountResult(d);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [items, appliedCodes, baseShipping]);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    if (appliedCodes.includes(code)) { setCouponInput(""); return; }
+    setApplyingCoupon(true);
+    const next = [...appliedCodes, code];
+    try {
+      const res = await fetch("/api/discounts/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity })),
+          codes: next,
+          shippingFee: baseShipping,
+        }),
+      });
+      const d = await res.json();
+      setDiscountResult(d);
+      const wasRejected = (d.rejected || []).find((r) => r.code === code);
+      const wasApplied = (d.applied || []).some((a) => a.code === code);
+      if (wasApplied) { setAppliedCodes(next); setCouponInput(""); toast.success("Coupon applied"); }
+      else toast.error(wasRejected ? `${code}: ${wasRejected.reason}` : "Coupon not applicable");
+    } catch {
+      toast.error("Couldn't apply coupon");
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+  const removeCode = (code) => setAppliedCodes((a) => a.filter((c) => c !== code));
 
   const shippingZoneOptions = [
     { value: "inside_dhaka", label: "Inside Dhaka", desc: "Gulshan, Dhanmondi, Mirpur, Uttara…", fee: zoneFees.inside_dhaka },
@@ -108,6 +168,7 @@ export default function CheckoutPage() {
         guestEmail: !session ? data.email : undefined,
         shippingZone,
         paymentMethod,
+        discountCodes: appliedCodes,
       };
 
       const res = await fetch("/api/orders", {
@@ -344,6 +405,7 @@ export default function CheckoutPage() {
                         {item.name}
                       </p>
                       <p className="text-xs text-brand-tan">Size: {item.size}</p>
+                      {item.sku && <p className="text-[10px] text-brand-tan/80">SKU: {item.sku}</p>}
                       <p className="text-xs font-semibold text-brand-brown mt-1">
                         {formatPrice(item.price * item.quantity)}
                       </p>
@@ -352,14 +414,51 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Coupon */}
+              <div className="border-t border-brand-tan/20 pt-4">
+                <div className="flex gap-2">
+                  <input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }}
+                    placeholder="Coupon code"
+                    className="flex-1 border border-brand-tan/30 rounded-lg px-3 py-2 text-sm uppercase text-brand-brown focus:outline-none focus:border-brand-brown"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={applyingCoupon || !couponInput.trim()}
+                    className="px-4 py-2 text-[12px] uppercase tracking-wider border border-brand-brown text-brand-brown hover:bg-brand-brown hover:text-white transition-colors disabled:opacity-40 rounded-lg"
+                  >
+                    {applyingCoupon ? "…" : "Apply"}
+                  </button>
+                </div>
+                {appliedCodes.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {appliedCodes.map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 bg-brand-cream px-2 py-1 rounded text-[11px] text-brand-terracotta font-medium">
+                        {c}
+                        <button type="button" onClick={() => removeCode(c)} className="hover:text-red-500">✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Totals */}
               <div className="border-t border-brand-tan/20 pt-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-brand-tan">Subtotal</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
+                {discountTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-brand-tan">Discount</span>
+                    <span className="text-green-600">− {formatPrice(discountTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-brand-tan">Shipping</span>
+                  <span className="text-brand-tan">Shipping{freeShip ? " (coupon)" : ""}</span>
                   <span className={shipping === 0 ? "text-green-600" : ""}>
                     {shipping === 0 ? "Free" : formatPrice(shipping)}
                   </span>

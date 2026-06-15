@@ -17,7 +17,7 @@ export async function GET(_, { params }) {
 }
 
 export async function PUT(request, { params }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("categories.manage");
   if (error) return error;
   try {
     await connectDB();
@@ -51,7 +51,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(_, { params }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("categories.manage");
   if (error) return error;
   try {
     await connectDB();

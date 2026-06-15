@@ -91,12 +91,9 @@ export default function Footer() {
               <h4 className="text-[9px] font-bold uppercase tracking-[3px] text-brand-tan/70 mb-5">Shop</h4>
               <ul className="space-y-3">
                 {[
-                  { label: "Women", href: "/shop?gender=women" },
-                  { label: "Men", href: "/shop?gender=men" },
-                  { label: "Kids", href: "/shop?gender=kids" },
+                  { label: "Shop All", href: "/shop" },
                   { label: "New Arrivals", href: "/shop?newArrival=true" },
-                  { label: "Sale", href: "/shop?onSale=true" },
-                  { label: "All Products", href: "/shop" },
+                  { label: "On Sale", href: "/shop?onSale=true" },
                 ].map((link) => (
                   <li key={link.href}>
                     <Link

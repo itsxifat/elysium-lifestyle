@@ -12,6 +12,7 @@ import {
 import { useCart } from "@/context/CartContext";
 import { shouldUnoptimizeImage } from "@/lib/utils";
 import { track } from "@/lib/tracking/client";
+import { isStaff } from "@/lib/permissions";
 
 let _navCache = null;
 let _navCacheTs = 0;
@@ -505,7 +506,7 @@ export default function Navbar() {
                             <Link href="/account/orders" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-sm text-brand-brown hover:bg-brand-cream transition-colors">
                               <Package size={16} strokeWidth={1.5} className="text-brand-tan" /> Order History
                             </Link>
-                            {session.user.role === "admin" && (
+                            {isStaff(session.user.role) && (
                               <Link href="/admin" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-sm text-brand-terracotta font-medium hover:bg-brand-cream transition-colors">
                                 <Settings size={16} strokeWidth={1.5} /> Admin Dashboard
                               </Link>
@@ -665,7 +666,7 @@ export default function Navbar() {
                   <Link href="/account/orders" onClick={closeMobile} className="flex items-center gap-3 py-2.5 text-sm text-brand-brown hover:text-brand-terracotta transition-colors">
                     <Package size={16} strokeWidth={1.5} className="text-brand-tan" /> Order History
                   </Link>
-                  {session.user.role === "admin" && (
+                  {isStaff(session.user.role) && (
                     <Link href="/admin" onClick={closeMobile} className="flex items-center gap-3 py-2.5 text-sm text-brand-terracotta font-medium">
                       <Settings size={16} strokeWidth={1.5} /> Admin Dashboard
                     </Link>

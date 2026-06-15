@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
   Search, Plus, X, Users, UserCheck, Shield, ShoppingBag,
@@ -8,16 +9,23 @@ import {
   Mail, Phone, MapPin, Calendar, CheckCircle, XCircle,
 } from "lucide-react";
 import { PageHeader, Button } from "@/components/admin/ui";
+import {
+  ROLES, ROLE_LABELS, ROLE_PERMISSIONS, assignableRoles,
+  getEffectivePermissions, isElevated, PERMISSION_GROUPS, PERMISSIONS,
+} from "@/lib/permissions";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+const ROLE_BADGE_CLS = {
+  superadmin: "bg-brand-brown/10 text-brand-brown",
+  admin: "bg-brand-terracotta/10 text-brand-terracotta",
+  moderator: "bg-blue-100 text-blue-700",
+  staff: "bg-amber-100 text-amber-700",
+  customer: "bg-brand-tan/15 text-brand-tan",
+};
 function RoleBadge({ role }) {
   return (
-    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 font-medium ${
-      role === "admin"
-        ? "bg-brand-terracotta/10 text-brand-terracotta"
-        : "bg-brand-tan/15 text-brand-tan"
-    }`}>
-      {role}
+    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 font-medium ${ROLE_BADGE_CLS[role] || ROLE_BADGE_CLS.customer}`}>
+      {ROLE_LABELS[role] || role}
     </span>
   );
 }
@@ -230,20 +238,29 @@ function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
 }
 
 // ── Create / Edit modal ────────────────────────────────────────────────────────
-function UserFormModal({ mode, user, onClose, onSaved }) {
+function UserFormModal({ mode, user, onClose, onSaved, actorRole, grantablePerms }) {
   const [form, setForm] = useState(
     mode === "edit"
       ? {
           name: user.name || "",
           phone: user.phone || "",
           role: user.role || "customer",
+          permissions: user.permissions || [],
           emailVerified: user.emailVerified || false,
         }
-      : { name: "", email: "", password: "", role: "customer", phone: "" }
+      : { name: "", email: "", password: "", role: "customer", phone: "", permissions: [] }
   );
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const togglePerm = (key) =>
+    set("permissions", form.permissions.includes(key)
+      ? form.permissions.filter((k) => k !== key)
+      : [...form.permissions, key]);
+
+  // Roles the actor may assign, plus the account's current role so the select
+  // never silently misrepresents an existing higher-tier user.
+  const roleOptions = Array.from(new Set([form.role, ...assignableRoles(actorRole)]));
 
   const submit = async () => {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
@@ -256,10 +273,13 @@ function UserFormModal({ mode, user, onClose, onSaved }) {
     try {
       const url = mode === "edit" ? `/api/admin/users/${user._id}` : "/api/admin/users";
       const method = mode === "edit" ? "PUT" : "POST";
+      // Elevated roles implicitly hold everything — no override list needed.
+      const payload = { ...form };
+      if (form.role === "customer" || isElevated(form.role)) payload.permissions = [];
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) { toast.error(json.error || "Failed"); return; }
@@ -341,10 +361,58 @@ function UserFormModal({ mode, user, onClose, onSaved }) {
               value={form.role}
               onChange={(e) => set("role", e.target.value)}
             >
-              <option value="customer">Customer</option>
-              <option value="admin">Admin</option>
+              {roleOptions.map((r) => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
             </select>
           </div>
+
+          {/* Permission editor — only for staff roles below the elevated tier. */}
+          {form.role !== "customer" && (
+            isElevated(form.role) ? (
+              <div className="rounded-lg bg-brand-cream/60 px-3 py-2.5 text-[11px] text-brand-tan">
+                Full access — this role holds every permission.
+              </div>
+            ) : (
+              <div>
+                <label className={labelCls}>Permissions</label>
+                <p className="text-[10px] text-brand-tan mb-2 normal-case tracking-normal">
+                  Role defaults are locked on. Tick extra permissions to grant.
+                </p>
+                <div className="space-y-3 max-h-52 overflow-y-auto pr-1 border border-brand-tan/15 rounded-lg p-3">
+                  {PERMISSION_GROUPS.map((g) => (
+                    <div key={g.label}>
+                      <p className="text-[9px] uppercase tracking-widest text-brand-tan/70 mb-1">{g.label}</p>
+                      <div className="space-y-1">
+                        {g.keys.map((key) => {
+                          const isDefault = (ROLE_PERMISSIONS[form.role] || []).includes(key);
+                          const grantable = grantablePerms.includes(key);
+                          const checked = isDefault || form.permissions.includes(key);
+                          const disabled = isDefault || !grantable;
+                          return (
+                            <label
+                              key={key}
+                              className={`flex items-center gap-2 text-[12px] ${disabled && !isDefault ? "opacity-40" : "cursor-pointer"}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={() => togglePerm(key)}
+                                className="accent-brand-terracotta"
+                              />
+                              <span className="text-brand-brown">{PERMISSIONS[key]}</span>
+                              {isDefault && <span className="text-[9px] text-brand-tan">(role)</span>}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
 
           {mode === "edit" && (
             <div className="flex items-center justify-between py-3 border-t border-brand-tan/10">
@@ -380,6 +448,10 @@ function UserFormModal({ mode, user, onClose, onSaved }) {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function AdminUsersPage() {
+  const { data: session } = useSession();
+  const actorRole = session?.user?.role || ROLES.CUSTOMER;
+  const grantablePerms = getEffectivePermissions(session?.user);
+
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);
   const [total, setTotal] = useState(0);
@@ -469,7 +541,7 @@ export default function AdminUsersPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Total Users"  value={stats.total}     icon={Users}      accent="brown" />
           <StatCard label="Customers"    value={stats.customers} icon={ShoppingBag} accent="tan" />
-          <StatCard label="Admins"       value={stats.admins}    icon={Shield}     accent="terracotta" />
+          <StatCard label="Staff"        value={stats.staff}     icon={Shield}     accent="terracotta" />
           <StatCard label="Verified"     value={stats.verified}  icon={UserCheck}  accent="green" />
         </div>
       )}
@@ -500,7 +572,10 @@ export default function AdminUsersPage() {
         >
           <option value="">All Roles</option>
           <option value="customer">Customers</option>
+          <option value="staff">Staff</option>
+          <option value="moderator">Moderators</option>
           <option value="admin">Admins</option>
+          <option value="superadmin">Super Admins</option>
         </select>
       </div>
 
@@ -672,6 +747,8 @@ export default function AdminUsersPage() {
         <UserFormModal
           mode="edit"
           user={editUser}
+          actorRole={actorRole}
+          grantablePerms={grantablePerms}
           onClose={() => setEditUser(null)}
           onSaved={handleSaved}
         />
@@ -681,6 +758,8 @@ export default function AdminUsersPage() {
       {createOpen && (
         <UserFormModal
           mode="create"
+          actorRole={actorRole}
+          grantablePerms={grantablePerms}
           onClose={() => setCreateOpen(false)}
           onSaved={handleSaved}
         />

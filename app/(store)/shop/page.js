@@ -22,9 +22,17 @@ function ShopContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
 
   const page = parseInt(searchParams.get("page") || "1");
   const sort = searchParams.get("sort") || "newest";
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((d) => setCategories(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -40,10 +48,10 @@ function ShopContent() {
       .finally(() => setLoading(false));
   }, [searchParams]);
 
-  const gender = searchParams.get("gender");
-  const title = gender
-    ? `${gender.charAt(0).toUpperCase() + gender.slice(1)}'s Collection`
-    : "All Products";
+  const categorySlug = searchParams.get("category");
+  const searchQuery = searchParams.get("search");
+  const activeCat = categories.find((c) => c.slug === categorySlug);
+  const title = activeCat ? activeCat.name : searchQuery ? `“${searchQuery}”` : "All Products";
 
   return (
     <div className="container-custom py-10">
@@ -56,7 +64,7 @@ function ShopContent() {
       <div className="flex gap-8">
         {/* Desktop Filter sidebar */}
         <aside className="hidden lg:block w-60 flex-shrink-0">
-          <FilterSidebar />
+          <FilterSidebar categories={categories} />
         </aside>
 
         {/* Products area */}
@@ -136,7 +144,7 @@ function ShopContent() {
                 <X size={20} className="text-brand-tan" />
               </button>
             </div>
-            <FilterSidebar onClose={() => setMobileFilterOpen(false)} />
+            <FilterSidebar categories={categories} onClose={() => setMobileFilterOpen(false)} />
           </div>
         </div>
       )}

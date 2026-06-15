@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const { error } = await requireAdmin(request);
+  const { error } = await requireAdmin("categories.manage");
   if (error) return error;
 
   try {

@@ -4,10 +4,13 @@ const orderItemSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
   name: { type: String, required: true },
   image: { type: String },
+  sku: { type: String, default: "" },
   size: { type: String, required: true },
   color: { type: String },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true, min: 1 },
+  // Quantity of this line that was returned (partial delivery / full return).
+  returnedQuantity: { type: Number, default: 0, min: 0 },
 });
 
 const shippingAddressSchema = new mongoose.Schema({
@@ -28,9 +31,22 @@ const orderSchema = new mongoose.Schema(
     guestEmail: { type: String },
     items: [orderItemSchema],
     shippingAddress: { type: shippingAddressSchema, required: true },
+
+    // Sales channel the order came through. "website" = customer self-checkout;
+    // the rest are manual/POS orders created by staff from the admin panel.
+    source: {
+      type: String,
+      enum: ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"],
+      default: "website",
+    },
+    // Who created the order (null for customer self-checkout). createdByName is a
+    // snapshot kept even if the staff account is later removed.
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    createdByName: { type: String, default: "" },
+
     paymentMethod: {
       type: String,
-      enum: ["sslcommerz", "cod"],
+      enum: ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"],
       required: true,
     },
     paymentStatus: {
@@ -50,10 +66,51 @@ const orderSchema = new mongoose.Schema(
     },
     subtotal: { type: Number, required: true },
     shippingFee: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    // Discounts/coupons applied to the order (snapshot for the record).
+    discountCodes: { type: [String], default: [] },
+    appliedDiscounts: [
+      {
+        discount: { type: mongoose.Schema.Types.ObjectId, ref: "Discount" },
+        code: String,
+        title: String,
+        type: String, // percentage | fixed | free_shipping | buy_x_get_y | tiered
+        amount: { type: Number, default: 0 }, // money taken off (shipping excluded)
+        freeShipping: { type: Boolean, default: false },
+      },
+    ],
     totalAmount: { type: Number, required: true },
     transactionId: { type: String },
     valId: { type: String },
     notes: { type: String },
+
+    // ── Returns / partial delivery ──────────────────────────────────────────
+    // Set when staff record a return; totals above are recomputed accordingly.
+    returnedAmount: { type: Number, default: 0 }, // value refunded for returned items
+    deliveryChargeWaived: { type: Boolean, default: false },
+    returns: [
+      {
+        at: { type: Date, default: Date.now },
+        by: String, // staff name snapshot
+        items: [{ name: String, size: String, quantity: Number, price: Number }],
+        refundAmount: { type: Number, default: 0 },
+        deliveryChargeWaived: { type: Boolean, default: false },
+        note: String,
+      },
+    ],
+
+    // ── Steadfast courier consignment (order placement) ─────────────────────
+    courier: {
+      provider: { type: String, default: "steadfast" },
+      consignmentId: { type: Number, default: null },
+      trackingCode: { type: String, default: "" },
+      status: { type: String, default: "" }, // raw Steadfast status
+      deliveryCharge: { type: Number, default: 0 },
+      sentAt: { type: Date, default: null },
+      lastWebhookAt: { type: Date, default: null },
+      error: { type: String, default: "" },
+      trackingMessages: [{ message: String, at: { type: Date, default: Date.now } }],
+    },
 
     // Steadfast (Packzy) courier fraud/delivery history for the order's phone,
     // fetched automatically on order creation. See lib/fraud.js.

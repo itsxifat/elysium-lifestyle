@@ -11,7 +11,7 @@ import { escapeRegExp } from "@/lib/utils";
 // Duplicates share the original's image references (no re-upload) and are
 // created as DRAFTS so you can swap photos before publishing.
 export async function POST(request, { params }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdmin("products.manage");
   if (error) return error;
 
   try {

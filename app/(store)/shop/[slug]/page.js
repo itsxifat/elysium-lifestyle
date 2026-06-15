@@ -3,19 +3,27 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
-import "@/models/Category";
+import Category from "@/models/Category";
 import "@/models/SizeChart";
 import { serializeDoc, formatPrice, calculateDiscount } from "@/lib/utils";
 import { cdnAbsoluteUrl } from "@/lib/cdn";
+import { getAncestors } from "@/lib/categories";
 import ProductDetailClient from "./ProductDetailClient";
 
 async function getProduct(slug) {
   await connectDB();
   const product = await Product.findOne({ slug, isPublished: true })
-    .populate("category", "name slug gender")
+    .populate("category", "name slug")
     .populate("sizeChart", "name columns rows")
     .lean();
   if (!product) return null;
+
+  // Breadcrumb path (Mens › Shirts › Casual) from the category tree.
+  let categoryPath = [];
+  if (product.category?._id) {
+    const allCats = await Category.find({}).select("_id name slug parent").lean();
+    categoryPath = getAncestors(allCats, product.category._id);
+  }
 
   const related = await Product.find({
     category: product.category?._id,
@@ -28,6 +36,7 @@ async function getProduct(slug) {
   return {
     product: serializeDoc(product),
     related: serializeDoc(related),
+    categoryPath,
   };
 }
 
@@ -57,5 +66,5 @@ export default async function ProductPage({ params }) {
   const data = await getProduct(params.slug);
   if (!data) notFound();
 
-  return <ProductDetailClient product={data.product} related={data.related} />;
+  return <ProductDetailClient product={data.product} related={data.related} categoryPath={data.categoryPath} />;
 }

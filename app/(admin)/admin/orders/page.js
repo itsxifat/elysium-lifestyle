@@ -2,10 +2,32 @@ export const dynamic = "force-dynamic";
 
 import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
+import "@/models/User"; // register User schema for .populate("user")
 import { serializeDoc, formatPrice } from "@/lib/utils";
 import Link from "next/link";
-import { ShoppingCart, ChevronRight } from "lucide-react";
-import { PageHeader, Card, Pill, EmptyState, TableWrap } from "@/components/admin/ui";
+import { ShoppingCart, ChevronRight, Plus } from "lucide-react";
+import { PageHeader, Card, Pill, EmptyState, TableWrap, Button } from "@/components/admin/ui";
+
+const SOURCE_LABELS = {
+  website: "Website",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  offline: "Walk-in",
+  other: "Manual",
+};
+
+// Shows the sales channel + who created it (only for manual/POS orders).
+function ChannelTag({ order }) {
+  if (!order.source || order.source === "website") return null;
+  return (
+    <p className="text-[10px] text-brand-terracotta mt-0.5">
+      via {SOURCE_LABELS[order.source] || order.source}
+      {order.createdByName ? ` · ${order.createdByName}` : ""}
+    </p>
+  );
+}
 
 async function getOrders() {
   await connectDB();
@@ -36,7 +58,16 @@ export default async function AdminOrdersPage() {
 
   return (
     <div>
-      <PageHeader title="Orders" subtitle={`${orders.length} order${orders.length === 1 ? "" : "s"} total`} icon={ShoppingCart} />
+      <PageHeader
+        title="Orders"
+        subtitle={`${orders.length} order${orders.length === 1 ? "" : "s"} total`}
+        icon={ShoppingCart}
+        actions={
+          <Button as={Link} href="/admin/orders/new">
+            <Plus size={14} /> Create Order
+          </Button>
+        }
+      />
 
       <Card padded={false}>
         {orders.length === 0 ? (
@@ -63,6 +94,7 @@ export default async function AdminOrdersPage() {
                         <td className="px-4 py-3 text-brand-brown/80">
                           {order.user?.name || order.shippingAddress?.name || "Guest"}
                           <div className="text-xs text-brand-tan">{order.shippingAddress?.phone}</div>
+                          <ChannelTag order={order} />
                           <div className="mt-1"><FraudBadge fc={order.fraudCheck} /></div>
                         </td>
                         <td className="px-4 py-3 text-brand-brown/70 whitespace-nowrap">{order.items.length} item{order.items.length > 1 ? "s" : ""}</td>
@@ -95,6 +127,7 @@ export default async function AdminOrdersPage() {
                     <p className="text-xs text-brand-tan mt-0.5 truncate">
                       {order.user?.name || order.shippingAddress?.name || "Guest"} · {order.items.length} item{order.items.length > 1 ? "s" : ""}
                     </p>
+                    <ChannelTag order={order} />
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <Pill tone={PAYMENT_TONE[order.paymentStatus] || "gray"}>{order.paymentStatus}</Pill>
                       <Pill tone={STATUS_TONE[order.orderStatus] || "gray"}>{order.orderStatus}</Pill>
