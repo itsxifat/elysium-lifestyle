@@ -25,86 +25,133 @@ const SIZES = {
 
 const codFor = (o) => (o.paymentStatus === "paid" ? 0 : o.totalAmount);
 
-function moneyLine(label, value) {
+// Shared price breakdown — no item list (the barcode + scanner cover products,
+// and long carts would break a small label).
+function PriceRows({ order, className }) {
   return (
-    <p>
-      <span>{label}: </span>
-      <span className="font-semibold">{value}</span>
-    </p>
+    <div className={className}>
+      <div className="flex justify-between"><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div>
+      {order.discount > 0 && (
+        <div className="flex justify-between"><span>Discount</span><span>−{formatPrice(order.discount)}</span></div>
+      )}
+      <div className="flex justify-between"><span>Shipping</span><span>{order.shippingFee ? formatPrice(order.shippingFee) : "Free"}</span></div>
+      <div className="flex justify-between font-bold border-t border-black/40 mt-[0.3mm] pt-[0.3mm]"><span>Total</span><span>{formatPrice(order.totalAmount)}</span></div>
+    </div>
   );
 }
 
+// Prominent consignment (CN) number — the key piece for the courier.
+function CnBlock({ order, big = false }) {
+  if (order.courier?.consignmentId) {
+    return (
+      <div className="text-center leading-none">
+        <p className={`uppercase text-black/60 ${big ? "text-[9px]" : "text-[6px]"}`}>Consignment No.</p>
+        <p className={`font-bold ${big ? "text-[22px]" : "text-[15px]"}`}>{order.courier.consignmentId}</p>
+      </div>
+    );
+  }
+  return <p className={`text-center font-semibold ${big ? "text-[11px]" : "text-[8px]"}`}>Not in courier yet</p>;
+}
+
 // ── Single label / mini-invoice ─────────────────────────────────────────────
-function Label({ order, shop, opts, layout }) {
+function Label({ order, shop, opts, layout, compact = false }) {
   const a = order.shippingAddress || {};
   const cod = codFor(order);
   const scan = order.courier?.trackingCode || order.orderNumber;
   const address = [a.street, a.city, a.state].filter(Boolean).join(", ");
-  const items = order.items || [];
 
-  if (layout === "landscape") {
+  // Compact PORTRAIT — small thermal labels (2"/3"). No item list; CN + price clear.
+  if (compact && layout !== "landscape") {
+    return (
+      <div className="label-content text-black bg-white flex flex-col" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-[1mm] border-b border-black pb-[0.8mm]">
+          <div className="min-w-0">
+            {opts.showLogo && <p className="font-bold text-[10px] leading-none truncate">{shop.name}</p>}
+            {shop.phone && <p className="text-[7px] leading-tight truncate">{shop.phone}</p>}
+          </div>
+          <div className="text-right flex-shrink-0 leading-none">
+            <p className="font-bold text-[8px] leading-tight">{order.orderNumber}</p>
+            <p className="text-[6px]">{new Date(order.createdAt).toLocaleDateString("en-GB")}</p>
+          </div>
+        </div>
+
+        {/* Barcode */}
+        {opts.showBarcode && (
+          <div className="py-[1mm] text-center">
+            <Barcode value={scan} height={30} />
+            <p className="font-mono text-[7px] leading-none mt-[0.3mm] truncate">{scan}</p>
+          </div>
+        )}
+
+        {/* CN — the important part */}
+        <div className="pb-[1mm] border-b border-black">
+          <CnBlock order={order} />
+        </div>
+
+        {/* Deliver to */}
+        <div className="py-[1mm] border-b border-black/40">
+          <p className="text-[6px] uppercase text-black/60 leading-none">Deliver to</p>
+          <p className="font-bold text-[12px] leading-tight truncate">{a.name}</p>
+          <p className="text-[11px] font-semibold leading-tight">{a.phone}</p>
+          <p className="text-[8px] leading-tight label-address">{address}</p>
+        </div>
+
+        {/* Price + COD */}
+        <div className="mt-auto pt-[1mm]">
+          {opts.showPrices && <PriceRows order={order} className="text-[8px] leading-snug" />}
+          {opts.showCod && (
+            <div className="mt-[0.8mm] pt-[0.8mm] border-t-2 border-black flex items-center justify-between gap-[1mm]">
+              <span className="text-[8px] uppercase font-semibold">{cod > 0 ? "Collect (COD)" : "Paid"}</span>
+              <span className="font-bold text-[16px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</span>
+            </div>
+          )}
+          <p className="text-[6px] capitalize leading-none mt-[0.5mm]">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (compact && layout === "landscape") {
     return (
       <div className="label-content label-content--landscape text-black bg-white" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-        <div className="grid grid-cols-[1fr_32mm] gap-[2mm] h-full">
+        <div className="grid grid-cols-[1fr_34mm] gap-[2mm] h-full">
+          {/* Left: shop + recipient */}
           <div className="min-w-0 flex flex-col">
             <div className="border-b border-black pb-[1mm] min-w-0">
-              {opts.showLogo && <p className="font-bold text-[8px] leading-none truncate">{shop.name}</p>}
-              <p className="text-[6.5px] leading-tight truncate">{shop.phone}</p>
+              {opts.showLogo && <p className="font-bold text-[9px] leading-none truncate">{shop.name}</p>}
+              {shop.phone && <p className="text-[6.5px] leading-tight truncate">{shop.phone}</p>}
             </div>
 
-            <div className="py-[1mm] border-b border-black/35 min-w-0">
+            <div className="py-[1mm] min-w-0">
               <p className="text-[5.5px] uppercase text-black/60 leading-none">Deliver to</p>
-              <p className="font-bold text-[8.5px] leading-tight truncate">{a.name}</p>
-              <p className="text-[8px] font-semibold leading-tight truncate">{a.phone}</p>
-              <p className="text-[6.5px] leading-tight label-address">{address}</p>
+              <p className="font-bold text-[10px] leading-tight truncate">{a.name}</p>
+              <p className="text-[9px] font-semibold leading-tight">{a.phone}</p>
+              <p className="text-[7px] leading-tight label-address">{address}</p>
             </div>
 
-            <div className="mt-auto pt-[1mm] flex items-end justify-between gap-[1mm] min-w-0">
-              <div className="text-[5.8px] leading-tight min-w-0">
-                <p className="capitalize">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
-                {order.courier?.consignmentId && <p>CN: {order.courier.consignmentId}</p>}
-                <p>{new Date(order.createdAt).toLocaleDateString("en-GB")}</p>
-              </div>
-              {opts.showCod && (
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[5.5px] uppercase leading-none">{cod > 0 ? "Collect" : "Paid"}</p>
-                  <p className="font-bold text-[12px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
-                </div>
-              )}
+            <div className="mt-auto text-[6px] leading-tight min-w-0">
+              <p className="capitalize">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
+              <p className="truncate">{new Date(order.createdAt).toLocaleDateString("en-GB")} · {order.orderNumber}</p>
             </div>
           </div>
 
+          {/* Right: barcode + CN + price + COD */}
           <div className="min-w-0 flex flex-col border-l border-black/30 pl-[2mm]">
             {opts.showBarcode && (
-              <div className="border-b border-dashed border-black/60 pb-[0.8mm]">
-                <Barcode value={scan} height={18} />
-                <p className="font-mono font-bold text-[6.5px] leading-none text-center truncate">{scan}</p>
+              <div className="text-center">
+                <Barcode value={scan} height={20} />
+                <p className="font-mono text-[6px] leading-none truncate">{scan}</p>
               </div>
             )}
-            <table className="w-full text-[6.5px] mt-[0.8mm] table-fixed">
-              <thead>
-                <tr className="border-b border-black/50">
-                  <th className="text-left font-semibold py-[0.4mm]">Item</th>
-                  <th className="text-center font-semibold w-[7mm]">Sz</th>
-                  <th className="text-center font-semibold w-[5mm]">Q</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.slice(0, 4).map((it, i) => (
-                  <tr key={i} className="border-b border-black/15 align-top">
-                    <td className="py-[0.4mm] pr-[1mm] leading-tight truncate">{it.name}</td>
-                    <td className="text-center">{it.size}</td>
-                    <td className="text-center">{it.quantity}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {items.length > 4 && <p className="text-[5.5px] mt-[0.5mm] leading-none">+{items.length - 4} more item(s)</p>}
-            {opts.showPrices && (
-              <div className="mt-auto pt-[0.8mm] border-t border-black text-[6.2px] leading-tight">
-                {moneyLine("Subtotal", formatPrice(order.subtotal))}
-                {moneyLine("Shipping", order.shippingFee ? formatPrice(order.shippingFee) : "Free")}
-                {order.discount > 0 && moneyLine("Discount", `-${formatPrice(order.discount)}`)}
+            <div className="py-[0.8mm] border-y border-black my-[0.8mm]">
+              <CnBlock order={order} />
+            </div>
+            {opts.showPrices && <PriceRows order={order} className="text-[6.5px] leading-snug" />}
+            {opts.showCod && (
+              <div className="mt-auto pt-[0.8mm] border-t-2 border-black text-right leading-none">
+                <p className="text-[5.5px] uppercase">{cod > 0 ? "Collect (COD)" : "Paid"}</p>
+                <p className="font-bold text-[13px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
               </div>
             )}
           </div>
@@ -121,79 +168,48 @@ function Label({ order, shop, opts, layout }) {
           {opts.showLogo && <p className="font-bold text-[15px] leading-tight truncate">{shop.name}</p>}
           <p className="text-[10px] leading-tight">{shop.phone}</p>
         </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-[10px] uppercase tracking-wide">Invoice</p>
+        <div className="text-right flex-shrink-0 leading-tight">
           <p className="font-bold text-[13px]">{order.orderNumber}</p>
-          {order.courier?.consignmentId && <p className="text-[10px] font-semibold">CN: {order.courier.consignmentId}</p>}
           <p className="text-[9px]">{new Date(order.createdAt).toLocaleDateString("en-GB")}</p>
         </div>
       </div>
 
-      {/* Consignment / barcode */}
+      {/* Barcode */}
       {opts.showBarcode && (
-        <div className="py-1.5 border-b border-dashed border-black/60">
-          <Barcode value={scan} height={42} />
-          <div className="flex items-center justify-between text-[10px] mt-0.5">
-            <span>{order.courier?.consignmentId ? `CN: ${order.courier.consignmentId}` : "Not in courier yet"}</span>
-            <span className="font-mono font-bold">{scan}</span>
-          </div>
+        <div className="py-2 text-center border-b border-black/60">
+          <Barcode value={scan} height={46} />
+          <p className="font-mono font-bold text-[11px] mt-0.5">{scan}</p>
         </div>
       )}
 
+      {/* CN — the important part */}
+      <div className="py-2 border-b-2 border-black">
+        <CnBlock order={order} big />
+      </div>
+
       {/* Recipient */}
-      <div className="py-1.5 border-b border-black/40">
+      <div className="py-2 border-b border-black/40">
         <p className="text-[9px] uppercase tracking-wide text-black/60">Deliver to</p>
-        <p className="font-bold text-[13px] leading-snug">{a.name}</p>
-        <p className="text-[12px] font-semibold">{a.phone}</p>
+        <p className="font-bold text-[15px] leading-snug">{a.name}</p>
+        <p className="text-[13px] font-semibold">{a.phone}</p>
         <p className="text-[11px] leading-snug">{address}</p>
       </div>
 
-      {/* Items */}
-      <table className="w-full text-[11px] mt-1.5">
-        <thead>
-          <tr className="border-b border-black/50">
-            <th className="text-left font-semibold py-0.5">Item</th>
-            <th className="text-center font-semibold">Size</th>
-            <th className="text-center font-semibold">Qty</th>
-            {opts.showPrices && <th className="text-right font-semibold">Amount</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => (
-            <tr key={i} className="border-b border-black/15 align-top">
-              <td className="py-0.5 pr-1">
-                {it.name}
-                {it.sku && <span className="block text-[9px] text-black/55">SKU: {it.sku}</span>}
-              </td>
-              <td className="text-center">{it.size}</td>
-              <td className="text-center">{it.quantity}</td>
-              {opts.showPrices && <td className="text-right">{formatPrice(it.price * it.quantity)}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Totals + COD */}
-      <div className="mt-1.5 pt-1 border-t-2 border-black flex items-end justify-between">
-        <div className="text-[10px] leading-tight">
-          {opts.showPrices && (
-            <>
-              <p>Subtotal: {formatPrice(order.subtotal)}</p>
-              <p>Shipping: {order.shippingFee ? formatPrice(order.shippingFee) : "Free"}</p>
-              {order.discount > 0 && <p>Discount: −{formatPrice(order.discount)}</p>}
-            </>
-          )}
-          <p className="capitalize">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
+      {/* Price + COD */}
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <div className="flex-1 max-w-[60%]">
+          {opts.showPrices && <PriceRows order={order} className="text-[11px] leading-snug" />}
+          <p className="capitalize text-[10px] mt-1">{order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod}</p>
         </div>
         {opts.showCod && (
           <div className="text-right">
             <p className="text-[9px] uppercase">{cod > 0 ? "Collect (COD)" : "Paid"}</p>
-            <p className="font-bold text-[18px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
+            <p className="font-bold text-[22px] leading-none">{cod > 0 ? formatPrice(cod) : formatPrice(order.totalAmount)}</p>
           </div>
         )}
       </div>
 
-      {order.notes && <p className="text-[9px] mt-1 italic">Note: {order.notes}</p>}
+      {order.notes && <p className="text-[9px] mt-2 italic">Note: {order.notes}</p>}
     </div>
   );
 }
@@ -283,6 +299,8 @@ export default function LabelsPage() {
   const Cw = swap ? Mh : Mw;
   const Ch = swap ? Mw : Mh;
   const labelLayout = parseFloat(Cw) >= parseFloat(Ch) ? "landscape" : "portrait";
+  // Small thermal stock → compact design (big invoice layout is for A-series).
+  const compact = Boolean(size.thermal) || sizeKey === "80mm";
 
   const printCss = `
     .label-content { width: 100%; height: 100%; overflow: hidden; }
@@ -462,7 +480,7 @@ export default function LabelsPage() {
                   className="bg-white shadow mx-auto border border-brand-tan/40"
                   style={{ width: Cw, height: Ch, padding: pad, boxSizing: "border-box" }}
                 >
-                  <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} />
+                  <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
                 </div>
               ) : (
                 <p className="text-center text-brand-tan text-sm py-6">Select an order to preview its label.</p>
@@ -480,7 +498,7 @@ export default function LabelsPage() {
           {selectedOrders.map((o) => (
             <div key={o._id} className="label-sheet">
               <div className="label-rot">
-                <Label order={o} shop={shop} opts={opts} layout={labelLayout} />
+                <Label order={o} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
               </div>
             </div>
           ))}
