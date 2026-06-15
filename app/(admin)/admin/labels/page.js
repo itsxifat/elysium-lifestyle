@@ -315,11 +315,13 @@ export default function LabelsPage() {
     #label-print-root { display: none; }
 
     @media print {
-      /* "none" = edge-to-edge; "default" = let the printer keep its margins so the
-         label stays centered on the media (and the top isn't clipped). */
-      @page { size: ${Mw} ${Mh};${margins === "none" ? " margin: 0;" : ""} }
+      /* No @page size — let the PRINTER'S paper define the page, then fill it.
+         (vw/vh are the page box in print, so this works for any driver paper and
+         removes the blank space / off-center seen with a hard-coded size.)
+         "none" margin = edge to edge; default keeps the driver's margins. */
+      @page {${margins === "none" ? " margin: 0;" : ""} }
       html, body {
-        margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important;
+        margin: 0 !important; padding: 0 !important; background: #fff !important;
       }
       *, *::before, *::after {
         -webkit-print-color-adjust: exact !important;
@@ -332,8 +334,8 @@ export default function LabelsPage() {
       #label-print-root { display: block !important; }
       .label-sheet {
         position: relative !important;
-        width: ${Mw} !important;
-        height: ${Mh} !important;
+        width: 100vw !important;
+        height: 100vh !important;
         margin: 0 !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
@@ -344,13 +346,14 @@ export default function LabelsPage() {
       }
       .label-sheet:last-child { break-after: auto !important; page-break-after: auto !important; }
 
-      /* The design canvas, centered and rotated to fill the physical page. */
+      /* Fill the whole page, rotated. For 90/270 the pre-rotation box is swapped
+         (100vh × 100vw) so the rotated result covers the page exactly. */
       .label-rot {
         position: absolute !important;
         top: 50% !important;
         left: 50% !important;
-        width: ${Cw} !important;
-        height: ${Ch} !important;
+        width: ${swap ? "100vh" : "100vw"} !important;
+        height: ${swap ? "100vw" : "100vh"} !important;
         padding: ${pad} !important;
         box-sizing: border-box !important;
         transform: translate(-50%, -50%) rotate(${rot}deg) !important;
@@ -466,8 +469,9 @@ export default function LabelsPage() {
               </Select>
             </Field>
             <p className="text-[11px] text-brand-tan leading-relaxed">
-              Page = {Mw} × {Mh}. If it prints sideways, change the rotation until it&apos;s upright.
-              In Chrome&apos;s print dialog set <b>Margins: {margins === "none" ? "None" : "Default"}</b> and <b>Scale: 100%</b>.
+              The label fills your printer&apos;s paper. In Chrome&apos;s dialog pick your <b>label paper size</b>,
+              set <b>Margins: {margins === "none" ? "None" : "Default"}</b> and <b>Scale: 100%</b>, then change the
+              rotation here until it prints upright. The size below shapes the design only.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
