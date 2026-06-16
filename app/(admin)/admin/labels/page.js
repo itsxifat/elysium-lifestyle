@@ -243,7 +243,8 @@ export default function LabelsPage() {
 
   const [sizeKey, setSizeKey] = useState("3x2");
   const [rotation, setRotation] = useState("90");
-  const [margins, setMargins] = useState("default"); // "default" = centered, "none" = edge-to-edge
+  const [marginMm, setMarginMm] = useState("0");   // page margin baked into print (mm)
+  const [scalePct, setScalePct] = useState("90");  // print scale baked in (%) — no need to set it in Chrome's dialog
   const [pdfBusy, setPdfBusy] = useState(false);
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
@@ -304,6 +305,22 @@ export default function LabelsPage() {
   // Small thermal stock → compact design (big invoice layout is for A-series).
   const compact = Boolean(size.thermal) || sizeKey === "80mm";
 
+  // ── Print geometry (all in mm) ────────────────────────────────────────────
+  // Margin + scale are baked straight into the print CSS, so the operator never
+  // has to touch Chrome's Margins/Scale options (and can't forget them). The
+  // @page is the EXACT physical label, which is what makes BULK printing
+  // reliable: every page is one explicit, identical size instead of the per-page
+  // vw/vh guesswork that produced the wrong / blank pages on bulk runs.
+  const num = (v, fb) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fb; };
+  const MwNum = num(Mw, 100);
+  const MhNum = num(Mh, 150);
+  const mNum = Math.min(20, Math.max(0, num(marginMm, 0)));        // page margin (mm)
+  const sc = Math.min(100, Math.max(10, num(scalePct, 90))) / 100; // print scale
+  const boxW = Math.max(1, MwNum - 2 * mNum);  // printable area on the page
+  const boxH = Math.max(1, MhNum - 2 * mNum);
+  const rotW = swap ? boxH : boxW;  // pre-rotation box so the rotated result fills the page
+  const rotH = swap ? boxW : boxH;
+
   const printCss = `
     .label-content { width: 100%; height: 100%; overflow: hidden; }
     .label-address {
@@ -316,11 +333,9 @@ export default function LabelsPage() {
     #label-print-root { display: none; }
 
     @media print {
-      /* No @page size — let the PRINTER'S paper define the page, then fill it.
-         (vw/vh are the page box in print, so this works for any driver paper and
-         removes the blank space / off-center seen with a hard-coded size.)
-         "none" margin = edge to edge; default keeps the driver's margins. */
-      @page {${margins === "none" ? " margin: 0;" : ""} }
+      /* Explicit physical page = reliable bulk printing. Margin + scale are baked
+         in here so the operator leaves Chrome's dialog at Default / 100%. */
+      @page { size: ${MwNum}mm ${MhNum}mm; margin: ${mNum}mm; }
       html, body {
         margin: 0 !important; padding: 0 !important; background: #fff !important;
       }
@@ -335,29 +350,32 @@ export default function LabelsPage() {
       #label-print-root { display: block !important; }
       .label-sheet {
         position: relative !important;
-        width: 100vw !important;
-        height: 100vh !important;
+        width: ${boxW}mm !important;
+        height: ${boxH}mm !important;
         margin: 0 !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+      }
+      /* Break BETWEEN labels only — a trailing break adds a blank page after
+         every label, which is what broke bulk prints. */
+      .label-sheet:not(:last-child) {
         break-after: page !important;
         page-break-after: always !important;
       }
-      .label-sheet:last-child { break-after: auto !important; page-break-after: auto !important; }
 
-      /* Fill the whole page, rotated. For 90/270 the pre-rotation box is swapped
-         (100vh × 100vw) so the rotated result covers the page exactly. */
+      /* Fill the printable page, rotated + scaled. For 90/270 the pre-rotation
+         box is swapped so the rotated result covers the page exactly. */
       .label-rot {
         position: absolute !important;
         top: 50% !important;
         left: 50% !important;
-        width: ${swap ? "100vh" : "100vw"} !important;
-        height: ${swap ? "100vw" : "100vh"} !important;
+        width: ${rotW}mm !important;
+        height: ${rotH}mm !important;
         padding: ${pad} !important;
         box-sizing: border-box !important;
-        transform: translate(-50%, -50%) rotate(${rot}deg) !important;
+        transform: translate(-50%, -50%) rotate(${rot}deg) scale(${sc}) !important;
         transform-origin: center center !important;
         overflow: hidden !important;
         background: #fff !important;
@@ -390,9 +408,9 @@ export default function LabelsPage() {
       for (let i = 0; i < selectedOrders.length; i++) {
         const el = document.getElementById(`cap-${selectedOrders[i]._id}`);
         if (!el) continue;
-        const src = await html2canvas(el, { scale: 4, backgroundColor: "#ffffff", logging: false });
+        const src = await html2canvas(el, { scale: 3, backgroundColor: "#ffffff", logging: false });
 
-        // Compose onto a physical-page canvas with the chosen rotation baked in.
+        // Compose onto a physical-page canvas with the chosen rotation + scale baked in.
         const out = document.createElement("canvas");
         out.width = swap ? src.height : src.width;
         out.height = swap ? src.width : src.height;
@@ -401,6 +419,7 @@ export default function LabelsPage() {
         ctx.fillRect(0, 0, out.width, out.height);
         ctx.translate(out.width / 2, out.height / 2);
         ctx.rotate((rot * Math.PI) / 180);
+        ctx.scale(sc, sc);
         ctx.drawImage(src, -src.width / 2, -src.height / 2);
 
         if (i > 0) doc.addPage([wMm, hMm], orient);
@@ -437,12 +456,14 @@ export default function LabelsPage() {
           actions={
             <>
               <Button variant="ghost" onClick={load} title="Reload orders"><RefreshCw size={14} /></Button>
-              <Button variant="ghost" onClick={doPrint} disabled={selected.size === 0} title="Browser print (fallback)"><Printer size={14} /></Button>
-              <Button variant="outline" onClick={() => generatePdf("save")} disabled={pdfBusy || selected.size === 0}>
-                <Download size={14} /> Save PDF
+              <Button variant="outline" onClick={() => generatePdf("save")} disabled={pdfBusy || selected.size === 0} title="Save as PDF (fallback)">
+                <Download size={14} /> PDF
               </Button>
-              <Button onClick={() => generatePdf("print")} disabled={pdfBusy || selected.size === 0}>
-                <FileText size={14} /> {pdfBusy ? "Building…" : `Print PDF (${selected.size})`}
+              <Button variant="outline" onClick={() => generatePdf("print")} disabled={pdfBusy || selected.size === 0} title="Print via PDF (fallback)">
+                <FileText size={14} /> {pdfBusy ? "Building…" : "Print PDF"}
+              </Button>
+              <Button onClick={doPrint} disabled={selected.size === 0} title="Browser print — fastest, best for bulk">
+                <Printer size={14} /> {`Print (${selected.size})`}
               </Button>
             </>
           }
@@ -523,16 +544,19 @@ export default function LabelsPage() {
                 {ROTATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </Field>
-            <Field label="Margins">
-              <Select value={margins} onChange={(e) => setMargins(e.target.value)}>
-                <option value="default">Default — centered</option>
-                <option value="none">None — edge to edge</option>
-              </Select>
-            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Margin (mm)">
+                <TextInput type="number" min="0" max="20" step="0.5" value={marginMm} onChange={(e) => setMarginMm(e.target.value)} placeholder="0" />
+              </Field>
+              <Field label="Scale (%)">
+                <TextInput type="number" min="10" max="100" step="1" value={scalePct} onChange={(e) => setScalePct(e.target.value)} placeholder="90" />
+              </Field>
+            </div>
             <p className="text-[11px] text-brand-tan leading-relaxed">
-              The label fills your printer&apos;s paper. In Chrome&apos;s dialog pick your <b>label paper size</b>,
-              set <b>Margins: {margins === "none" ? "None" : "Default"}</b> and <b>Scale: 100%</b>, then change the
-              rotation here until it prints upright. The size below shapes the design only.
+              Margin &amp; scale are <b>baked into the print</b> — leave Chrome&apos;s dialog at
+              <b> Margins: Default</b> and <b>Scale: 100%</b> (don&apos;t change them there). Just pick your
+              <b> label paper size</b>, then adjust the rotation until it prints upright. <b>Print</b> (browser)
+              is fastest for bulk; PDF is the fallback.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
