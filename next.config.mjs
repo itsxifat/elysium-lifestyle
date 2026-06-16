@@ -10,8 +10,9 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Don't leak full URLs (paths, query) to other origins.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Deny powerful device APIs we never use.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Allow the camera on our own origin (the admin barcode scanner needs it);
+  // still deny it to all third parties. Mic + geolocation stay fully off.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
