@@ -28,10 +28,17 @@ export async function GET(request) {
     if (status && status !== "all") query.orderStatus = status;
     const safeSearch = escapeRegExp(search);
     if (safeSearch) {
+      const rx = { $regex: safeSearch, $options: "i" };
       query.$or = [
-        { orderNumber: { $regex: safeSearch, $options: "i" } },
-        { "shippingAddress.name": { $regex: safeSearch, $options: "i" } },
-        { "shippingAddress.phone": { $regex: safeSearch, $options: "i" } },
+        { orderNumber: rx },
+        { "shippingAddress.name": rx },
+        { "shippingAddress.phone": rx },
+        { "shippingAddress.email": rx },
+        { guestEmail: rx },
+        { "courier.consignmentId": rx },
+        { "courier.trackingCode": rx },
+        { "items.name": rx },
+        { "items.sku": rx },
       ];
     }
 

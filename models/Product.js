@@ -27,6 +27,15 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes that back the storefront/admin filters & sorts. (Search itself is
+// case-insensitive regex across many fields, so it can't use a btree index —
+// these speed up the category/published/price/recency paths around it.)
+productSchema.index({ isPublished: 1, createdAt: -1 });
+productSchema.index({ category: 1, isPublished: 1 });
+productSchema.index({ "variants.price": 1 });
+productSchema.index({ tags: 1 });
+productSchema.index({ name: 1 });
+
 productSchema.virtual("totalStock").get(function () {
   return this.variants.reduce((sum, v) => sum + v.stock, 0);
 });

@@ -38,11 +38,26 @@ export default function AdminProductsClient({ initialProducts }) {
     }
   };
 
-  const filtered = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category?.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Multi-word, multi-field search — every word must match somewhere (name,
+  // slug, category, tags, gender, material, SKU, size or price).
+  const tokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const filtered = !tokens.length
+    ? products
+    : products.filter((p) => {
+        const hay = [
+          p.name,
+          p.slug,
+          p.category?.name,
+          p.gender,
+          p.material,
+          ...(p.tags || []),
+          ...(p.variants || []).flatMap((v) => [v.sku, v.size, String(v.price)]),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return tokens.every((t) => hay.includes(t));
+      });
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this product?")) return;

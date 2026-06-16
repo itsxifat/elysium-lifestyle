@@ -4,10 +4,10 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
-import { escapeRegExp } from "@/lib/utils";
+import { buildProductSearchFilter } from "@/lib/search";
 
-// Lightweight product lookup for the POS / manual-order builder. Substring match
-// on name (and variant SKU) so staff can find items instantly while typing.
+// Product lookup for the POS / manual-order builder. Advanced multi-field match
+// (name, SKU, size, tags, category, price…) so staff can find any item fast.
 export async function GET(request) {
   const { error } = await requireAdmin("orders.create");
   if (error) return error;
@@ -15,15 +15,11 @@ export async function GET(request) {
   try {
     await connectDB();
     const { searchParams } = new URL(request.url);
-    const q = escapeRegExp((searchParams.get("q") || "").trim());
+    const q = (searchParams.get("q") || "").trim();
 
     const filter = { isPublished: true };
-    if (q) {
-      filter.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { "variants.sku": { $regex: q, $options: "i" } },
-      ];
-    }
+    const sf = await buildProductSearchFilter(q);
+    if (sf.$and) filter.$and = sf.$and;
 
     const products = await Product.find(filter)
       .select("name images variants slug")
