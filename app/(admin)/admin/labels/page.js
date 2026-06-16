@@ -348,13 +348,18 @@ export default function LabelsPage() {
       .admin-shell, .no-print { display: none !important; }
 
       #label-print-root { display: block !important; }
+      /* Each label stays in NORMAL FLOW and centers its content with flexbox.
+         (Absolute positioning + transform only renders on one page when content
+         paginates — that's why bulk kept just the last label perfect.) */
       .label-sheet {
-        position: relative !important;
         width: ${boxW}mm !important;
         height: ${boxH}mm !important;
         margin: 0 !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -365,17 +370,16 @@ export default function LabelsPage() {
         page-break-after: always !important;
       }
 
-      /* Fill the printable page, rotated + scaled. For 90/270 the pre-rotation
-         box is swapped so the rotated result covers the page exactly. */
+      /* Fill the printable page, rotated + scaled (transform is paint-only, so it
+         paginates correctly). For 90/270 the pre-rotation box is swapped so the
+         rotated result covers the page exactly. */
       .label-rot {
-        position: absolute !important;
-        top: 50% !important;
-        left: 50% !important;
+        flex: none !important;
         width: ${rotW}mm !important;
         height: ${rotH}mm !important;
         padding: ${pad} !important;
         box-sizing: border-box !important;
-        transform: translate(-50%, -50%) rotate(${rot}deg) scale(${sc}) !important;
+        transform: rotate(${rot}deg) scale(${sc}) !important;
         transform-origin: center center !important;
         overflow: hidden !important;
         background: #fff !important;
