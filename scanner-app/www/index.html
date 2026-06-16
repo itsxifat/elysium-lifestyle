@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <title>Elysium Scanner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ── Login ──────────────────────────────────────────────────────────── -->
+  <section id="screen-login" class="screen">
+    <div class="login-wrap">
+      <div class="brand">
+        <div class="brand-mark">EL</div>
+        <h1>Elysium Scanner</h1>
+        <p class="muted">Sign in with your admin account</p>
+      </div>
+      <form id="login-form" autocomplete="off">
+        <label>Server address</label>
+        <input id="in-server" type="url" inputmode="url" placeholder="https://your-domain.com" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <label>Email</label>
+        <input id="in-email" type="email" inputmode="email" placeholder="you@elysium.com" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <label>Password</label>
+        <input id="in-password" type="password" placeholder="••••••••" />
+        <button id="btn-login" type="submit" class="btn btn-primary btn-block">Sign in</button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ── Scan home ──────────────────────────────────────────────────────── -->
+  <section id="screen-scan" class="screen" hidden>
+    <header class="topbar">
+      <div>
+        <p class="muted small">Signed in as</p>
+        <p id="who" class="who"></p>
+      </div>
+      <button id="btn-logout" class="btn btn-ghost btn-sm">Sign out</button>
+    </header>
+
+    <div class="scan-hero">
+      <div class="scan-ring"><div class="scan-icon">▢</div></div>
+      <button id="btn-scan" class="btn btn-primary btn-xl btn-block">Scan label</button>
+      <p class="muted center">Point at the barcode on the shipping label.</p>
+      <p id="scan-status" class="status" hidden></p>
+    </div>
+
+    <div class="manual">
+      <p class="muted small">Or type the order / tracking number</p>
+      <form id="manual-form" class="row">
+        <input id="in-manual" type="text" placeholder="ELY-2026-00001" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+        <button type="submit" class="btn btn-outline">Find</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ── Result / packing list ──────────────────────────────────────────── -->
+  <section id="screen-result" class="screen" hidden>
+    <header class="topbar">
+      <button id="btn-back" class="btn btn-ghost btn-sm">‹ Back</button>
+      <span id="result-progress" class="progress-pill"></span>
+    </header>
+    <div id="result-body" class="result-body"></div>
+    <div class="result-footer">
+      <button id="btn-scan-next" class="btn btn-primary btn-xl btn-block">Scan next</button>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

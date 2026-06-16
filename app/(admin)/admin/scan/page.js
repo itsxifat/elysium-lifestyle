@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ScanLine, Camera, CameraOff, Search, X, Package, ExternalLink, RefreshCw } from "lucide-react";
+import { ScanLine, Camera, CameraOff, Search, X, Package, ExternalLink, RefreshCw, Smartphone, Download } from "lucide-react";
 import { PageHeader, Card, Button, SectionTitle, Pill } from "@/components/admin/ui";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ export default function ScanPage() {
   const [result, setResult] = useState(null);
   const [looking, setLooking] = useState(false);
   const [manual, setManual] = useState("");
+  const [appInfo, setAppInfo] = useState(null);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -88,6 +89,14 @@ export default function ScanPage() {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
+  // Is the installable Android scanner app published? (built by CI into /public/app)
+  useEffect(() => {
+    fetch("/app/version.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setAppInfo(d))
+      .catch(() => {});
+  }, []);
+
   const submitManual = (e) => {
     e.preventDefault();
     if (manual.trim()) lookup(manual.trim());
@@ -107,6 +116,38 @@ export default function ScanPage() {
           )
         }
       />
+
+      {/* Native Android app — scans with the phone camera directly (bypasses the
+          browser camera) and shows the full packing list for the shipment. */}
+      <Card className="mb-5 bg-brand-cream/40 border border-brand-tan/15">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="w-11 h-11 rounded-xl bg-brand-terracotta/10 flex items-center justify-center flex-shrink-0">
+              <Smartphone size={20} className="text-brand-terracotta" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-brand-brown flex items-center gap-2">
+                Android scanner app
+                {appInfo?.version && <Pill tone="terracotta">v{appInfo.version}</Pill>}
+              </p>
+              <p className="text-[12.5px] text-brand-tan leading-relaxed mt-0.5">
+                Camera blocked in the browser? Install the native app — it scans labels with the phone
+                camera directly and shows the full packing list. Sign in with your own admin account.
+                {appInfo?.available && <span className="block mt-0.5">First time: tap <b>Install</b>, then allow “install unknown apps” when Android asks.</span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex-shrink-0">
+            {appInfo?.available ? (
+              <Button as="a" href={appInfo.apk} download>
+                <Download size={14} /> Install app
+              </Button>
+            ) : (
+              <Pill tone="gray">App build not published yet</Pill>
+            )}
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         {/* Scanner */}

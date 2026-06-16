@@ -1,0 +1,125 @@
+name: Build scanner APK
+
+# Builds the native Android scanner app and publishes the signed APK to
+# public/app/elysium-scanner.apk so the site serves it at /app/elysium-scanner.apk
+# and the "Install" button on /admin/scan can hand it to staff phones.
+#
+# Run it manually from the Actions tab (Run workflow), or it runs automatically
+# when anything under scanner-app/ changes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scanner-app/**"
+      - ".github/workflows/build-scanner-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scanner-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install deps & generate native project
+        run: |
+          npm install
+          npx cap add android
+          npx cap sync android
+
+      - name: Build release APK (unsigned)
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Resolve or create a signing keystore
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "Using keystore from repository secrets."
+            echo "$KS_B64" | base64 -d > release.keystore
+            echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASS=$KEY_PASS" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set — generating a throwaway keystore."
+            echo "::warning::Updates will require uninstalling the old app first. Add a persistent keystore (see docs/scanner-app.md)."
+            keytool -genkeypair -v -keystore release.keystore -alias elysium \
+              -keyalg RSA -keysize 2048 -validity 9125 \
+              -storepass elysium123 -keypass elysium123 \
+              -dname "CN=Elysium Scanner, O=Elysium Lifestyle, C=BD"
+            echo "KS_PASS=elysium123" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=elysium" >> "$GITHUB_ENV"
+            echo "KEY_PASS=elysium123" >> "$GITHUB_ENV"
+          fi
+
+      - name: Sign & align APK
+        run: |
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -n1)
+          echo "Using build-tools: $BT"
+          UNSIGNED=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" aligned.apk
+          "$BT/apksigner" sign \
+            --ks release.keystore \
+            --ks-pass "pass:$KS_PASS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out ../public/app/elysium-scanner.apk \
+            aligned.apk
+          "$BT/apksigner" verify --print-certs ../public/app/elysium-scanner.apk
+
+      - name: Update version.json
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          cat > ../public/app/version.json <<EOF
+          {
+            "version": "$VER",
+            "apk": "/app/elysium-scanner.apk",
+            "available": true,
+            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: elysium-scanner-apk
+          path: public/app/elysium-scanner.apk
+
+      - name: Commit APK back to the repo
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/app/elysium-scanner.apk public/app/version.json
+          if git diff --staged --quiet; then
+            echo "No APK changes to commit."
+          else
+            git commit -m "build(scanner): publish APK $(node -p "require('./scanner-app/package.json').version")"
+            git push
+          fi

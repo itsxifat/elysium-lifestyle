@@ -1,0 +1,13 @@
+{
+  "appId": "cloud.enfinito.elyscanner",
+  "appName": "Elysium Scanner",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "BarcodeScanning": {
+      "formats": ["CODE_39", "CODE_128", "CODE_93", "CODABAR", "EAN_13", "EAN_8", "UPC_A", "UPC_E", "QR_CODE", "ITF"]
+    }
+  }
+}
