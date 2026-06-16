@@ -45,14 +45,24 @@ body {
 
 /* ── Login ───────────────────────────────────────────────────────────── */
 .login-wrap { margin: auto; width: 100%; max-width: 420px; padding: 28px 22px; }
-.brand { text-align: center; margin-bottom: 26px; }
-.brand-mark {
-  width: 64px; height: 64px; border-radius: 18px; margin: 0 auto 14px;
-  background: var(--terracotta); color: #fff; font-weight: 800; font-size: 24px;
-  display: flex; align-items: center; justify-content: center; letter-spacing: 1px;
-}
+.brand { text-align: center; margin-bottom: 22px; }
+.brand-logo { width: 180px; max-width: 70%; height: auto; margin: 0 auto 10px; display: block; }
 .brand h1 { margin: 0; font-size: 24px; }
+.login-wrap > label { display: block; font-size: 13px; font-weight: 600; color: var(--tan); margin: 6px 0 6px; }
 #login-form label { display: block; font-size: 13px; font-weight: 600; color: var(--tan); margin: 14px 0 6px; }
+
+/* Google / website sign-in button */
+.btn-google { background: #fff; color: var(--brown); border: 1.5px solid #d8cfc0; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+.btn-google:active { background: #f3eee5; }
+.g-mark { font-weight: 800; font-size: 18px; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0) ; -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hint { margin: 8px 0 0; }
+
+.divider { display: flex; align-items: center; gap: 10px; color: var(--tan); margin: 18px 0 6px; font-size: 12px; }
+.divider::before, .divider::after { content: ""; height: 1px; background: #ded5c6; flex: 1; }
+
+.linkish { background: transparent; border: 0; color: var(--terracotta); font-weight: 700; font-size: 14px; padding: 12px; cursor: pointer; font-family: inherit; }
+.linkish.subtle { color: var(--tan); font-weight: 600; font-size: 13px; }
+.paste-row { margin-top: 6px; }
 input[type="url"], input[type="email"], input[type="password"], input[type="text"] {
   width: 100%; padding: 14px; font-size: 16px; border: 1.5px solid #d8cfc0;
   border-radius: 12px; background: #fff; color: var(--brown); font-family: inherit;

@@ -9,6 +9,8 @@ const Plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
 const Pref = Plugins.Preferences;
 const BarcodeScanner = Plugins.BarcodeScanner;
 const Haptics = Plugins.Haptics;
+const Browser = Plugins.Browser;       // opens the website login in a Custom Tab
+const CapApp = Plugins.App;            // receives the elyscanner:// deep link back
 
 const state = { server: "", token: "", name: "", role: "", result: null, packed: new Set() };
 
@@ -86,6 +88,76 @@ $("login-form").addEventListener("submit", async (e) => {
   } finally {
     btn.disabled = false; btn.textContent = "Sign in";
   }
+});
+
+/* Web / Google sign-in: open the website login in a Chrome Custom Tab. After the
+   admin signs in (Google or email there) the site bounces back via the
+   elyscanner:// deep link carrying a token (see /scanner-connect). Pasting the
+   code shown on that page is the fallback when the deep link doesn't fire. */
+function showLoginError(msg) {
+  const err = $("login-error");
+  err.textContent = msg || ""; err.hidden = !msg;
+}
+
+async function finishLogin(token, name, role) {
+  if (!token) return;
+  // If the deep link cold-started the app, state.server may not be populated yet
+  // (it was persisted before we opened the login tab) — recover it from storage.
+  if (!state.server) state.server = (await store.get("server")) || "";
+  state.token = token;
+  state.name = name || state.name || "Signed in";
+  state.role = role || "";
+  await store.set("token", state.token);
+  await store.set("name", state.name);
+  await store.set("role", state.role);
+  if (state.server) await store.set("server", state.server);
+  if (Browser && Browser.close) { try { await Browser.close(); } catch {} }
+  enterScan();
+}
+
+async function webLogin() {
+  showLoginError("");
+  const server = $("in-server").value.trim();
+  if (!server) { showLoginError("Enter the server address first."); return; }
+  state.server = server.replace(/\/+$/, "");
+  await store.set("server", state.server);
+  const url = state.server + "/scanner-connect";
+  try {
+    if (Browser && Browser.open) await Browser.open({ url, presentationStyle: "popover" });
+    else window.location.href = url;
+  } catch {
+    showLoginError("Couldn't open the login page.");
+  }
+}
+$("btn-web-login").addEventListener("click", webLogin);
+
+// Deep link back from the website: elyscanner://auth?token=…&name=…&role=…
+function handleAuthUrl(url) {
+  if (!url || url.indexOf("token=") === -1) return;
+  const get = (k) => {
+    const m = new RegExp("[?&]" + k + "=([^&]+)").exec(url);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+  };
+  const token = get("token");
+  if (token) finishLogin(token, get("name"), get("role"));
+}
+if (CapApp && CapApp.addListener) {
+  CapApp.addListener("appUrlOpen", (data) => handleAuthUrl(data && data.url));
+}
+
+// Toggles + paste-code fallback
+$("toggle-pw").addEventListener("click", () => {
+  const f = $("login-form"); f.hidden = !f.hidden;
+  if (!f.hidden) $("in-email").focus();
+});
+$("toggle-code").addEventListener("click", () => {
+  const r = $("paste-row"); r.hidden = !r.hidden;
+  if (!r.hidden) $("in-code").focus();
+});
+$("btn-code-go").addEventListener("click", () => {
+  const code = $("in-code").value.trim();
+  if (code) { $("in-code").value = ""; finishLogin(code); }
+  else showLoginError("Paste the code first.");
 });
 
 async function logout() {

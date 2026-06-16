@@ -6,16 +6,34 @@ a shipping label and shows the **full packing list** for that shipment — every
 item with size, quantity, colour and SKU — and lets the packer tick each one off.
 
 ```
-Phone app  ──login(email+pw)──►  POST /api/admin/scanner/login   ──►  bearer token
-           ──scan label──────►  GET  /api/admin/scanner/shipment?code=…  (Bearer token)
-                                  └─► order items + recipient + COD  ──►  packing list
+Phone app  ──"Sign in with Google"─►  Custom Tab → /scanner-connect (real site login)
+                                       └─► token back via elyscanner:// deep link
+           ──or email+password─────►  POST /api/admin/scanner/login  ──►  bearer token
+           ──scan label──────────►  GET  /api/admin/scanner/shipment?code=…  (Bearer token)
+                                      └─► order items + recipient + COD  ──►  packing list
 ```
 
 - App source: [`scanner-app/`](../scanner-app) (Capacitor 6, ML Kit scanning)
-- Server endpoints: `app/api/admin/scanner/{login,shipment}/route.js`
+- Server: `app/scanner-connect/` (Google/web login bridge) + `app/api/admin/scanner/{login,shipment}/route.js`
 - Auth: each staff signs in with their **own admin account**; the server
   re-checks their role/permission (`orders.view`) on every request, exactly like
   the web admin. No shared key, full audit trail.
+
+### Two ways to sign in
+
+1. **Google (recommended — most admins use it).** Tap **Sign in with Google**.
+   The app opens your real website login in a Chrome Custom Tab, the admin signs
+   in with Google there (the site's existing NextAuth Google flow — no native
+   Google SDK / SHA-1 / `google-services.json` needed), and `/scanner-connect`
+   mints a token and bounces back into the app via the `elyscanner://` deep link.
+   If the app doesn't auto-open, the page shows a **code to copy-paste** into the
+   app's "Paste a sign-in code" box.
+2. **Email + password.** For accounts that have a password set, tap *Use email &
+   password instead* and sign in directly in the app.
+
+The `elyscanner://` deep link is registered on the Android app by
+`scanner-app/scripts/configure-android.mjs`, which the CI workflow runs after
+generating the native project.
 
 ## 1. Server side — nothing new to configure
 
@@ -81,8 +99,9 @@ cd android && ./gradlew assembleRelease
    (or browse straight to `https://YOUR-DOMAIN/app/elysium-scanner.apk`).
 2. Android warns about installing outside the Play Store → **allow "install
    unknown apps"** for the browser, then **Install**. (One-time per phone.)
-3. Open **Elysium Scanner**, enter the **server address** (`https://YOUR-DOMAIN`)
-   and sign in with the staff member's admin email + password.
+3. Open **Elysium Scanner**, enter the **server address** (`https://YOUR-DOMAIN`),
+   then tap **Sign in with Google** (or *Use email & password instead*). Finish the
+   login in the tab that opens; it returns you to the app signed in.
 4. Tap **Scan label**, point at the barcode → the packing list appears. Tap each
    item to check it off; **Scan next** for the following parcel.
 

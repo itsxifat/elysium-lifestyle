@@ -46,6 +46,7 @@ jobs:
           npm install
           npx cap add android
           npx cap sync android
+          node scripts/configure-android.mjs   # register elyscanner:// deep link
 
       - name: Build release APK (unsigned)
         run: |

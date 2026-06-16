@@ -12,20 +12,38 @@
   <section id="screen-login" class="screen">
     <div class="login-wrap">
       <div class="brand">
-        <div class="brand-mark">EL</div>
-        <h1>Elysium Scanner</h1>
-        <p class="muted">Sign in with your admin account</p>
+        <img src="logo-dark.png" alt="Elysium Lifestyle" class="brand-logo" />
+        <p class="muted">Warehouse scanner — sign in</p>
       </div>
-      <form id="login-form" autocomplete="off">
-        <label>Server address</label>
-        <input id="in-server" type="url" inputmode="url" placeholder="https://your-domain.com" autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+      <label>Server address</label>
+      <input id="in-server" type="url" inputmode="url" placeholder="https://your-domain.com" autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+      <!-- Primary: sign in via the website (supports Google + email/password). -->
+      <button id="btn-web-login" type="button" class="btn btn-google btn-block">
+        <span class="g-mark">G</span> Sign in with Google
+      </button>
+      <p class="muted small center hint">Opens your website login — use Google or email there.</p>
+      <p id="login-error" class="error" hidden></p>
+
+      <div class="divider"><span>or</span></div>
+
+      <!-- Secondary: type email + password directly in the app. -->
+      <button id="toggle-pw" type="button" class="linkish btn-block">Use email &amp; password instead</button>
+      <form id="login-form" autocomplete="off" hidden>
         <label>Email</label>
         <input id="in-email" type="email" inputmode="email" placeholder="you@elysium.com" autocapitalize="off" autocorrect="off" spellcheck="false" />
         <label>Password</label>
         <input id="in-password" type="password" placeholder="••••••••" />
-        <button id="btn-login" type="submit" class="btn btn-primary btn-block">Sign in</button>
-        <p id="login-error" class="error" hidden></p>
+        <button id="btn-login" type="submit" class="btn btn-outline btn-block">Sign in</button>
       </form>
+
+      <!-- Fallback: paste the sign-in code if the app didn't bounce back. -->
+      <button id="toggle-code" type="button" class="linkish btn-block subtle">Paste a sign-in code</button>
+      <div id="paste-row" class="row" hidden>
+        <input id="in-code" type="text" placeholder="Paste sign-in code" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <button id="btn-code-go" type="button" class="btn btn-outline">Go</button>
+      </div>
     </div>
   </section>
 
