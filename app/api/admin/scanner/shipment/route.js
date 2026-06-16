@@ -9,6 +9,23 @@ export function OPTIONS(request) {
   return preflight(request);
 }
 
+// The app's WebView origin is https://localhost, so relative image URLs
+// (/api/img/…, /uploads/…) would resolve there and break. Resolve them to the
+// public site origin so thumbnails load in the app. Already-absolute URLs
+// (CDN, data:) pass through untouched.
+function siteOrigin(request) {
+  const h = request.headers;
+  const host = h.get("x-forwarded-host") || h.get("host");
+  if (host) return `${h.get("x-forwarded-proto") || "https"}://${host}`;
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "");
+  try { return new URL(request.url).origin; } catch { return ""; }
+}
+function absoluteImg(url, origin) {
+  if (!url) return "";
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith("data:")) return url;
+  return origin + (url.startsWith("/") ? url : "/" + url);
+}
+
 // Resolve a scanned shipping-label code to the full packing list for that
 // shipment. The label barcode encodes `courier.trackingCode || orderNumber`
 // (see app/(admin)/admin/labels Label), so we match those first, then fall back
@@ -32,9 +49,10 @@ export async function GET(request) {
 
     if (!order) return corsJson(request, { found: false, code: raw });
 
+    const origin = siteOrigin(request);
     const items = (order.items || []).map((it) => ({
       name: it.name,
-      image: it.image || "",
+      image: absoluteImg(it.image, origin),
       sku: it.sku || "",
       size: it.size || "",
       color: it.color || "",
