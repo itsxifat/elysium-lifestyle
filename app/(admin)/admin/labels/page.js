@@ -224,6 +224,18 @@ const ROTATIONS = [
   { value: "270", label: "270°" },
 ];
 
+// Two printer profiles so one screen works across PCs whose drivers behave
+// differently. Each holds its own rotation / margin / scale / mirror and is
+// persisted, so moving between machines is just a tab switch.
+const PRINT_PROFILE_DEFAULTS = {
+  default: { rotation: "0", marginMm: "0", scalePct: "100", mirror: false },
+  rotated: { rotation: "90", marginMm: "0", scalePct: "90", mirror: false },
+};
+const PROFILE_META = {
+  default: { label: "Default", hint: "Prints the design as-is. Use on PCs that already come out upright." },
+  rotated: { label: "Rotated", hint: "Our rotate / mirror logic. Use on PCs that print sideways or reversed." },
+};
+
 export default function LabelsPage() {
   const { settings } = useSettings();
   const shop = {
@@ -242,13 +254,42 @@ export default function LabelsPage() {
   const [selected, setSelected] = useState(() => new Set());
 
   const [sizeKey, setSizeKey] = useState("3x2");
-  const [rotation, setRotation] = useState("90");
-  const [marginMm, setMarginMm] = useState("0");   // page margin baked into print (mm)
-  const [scalePct, setScalePct] = useState("90");  // print scale baked in (%) — no need to set it in Chrome's dialog
   const [pdfBusy, setPdfBusy] = useState(false);
   const [customW, setCustomW] = useState("100mm");
   const [customH, setCustomH] = useState("150mm");
   const [opts, setOpts] = useState({ showLogo: true, showBarcode: true, showPrices: true, showCod: true });
+
+  // Active printer profile + the two saved profiles (see PRINT_PROFILE_DEFAULTS).
+  const [activeProfile, setActiveProfile] = useState("default");
+  const [profiles, setProfiles] = useState(PRINT_PROFILE_DEFAULTS);
+  const profile = profiles[activeProfile] || PRINT_PROFILE_DEFAULTS.default;
+  const { rotation, marginMm, scalePct, mirror } = profile;
+  const setProfileField = (key, val) =>
+    setProfiles((prev) => ({ ...prev, [activeProfile]: { ...prev[activeProfile], [key]: val } }));
+
+  // Persist profiles + shared options so each PC keeps its own dialed-in setup.
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("labelPrintSettings") || "{}");
+      if (s.profiles) setProfiles((p) => ({
+        default: { ...p.default, ...s.profiles.default },
+        rotated: { ...p.rotated, ...s.profiles.rotated },
+      }));
+      if (s.activeProfile) setActiveProfile(s.activeProfile);
+      if (s.sizeKey) setSizeKey(s.sizeKey);
+      if (s.customW) setCustomW(s.customW);
+      if (s.customH) setCustomH(s.customH);
+      if (s.opts) setOpts((o) => ({ ...o, ...s.opts }));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "labelPrintSettings",
+        JSON.stringify({ profiles, activeProfile, sizeKey, customW, customH, opts })
+      );
+    } catch {}
+  }, [profiles, activeProfile, sizeKey, customW, customH, opts]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -379,7 +420,7 @@ export default function LabelsPage() {
         height: ${rotH}mm !important;
         padding: ${pad} !important;
         box-sizing: border-box !important;
-        transform: rotate(${rot}deg) scale(${sc}) !important;
+        transform: rotate(${rot}deg) scale(${mirror ? -sc : sc}, ${sc}) !important;
         transform-origin: center center !important;
         overflow: hidden !important;
         background: #fff !important;
@@ -423,7 +464,7 @@ export default function LabelsPage() {
         ctx.fillRect(0, 0, out.width, out.height);
         ctx.translate(out.width / 2, out.height / 2);
         ctx.rotate((rot * Math.PI) / 180);
-        ctx.scale(sc, sc);
+        ctx.scale(mirror ? -sc : sc, sc);
         ctx.drawImage(src, -src.width / 2, -src.height / 2);
 
         if (i > 0) doc.addPage([wMm, hMm], orient);
@@ -467,7 +508,7 @@ export default function LabelsPage() {
                 <FileText size={14} /> {pdfBusy ? "Building…" : "Print PDF"}
               </Button>
               <Button onClick={doPrint} disabled={selected.size === 0} title="Browser print — fastest, best for bulk">
-                <Printer size={14} /> {`Print (${selected.size})`}
+                <Printer size={14} /> {`Print · ${PROFILE_META[activeProfile].label} (${selected.size})`}
               </Button>
             </>
           }
@@ -532,6 +573,28 @@ export default function LabelsPage() {
         <div className="space-y-4">
           <Card className="space-y-3">
             <SectionTitle>Print settings</SectionTitle>
+
+            {/* Profile switcher — pick the one that matches the PC you're on. */}
+            <Field label="Printer profile (per PC)">
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(PROFILE_META).map(([key, m]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveProfile(key)}
+                    className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors ${
+                      activeProfile === key
+                        ? "border-brand-terracotta bg-brand-terracotta/10 text-brand-brown"
+                        : "border-brand-tan/30 text-brand-tan hover:bg-brand-cream/60"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <p className="text-[11px] text-brand-tan -mt-1.5">{PROFILE_META[activeProfile].hint}</p>
+
             <Field label="Label size (physical)">
               <Select value={sizeKey} onChange={(e) => setSizeKey(e.target.value)}>
                 {Object.entries(SIZES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -544,23 +607,27 @@ export default function LabelsPage() {
               </div>
             )}
             <Field label="Rotate for printer">
-              <Select value={rotation} onChange={(e) => setRotation(e.target.value)}>
+              <Select value={rotation} onChange={(e) => setProfileField("rotation", e.target.value)}>
                 {ROTATIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Margin (mm)">
-                <TextInput type="number" min="0" max="20" step="0.5" value={marginMm} onChange={(e) => setMarginMm(e.target.value)} placeholder="0" />
+                <TextInput type="number" min="0" max="20" step="0.5" value={marginMm} onChange={(e) => setProfileField("marginMm", e.target.value)} placeholder="0" />
               </Field>
               <Field label="Scale (%)">
-                <TextInput type="number" min="10" max="100" step="1" value={scalePct} onChange={(e) => setScalePct(e.target.value)} placeholder="90" />
+                <TextInput type="number" min="10" max="100" step="1" value={scalePct} onChange={(e) => setProfileField("scalePct", e.target.value)} placeholder="90" />
               </Field>
             </div>
+            <label className="flex items-center justify-between">
+              <span className="text-[13px] text-brand-brown">Mirror (reverse)</span>
+              <Toggle checked={mirror} onChange={(v) => setProfileField("mirror", v)} />
+            </label>
             <p className="text-[11px] text-brand-tan leading-relaxed">
-              Margin &amp; scale are <b>baked into the print</b> — leave Chrome&apos;s dialog at
-              <b> Margins: Default</b> and <b>Scale: 100%</b> (don&apos;t change them there). Just pick your
-              <b> label paper size</b>, then adjust the rotation until it prints upright. <b>Print</b> (browser)
-              is fastest for bulk; PDF is the fallback.
+              Rotation, margin, scale &amp; mirror are saved <b>per profile</b> and baked into the print —
+              leave Chrome&apos;s dialog at <b>Margins: Default</b> / <b>Scale: 100%</b>. Use <b>Default</b> on PCs
+              that already print upright; switch to <b>Rotated</b> (then dial rotation / mirror) on PCs that print
+              sideways or reversed. <b>Print</b> (browser) is fastest for bulk; PDF is the fallback.
             </p>
             <div className="space-y-2 pt-1">
               {[["showLogo", "Shop name"], ["showBarcode", "QR code / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
@@ -588,7 +655,7 @@ export default function LabelsPage() {
                 <p className="text-center text-brand-tan text-sm py-6">Select an order to preview its label.</p>
               )}
             </div>
-            <p className="text-[11px] text-brand-tan mt-2">Actual size · 1 of {selectedOrders.length || 0} selected · prints one exact page each.</p>
+            <p className="text-[11px] text-brand-tan mt-2">Actual size · profile: <b>{PROFILE_META[activeProfile].label}</b>{mirror ? " (mirrored)" : ""} · 1 of {selectedOrders.length || 0} selected · prints one exact page each.</p>
           </Card>
         </div>
       </div>
