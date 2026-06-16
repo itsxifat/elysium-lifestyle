@@ -61,38 +61,76 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { settings } = useSettings();
 
-  // ── Product search ────────────────────────────────────────────────────────
+  // ── Product search (paginated + infinite scroll) ────────────────────────────
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(false); // first page of a query
+  const [loadingMore, setLoadingMore] = useState(false); // subsequent pages
+  const [hasMore, setHasMore] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchTimer = useRef(null);
   const searchBox = useRef(null);
+  const scrollRef = useRef(null); // dropdown scroll container (observer root)
+  const sentinelRef = useRef(null); // bottom marker that triggers the next page
 
-  const runSearch = useCallback(async (q) => {
-    setSearching(true);
+  // Refs mirror the latest values so the IntersectionObserver callback and the
+  // load-more guard never read stale state.
+  const seqRef = useRef(0); // bumps per fresh query → ignore late stale responses
+  const pageRef = useRef(1);
+  const queryRef = useRef("");
+  const hasMoreRef = useRef(false);
+  const loadingRef = useRef(false);
+
+  const runSearch = useCallback(async (q, page) => {
+    const isFirst = page === 1;
+    // A fresh query (page 1) invalidates any in-flight load-more.
+    const mySeq = isFirst ? ++seqRef.current : seqRef.current;
+    loadingRef.current = true;
+    if (isFirst) setSearching(true);
+    else setLoadingMore(true);
     try {
-      const res = await fetch(`/api/admin/orders/search-products?q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/admin/orders/search-products?q=${encodeURIComponent(q)}&page=${page}`
+      );
       const data = await res.json();
-      setResults(data.products || []);
+      if (mySeq !== seqRef.current) return; // a newer query superseded this one
+      const list = data.products || [];
+      setResults((prev) => (isFirst ? list : [...prev, ...list]));
+      hasMoreRef.current = Boolean(data.hasMore);
+      setHasMore(Boolean(data.hasMore));
+      pageRef.current = page;
+      queryRef.current = q;
     } catch {
-      setResults([]);
+      if (mySeq === seqRef.current && isFirst) {
+        setResults([]);
+        setHasMore(false);
+        hasMoreRef.current = false;
+      }
     } finally {
-      setSearching(false);
+      if (mySeq === seqRef.current) {
+        setSearching(false);
+        setLoadingMore(false);
+      }
+      loadingRef.current = false;
     }
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (loadingRef.current || !hasMoreRef.current) return;
+    runSearch(queryRef.current, pageRef.current + 1);
+  }, [runSearch]);
 
   const onQueryChange = (val) => {
     setQuery(val);
     setShowResults(true);
     clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => runSearch(val), 250);
+    searchTimer.current = setTimeout(() => runSearch(val, 1), 250);
   };
 
   // Pre-load some products on focus so the list isn't empty.
   const onSearchFocus = () => {
     setShowResults(true);
-    if (results.length === 0) runSearch(query);
+    if (results.length === 0) runSearch(query, 1);
   };
 
   // Close dropdown on outside click.
@@ -103,6 +141,24 @@ export default function NewOrderPage() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  // Infinite scroll: watch a sentinel at the bottom of the dropdown and pull the
+  // next page as it nears view. Re-attaches when the list grows so the freshly
+  // rendered sentinel is always observed.
+  useEffect(() => {
+    if (!showResults || !hasMore) return;
+    const root = scrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { root, rootMargin: "160px" }
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [showResults, hasMore, results.length, loadMore]);
 
   // ── Cart ──────────────────────────────────────────────────────────────────
   const [cart, setCart] = useState([]); // {productId,name,image,size,price,quantity,stock,sku}
@@ -245,46 +301,67 @@ export default function NewOrderPage() {
               {searching && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tan animate-spin" />}
 
               {showResults && (
-                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-brand-tan/25 rounded-lg shadow-xl max-h-[360px] overflow-y-auto">
+                <div
+                  ref={scrollRef}
+                  className="absolute z-30 left-0 right-0 mt-1 bg-white border border-brand-tan/25 rounded-lg shadow-xl max-h-[360px] overflow-y-auto"
+                >
                   {results.length === 0 ? (
                     <p className="px-4 py-6 text-center text-sm text-brand-tan">
                       {searching ? "Searching…" : "No products found"}
                     </p>
                   ) : (
-                    results.map((p) => (
-                      <div key={p._id} className="flex items-start gap-3 px-3 py-2.5 border-b border-brand-tan/10 last:border-0">
-                        <div className="relative w-10 h-12 flex-shrink-0 bg-brand-cream-dark rounded overflow-hidden">
-                          <Image
-                            src={p.image || "/placeholder.jpg"}
-                            alt={p.name}
-                            fill
-                            sizes="40px"
-                            unoptimized={shouldUnoptimizeImage(p.image)}
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium text-brand-brown line-clamp-1">{p.name}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {p.variants.length === 0 && <span className="text-[11px] text-brand-tan">No sizes</span>}
-                            {p.variants.map((v) => (
-                              <button
-                                key={v.size}
-                                type="button"
-                                onClick={() => addItem(p, v)}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-brand-tan/30 text-[11px] text-brand-brown hover:border-brand-terracotta hover:text-brand-terracotta transition-colors"
-                                title={`Add ${v.size}`}
-                              >
-                                <Plus size={10} /> {v.size} · {formatPrice(v.price)}
-                                <span className={v.stock <= 0 ? "text-red-500" : "text-brand-tan/70"}>
-                                  ({v.stock})
-                                </span>
-                              </button>
-                            ))}
+                    <>
+                      {results.map((p) => (
+                        <div key={p._id} className="flex items-start gap-3 px-3 py-2.5 border-b border-brand-tan/10 last:border-0">
+                          <div className="relative w-10 h-12 flex-shrink-0 bg-brand-cream-dark rounded overflow-hidden">
+                            <Image
+                              src={p.image || "/placeholder.jpg"}
+                              alt={p.name}
+                              fill
+                              sizes="40px"
+                              unoptimized={shouldUnoptimizeImage(p.image)}
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium text-brand-brown line-clamp-1">{p.name}</p>
+                            {p.sku && (
+                              <p className="text-[10px] font-mono text-brand-tan/80 mt-0.5 line-clamp-1">{p.sku}</p>
+                            )}
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {p.variants.length === 0 && <span className="text-[11px] text-brand-tan">No sizes</span>}
+                              {p.variants.map((v) => (
+                                <button
+                                  key={v.size}
+                                  type="button"
+                                  onClick={() => addItem(p, v)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-brand-tan/30 text-[11px] text-brand-brown hover:border-brand-terracotta hover:text-brand-terracotta transition-colors"
+                                  title={v.sku ? `Add ${v.size} · ${v.sku}` : `Add ${v.size}`}
+                                >
+                                  <Plus size={10} /> {v.size} · {formatPrice(v.price)}
+                                  <span className={v.stock <= 0 ? "text-red-500" : "text-brand-tan/70"}>
+                                    ({v.stock})
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+
+                      {/* Infinite-scroll sentinel + loader */}
+                      {hasMore && (
+                        <div ref={sentinelRef} className="flex items-center justify-center gap-2 px-4 py-3 text-[11px] text-brand-tan">
+                          <Loader2 size={13} className="animate-spin" />
+                          Loading more…
+                        </div>
+                      )}
+                      {!hasMore && !loadingMore && (
+                        <p className="px-4 py-2.5 text-center text-[11px] text-brand-tan/60">
+                          End of results · {results.length} product{results.length === 1 ? "" : "s"}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
