@@ -362,6 +362,11 @@ export default function LabelsPage() {
   const rotW = swap ? boxH : boxW;  // pre-rotation box so the rotated result fills the page
   const rotH = swap ? boxW : boxH;
 
+  // Preview scale: shrink the true physical label (Mw×Mh) so it fits the panel,
+  // so the preview is WYSIWYG — same page shape, rotation, scale & mirror as print.
+  const PX_PER_MM = 96 / 25.4;
+  const previewScale = Math.min(1, 300 / (MwNum * PX_PER_MM), 440 / (MhNum * PX_PER_MM));
+
   const printCss = `
     .label-content { width: 100%; height: 100%; overflow: hidden; }
     .label-address {
@@ -641,21 +646,36 @@ export default function LabelsPage() {
 
           <Card>
             <SectionTitle>Preview</SectionTitle>
-            <div className="bg-brand-cream/40 rounded-lg p-3 overflow-auto" style={{ maxHeight: "55vh" }}>
+            <div className="bg-brand-cream/40 rounded-lg p-3 overflow-auto flex justify-center" style={{ maxHeight: "55vh" }}>
               {selectedOrders[0] ? (
-                // Shows the design upright at actual canvas size — how it reads on
-                // the label once the printer rotation is dialed in.
-                <div
-                  className="bg-white shadow mx-auto border border-brand-tan/40"
-                  style={{ width: Cw, height: Ch, padding: pad, boxSizing: "border-box" }}
-                >
-                  <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
+                // WYSIWYG: the outer box is the real physical label (Mw×Mh) shrunk
+                // to fit; the inner box is rotated/scaled/mirrored exactly like the
+                // print. If content spills past the dashed edge here, it clips on
+                // paper too — that means the Label size doesn't match your stock.
+                <div style={{ width: MwNum * PX_PER_MM * previewScale, height: MhNum * PX_PER_MM * previewScale, flex: "none" }}>
+                  <div
+                    className="bg-white shadow border border-dashed border-brand-tan/60 overflow-hidden flex items-center justify-center"
+                    style={{ width: `${MwNum}mm`, height: `${MhNum}mm`, transform: `scale(${previewScale})`, transformOrigin: "top left" }}
+                  >
+                    <div
+                      style={{
+                        width: `${rotW}mm`, height: `${rotH}mm`, padding: pad, boxSizing: "border-box", flex: "none",
+                        transform: `rotate(${rot}deg) scale(${mirror ? -sc : sc}, ${sc})`, transformOrigin: "center center",
+                        background: "#fff", overflow: "hidden",
+                      }}
+                    >
+                      <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="text-center text-brand-tan text-sm py-6">Select an order to preview its label.</p>
               )}
             </div>
-            <p className="text-[11px] text-brand-tan mt-2">Actual size · profile: <b>{PROFILE_META[activeProfile].label}</b>{mirror ? " (mirrored)" : ""} · 1 of {selectedOrders.length || 0} selected · prints one exact page each.</p>
+            <p className="text-[11px] text-brand-tan mt-2">
+              Exactly as it prints · <b>{Mw}×{Mh}</b> · profile: <b>{PROFILE_META[activeProfile].label}</b>{mirror ? " (mirrored)" : ""} · {selectedOrders.length || 0} selected.
+              {" "}If it spills past the dashed edge, the <b>Label size</b> doesn&apos;t match your stock.
+            </p>
           </Card>
         </div>
       </div>
