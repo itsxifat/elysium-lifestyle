@@ -24,6 +24,7 @@ export async function POST(request) {
     const cat = await Category.create({
       name: data.name,
       slug,
+      code: (data.code || "").toUpperCase().trim(),
       parent: data.parent || null,
       gender: data.gender || "all",
       image: data.image || "",

@@ -11,6 +11,11 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true },
+    // Older slugs this product used to live at — so we can 301-redirect old links
+    // to the current slug after a name/SKU change. See app/(store)/shop/[slug].
+    previousSlugs: { type: [String], default: [] },
+    // Product-level SKU base (e.g. ELY-0042). Variant SKUs derive from it.
+    skuBase: { type: String, default: "" },
     description: { type: String },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     images: [{ type: String }],
@@ -35,6 +40,8 @@ productSchema.index({ category: 1, isPublished: 1 });
 productSchema.index({ "variants.price": 1 });
 productSchema.index({ tags: 1 });
 productSchema.index({ name: 1 });
+productSchema.index({ previousSlugs: 1 }); // old-slug → product, for 301 redirects
+productSchema.index({ skuBase: 1 });
 
 productSchema.virtual("totalStock").get(function () {
   return this.variants.reduce((sum, v) => sum + v.stock, 0);

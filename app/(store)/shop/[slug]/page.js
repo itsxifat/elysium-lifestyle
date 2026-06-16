@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
 import Category from "@/models/Category";
@@ -64,7 +64,15 @@ export async function generateMetadata({ params }) {
 
 export default async function ProductPage({ params }) {
   const data = await getProduct(params.slug);
-  if (!data) notFound();
+  if (!data) {
+    // The product may have moved to a new slug (name/SKU change) — 301 old → new.
+    await connectDB();
+    const moved = await Product.findOne({ previousSlugs: params.slug, isPublished: true })
+      .select("slug")
+      .lean();
+    if (moved?.slug && moved.slug !== params.slug) permanentRedirect(`/shop/${moved.slug}`);
+    notFound();
+  }
 
   return <ProductDetailClient product={data.product} related={data.related} categoryPath={data.categoryPath} />;
 }

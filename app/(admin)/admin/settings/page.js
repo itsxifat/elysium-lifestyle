@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings, ShieldAlert } from "lucide-react";
 import Input from "@/components/ui/Input";
 import { PageHeader, Button, Toggle } from "@/components/admin/ui";
+import { buildBaseCode, buildVariantSku, buildSlug } from "@/lib/sku";
 
 function SectionCard({ icon: Icon, title, description, children }) {
   return (
@@ -51,8 +52,12 @@ export default function AdminSettingsPage() {
   const [promoBannerEnabled, setPromoBannerEnabled] = useState(false);
   const [fraudAutoCheck, setFraudAutoCheck] = useState(true);
   const [fraudAutoProcess, setFraudAutoProcess] = useState(true);
+  const [skuEnabled, setSkuEnabled] = useState(false);
+  const [skuAppendSize, setSkuAppendSize] = useState(true);
+  const [skuAppendToSlug, setSkuAppendToSlug] = useState(true);
+  const [skuMigrating, setSkuMigrating] = useState(false);
 
-  const { register, handleSubmit, reset, getValues, control } = useForm({
+  const { register, handleSubmit, reset, getValues, watch, control } = useForm({
     defaultValues: { testimonials: [] },
   });
 
@@ -71,7 +76,14 @@ export default function AdminSettingsPage() {
         setPromoBannerEnabled(data.promoBanner?.enabled ?? false);
         setFraudAutoCheck(data.fraud?.autoCheck ?? true);
         setFraudAutoProcess(data.fraud?.autoProcess ?? true);
+        setSkuEnabled(data.sku?.enabled ?? false);
+        setSkuAppendSize(data.sku?.appendSize ?? true);
+        setSkuAppendToSlug(data.sku?.appendToSlug ?? true);
         reset({
+          skuCodeSource: data.sku?.codeSource || "prefix",
+          skuPrefix: data.sku?.prefix || "ELY",
+          skuSeparator: data.sku?.separator ?? "-",
+          skuPadding: data.sku?.padding ?? 4,
           fraudMinDelivery: data.fraud?.minDelivery ?? 10,
           fraudMinSuccessful: data.fraud?.minSuccessfulDelivery ?? 10,
           siteName: data.siteInfo?.siteName || "",
@@ -119,6 +131,14 @@ export default function AdminSettingsPage() {
     setSaving(true);
     try {
       const payload = {
+        // Dot-paths so we never clobber the server-managed sku.nextNumber counter.
+        "sku.enabled": skuEnabled,
+        "sku.codeSource": data.skuCodeSource || "prefix",
+        "sku.prefix": data.skuPrefix || "ELY",
+        "sku.separator": data.skuSeparator ?? "-",
+        "sku.padding": Number(data.skuPadding) || 4,
+        "sku.appendSize": skuAppendSize,
+        "sku.appendToSlug": skuAppendToSlug,
         fraud: {
           autoCheck: fraudAutoCheck,
           autoProcess: fraudAutoProcess,
@@ -190,6 +210,44 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const runSkuMigration = async () => {
+    if (!window.confirm(
+      "Generate SKUs for every product that doesn't have one yet, and (if enabled) append the code to their slugs. Old product URLs will 301-redirect to the new ones. Continue?"
+    )) return;
+    setSkuMigrating(true);
+    try {
+      // Persist the current SKU scheme first so the migration uses it.
+      await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "sku.enabled": skuEnabled,
+          "sku.codeSource": getValues("skuCodeSource") || "prefix",
+          "sku.prefix": getValues("skuPrefix") || "ELY",
+          "sku.separator": getValues("skuSeparator") ?? "-",
+          "sku.padding": Number(getValues("skuPadding")) || 4,
+          "sku.appendSize": skuAppendSize,
+          "sku.appendToSlug": skuAppendToSlug,
+        }),
+      });
+      const res = await fetch("/api/admin/products/migrate-skus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        toast.success(`Migrated ${d.migrated} product${d.migrated === 1 ? "" : "s"}${d.failures?.length ? ` · ${d.failures.length} failed` : ""}.`);
+      } else {
+        toast.error(d.error || "Migration failed");
+      }
+    } catch {
+      toast.error("Migration failed");
+    } finally {
+      setSkuMigrating(false);
+    }
+  };
+
   const sendTestEmail = async () => {
     const to = getValues("testEmailTo");
     if (!to) { toast.error("Enter a recipient email first"); return; }
@@ -212,6 +270,19 @@ export default function AdminSettingsPage() {
 
   if (loading) return <div className="text-brand-tan py-10">Loading settings…</div>;
 
+  // Live SKU/slug example from the current form values.
+  const skuCfgPreview = {
+    codeSource: watch("skuCodeSource") || "prefix",
+    prefix: watch("skuPrefix") || "ELY",
+    separator: watch("skuSeparator") ?? "-",
+    padding: Number(watch("skuPadding")) || 4,
+    appendSize: skuAppendSize,
+    appendToSlug: skuAppendToSlug,
+  };
+  const skuPreviewBase = buildBaseCode(skuCfgPreview, { number: 42, categoryCode: "DRS" });
+  const skuPreviewVariant = buildVariantSku(skuCfgPreview, skuPreviewBase, "M");
+  const skuPreviewSlug = buildSlug(skuCfgPreview, "Floral Dress", skuPreviewBase);
+
   return (
     <div>
       <PageHeader
@@ -226,6 +297,72 @@ export default function AdminSettingsPage() {
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-w-2xl">
+        {/* Product SKUs & Codes */}
+        <SectionCard icon={Tag} title="Product SKUs & Codes" description="Auto-generate SKUs and end every product slug with a unique code">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border border-brand-tan/15 rounded-sm">
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Auto-generate SKUs</p>
+                <p className="text-[11px] text-brand-tan mt-0.5">New products get a SKU automatically using the rule below.</p>
+              </div>
+              <Toggle checked={skuEnabled} onChange={setSkuEnabled} />
+            </div>
+
+            {skuEnabled && (
+              <>
+                <div>
+                  <FieldLabel>Base code from</FieldLabel>
+                  <select {...register("skuCodeSource")} className="w-full px-3 py-2 text-[13px] border border-brand-tan/20 rounded-lg bg-white text-brand-brown focus:outline-none focus:border-brand-terracotta">
+                    <option value="prefix">Fixed prefix (same for all products)</option>
+                    <option value="category">Category code (set per category)</option>
+                  </select>
+                  {skuCfgPreview.codeSource === "category" && (
+                    <p className="text-[11px] text-brand-tan mt-1.5">Set a short <b>Code</b> on each category (e.g. Dresses → DRS) on the Categories page. Products whose category has no code fall back to the prefix.</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <Input label="Prefix" {...register("skuPrefix")} placeholder="ELY" />
+                  <Input label="Separator" {...register("skuSeparator")} placeholder="-" />
+                  <Input label="Number length" type="number" {...register("skuPadding")} placeholder="4" />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border border-brand-tan/15 rounded-sm">
+                  <div>
+                    <p className="text-[13px] font-medium text-brand-brown">Add size to SKU</p>
+                    <p className="text-[11px] text-brand-tan mt-0.5">Each size variant gets its own SKU (…-M, …-L).</p>
+                  </div>
+                  <Toggle checked={skuAppendSize} onChange={setSkuAppendSize} />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border border-brand-tan/15 rounded-sm">
+                  <div>
+                    <p className="text-[13px] font-medium text-brand-brown">Put code in the slug</p>
+                    <p className="text-[11px] text-brand-tan mt-0.5">Product URLs end with the code so they stay unique (old links redirect).</p>
+                  </div>
+                  <Toggle checked={skuAppendToSlug} onChange={setSkuAppendToSlug} />
+                </div>
+
+                <div className="bg-brand-cream/40 border border-brand-tan/15 rounded-lg px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-brand-tan mb-1.5">Example</p>
+                  <p className="text-[12px] text-brand-brown">SKU: <span className="font-mono font-semibold">{skuPreviewVariant}</span></p>
+                  <p className="text-[12px] text-brand-brown mt-0.5">Slug: <span className="font-mono">/shop/{skuPreviewSlug}</span></p>
+                </div>
+
+                <div className="border-t border-brand-tan/10 pt-4">
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 p-3 mb-3">
+                    <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                    <p className="text-[11px] text-amber-700">Applies the rule to every product without a SKU and updates their slugs. Old URLs 301-redirect to the new ones — run it once after setting the rule.</p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={runSkuMigration} disabled={skuMigrating}>
+                    {skuMigrating ? "Migrating…" : "Migrate existing products"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </SectionCard>
+
 
         {/* Announcement Bar */}
         <SectionCard icon={Megaphone} title="Announcement Bar" description="The bold bar shown at the very top of every page">

@@ -4,6 +4,9 @@ const categorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true },
+    // Short uppercase code used to build SKUs when the SKU scheme's codeSource
+    // is "category" (e.g. Dresses → "DRS" → DRS-0042-M).
+    code: { type: String, default: "", uppercase: true, trim: true },
     parent: { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: null },
     gender: { type: String, enum: ["men", "women", "kids", "all"], default: "all" },
     image: { type: String },

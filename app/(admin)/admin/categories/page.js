@@ -136,6 +136,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
       ? {
           name: editing.name,
           slug: editing.slug,
+          code: editing.code || "",
           gender: editing.gender,
           parent: editing.parent?.toString() || "",
           description: editing.description || "",
@@ -146,6 +147,7 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
       : {
           name: "",
           slug: "",
+          code: "",
           gender: "all",
           parent: defaultParent?._id?.toString() || "",
           description: "",
@@ -246,6 +248,11 @@ function CategoryForm({ editing, defaultParent, allCats, onSave, onCancel }) {
         <label className={labelCls}>Slug *</label>
         <input {...register("slug", { required: true })} className={inputCls} placeholder="e.g. summer-dresses" />
         <p className="text-[10px] text-brand-tan/60 mt-1">Used in URLs — lowercase, no spaces</p>
+      </div>
+      <div>
+        <label className={labelCls}>SKU Code <span className="normal-case text-brand-tan/60">(optional)</span></label>
+        <input {...register("code")} className={`${inputCls} uppercase`} placeholder="e.g. DRS" maxLength={6} />
+        <p className="text-[10px] text-brand-tan/60 mt-1">Used in SKUs when “Base code from category” is enabled in Settings.</p>
       </div>
       <div>
         <label className={labelCls}>Parent Category</label>

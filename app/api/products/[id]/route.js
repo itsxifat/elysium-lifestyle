@@ -4,6 +4,7 @@ import Product from "@/models/Product";
 import "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { deleteImageIfUnreferenced } from "@/lib/images";
+import { applySkuScheme } from "@/lib/sku-server";
 
 export async function GET(request, { params }) {
   try {
@@ -35,14 +36,27 @@ export async function PUT(request, { params }) {
     await connectDB();
     const data = await request.json();
 
-    // Capture the previous images so we can clean up any that get removed.
-    const before = Array.isArray(data.images)
-      ? await Product.findById(params.id).select("images").lean()
-      : null;
+    // Current state — needed for image cleanup and to keep the SKU base / record
+    // the old slug for redirects when the name changes.
+    const existing = await Product.findById(params.id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    const before = Array.isArray(data.images) ? existing : null;
+
+    // Refresh variant SKUs + slug per the configured scheme (no-op when disabled).
+    const sku = await applySkuScheme(data, { existing });
+    const update = { ...data };
+    if (sku.applied) {
+      update.variants = sku.variants;
+      update.slug = sku.slug;
+      update.skuBase = sku.skuBase;
+      if (sku.previousSlugs) update.previousSlugs = sku.previousSlugs;
+    }
 
     const product = await Product.findByIdAndUpdate(
       params.id,
-      { ...data },
+      update,
       { new: true, runValidators: true }
     ).populate("category", "name slug");
 

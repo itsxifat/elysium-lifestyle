@@ -12,6 +12,19 @@ const settingsSchema = new mongoose.Schema(
       address: { type: String },
     },
     masterSizes: { type: [String], default: ["XS", "S", "M", "L", "XL", "XXL", "3XL", "One Size"] },
+    // Configurable SKU scheme. A product gets a base code (prefix OR its
+    // category's code, + a zero-padded running number); each size variant
+    // optionally appends its size. Every knob is toggleable from /admin/settings.
+    sku: {
+      enabled:      { type: Boolean, default: false }, // auto-generate on create + power the Migrate button
+      codeSource:   { type: String, enum: ["prefix", "category"], default: "prefix" },
+      prefix:       { type: String, default: "ELY" },   // base prefix when codeSource = "prefix" (and fallback)
+      separator:    { type: String, default: "-" },
+      padding:      { type: Number, default: 4 },        // 4 → 0042
+      appendSize:   { type: Boolean, default: true },    // ELY-0042-M vs ELY-0042
+      appendToSlug: { type: Boolean, default: true },    // slug ends with the base code
+      nextNumber:   { type: Number, default: 1 },        // global running counter (advanced)
+    },
     shipping: {
       freeShippingEnabled: { type: Boolean, default: false },
       freeShippingThreshold: { type: Number, default: 1500 },

@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { slugify, escapeRegExp } from "@/lib/utils";
 import { findCategory, getSubtreeIds } from "@/lib/categories";
 import { buildProductSearchFilter } from "@/lib/search";
+import { applySkuScheme, uniqueSlug } from "@/lib/sku-server";
 
 export async function GET(request) {
   try {
@@ -107,13 +108,18 @@ export async function POST(request) {
       return NextResponse.json({ error: "Name and at least one variant are required" }, { status: 400 });
     }
 
-    let slug = data.slug || slugify(data.name);
-    const existing = await Product.findOne({ slug });
-    if (existing) {
-      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+    // Apply the configured SKU scheme (base code + variant SKUs + slug). When the
+    // scheme is off, fall back to the legacy name-based slug.
+    const sku = await applySkuScheme(data);
+    let toCreate;
+    if (sku.applied) {
+      toCreate = { ...data, variants: sku.variants, slug: sku.slug, skuBase: sku.skuBase };
+    } else {
+      const slug = await uniqueSlug(data.slug || slugify(data.name), {});
+      toCreate = { ...data, slug };
     }
 
-    const product = await Product.create({ ...data, slug });
+    const product = await Product.create(toCreate);
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("POST /api/products error:", error);
