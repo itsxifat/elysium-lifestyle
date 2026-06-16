@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ScanLine, Camera, CameraOff, Search, X, Package, ExternalLink, RefreshCw, Smartphone, Download } from "lucide-react";
+import { ScanLine, Camera, CameraOff, Search, X, Package, ExternalLink, RefreshCw, Smartphone, Download, CheckCircle2 } from "lucide-react";
 import { PageHeader, Card, Button, SectionTitle, Pill } from "@/components/admin/ui";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ export default function ScanPage() {
   const [looking, setLooking] = useState(false);
   const [manual, setManual] = useState("");
   const [appInfo, setAppInfo] = useState(null);
+  const [packed, setPacked] = useState(() => new Set()); // checked-off items (shipment view)
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -34,6 +35,7 @@ export default function ScanPage() {
     if (!code) return;
     setLooking(true);
     setResult(null);
+    setPacked(new Set());
     try {
       const res = await fetch(`/api/admin/scan?code=${encodeURIComponent(code)}`);
       const d = await res.json();
@@ -164,7 +166,7 @@ export default function ScanPage() {
             {!scanning && (
               <div className="text-center px-6">
                 <ScanLine size={34} className="mx-auto text-white/40 mb-3" />
-                <p className="text-white/70 text-sm">Point the camera at a product QR or barcode.</p>
+                <p className="text-white/70 text-sm">Point the camera at the label QR (or a product barcode).</p>
                 <Button onClick={startCamera} className="mt-4"><Camera size={14} /> Start camera</Button>
               </div>
             )}
@@ -173,14 +175,14 @@ export default function ScanPage() {
 
           {/* Manual entry */}
           <form onSubmit={submitManual} className="pt-1">
-            <p className="text-[11px] text-brand-tan mb-1.5">Or enter a SKU manually</p>
+            <p className="text-[11px] text-brand-tan mb-1.5">Or enter an order # / tracking / SKU manually</p>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-tan/60" />
                 <input
                   value={manual}
                   onChange={(e) => setManual(e.target.value)}
-                  placeholder="SKU code"
+                  placeholder="ELY-2026-00001 or SKU"
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-brand-tan/30 text-sm text-brand-brown focus:outline-none focus:border-brand-brown"
                 />
               </div>
@@ -206,8 +208,75 @@ export default function ScanPage() {
           ) : !result.found ? (
             <div className="py-10 text-center">
               <X size={28} className="mx-auto text-red-400 mb-2" />
-              <p className="text-brand-brown font-medium">No product found</p>
-              <p className="text-[12px] text-brand-tan mt-1">Code: <span className="font-mono">{result.code}</span></p>
+              <p className="text-brand-brown font-medium">Nothing found</p>
+              <p className="text-[12px] text-brand-tan mt-1">No order or product matched <span className="font-mono">{result.code}</span></p>
+            </div>
+          ) : result.type === "shipment" ? (
+            <div className="mt-3">
+              {/* Order head */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-lg font-bold text-brand-brown leading-tight">{result.order.orderNumber}</p>
+                  <p className="text-[11px] text-brand-tan mt-0.5">
+                    {result.order.consignmentId ? `CN ${result.order.consignmentId} · ` : ""}
+                    {result.order.totalUnits} item{result.order.totalUnits === 1 ? "" : "s"} · {result.order.itemCount} line{result.order.itemCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Pill tone="gray">{result.order.status}</Pill>
+              </div>
+
+              {/* Recipient + COD */}
+              <div className="mt-3 rounded-lg bg-brand-cream/50 p-3">
+                <p className="font-semibold text-brand-brown text-sm">{result.order.recipient.name}</p>
+                <p className="text-[12px] text-brand-tan">{result.order.recipient.phone}</p>
+                <p className="text-[11px] text-brand-tan leading-snug">{result.order.recipient.address}</p>
+                <div className="mt-2 pt-2 border-t border-brand-tan/15 flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wide text-brand-tan">{result.order.paid ? "Payment" : "Collect (COD)"}</span>
+                  <span className={`font-bold ${result.order.paid ? "text-emerald-600" : "text-brand-terracotta"}`}>
+                    {result.order.paid ? "PAID" : formatPrice(result.order.codAmount)}
+                  </span>
+                </div>
+              </div>
+
+              {result.order.notes && (
+                <p className="mt-3 text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">📝 {result.order.notes}</p>
+              )}
+
+              {/* Packing checklist — tap an item to mark it packed */}
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-brand-tan">Pack these items</p>
+                <Pill tone={packed.size === result.order.items.length ? "green" : "terracotta"}>{packed.size}/{result.order.items.length} packed</Pill>
+              </div>
+              <div className="mt-2 space-y-2">
+                {result.order.items.map((it, i) => {
+                  const isPacked = packed.has(i);
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => { setPacked((p) => { const n = new Set(p); n.has(i) ? n.delete(i) : n.add(i); return n; }); navigator.vibrate?.(20); }}
+                      className={`w-full flex items-center gap-3 text-left rounded-lg border p-2.5 transition ${isPacked ? "bg-emerald-50 border-emerald-200" : "bg-white border-brand-tan/15"}`}
+                    >
+                      <div className="relative w-12 h-14 flex-shrink-0 rounded-md overflow-hidden bg-brand-cream-dark">
+                        <Image src={it.image || "/placeholder.jpg"} alt={it.name} fill sizes="48px" unoptimized={shouldUnoptimizeImage(it.image)} className="object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`font-semibold text-[13px] leading-snug ${isPacked ? "line-through text-brand-tan" : "text-brand-brown"}`}>{it.name}</p>
+                        {it.sku && <p className="font-mono text-[10px] text-brand-tan truncate">{it.sku}</p>}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className="bg-brand-brown text-white text-[12px] font-bold px-2 py-0.5 rounded">Size {it.size || "—"}</span>
+                          <span className="bg-brand-terracotta text-white text-[12px] font-bold px-2 py-0.5 rounded">× {it.quantity}</span>
+                          {it.color && <span className="bg-brand-cream-dark text-brand-brown text-[11px] px-2 py-0.5 rounded">{it.color}</span>}
+                          {it.returnedQuantity > 0 && <span className="text-red-500 text-[11px] font-semibold">{it.returnedQuantity} returned</span>}
+                        </div>
+                      </div>
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${isPacked ? "bg-emerald-500 border-emerald-500 text-white" : "border-brand-tan/40 text-transparent"}`}>
+                        <CheckCircle2 size={16} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="mt-3">

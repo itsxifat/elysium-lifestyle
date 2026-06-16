@@ -7,7 +7,7 @@ import { Printer, Search, CheckSquare, Square, RefreshCw, Download, FileText } f
 import { PageHeader, Card, Button, Select, Field, TextInput, Toggle, SectionTitle } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { useSettings } from "@/context/SettingsContext";
-import Barcode from "@/components/admin/Barcode";
+import QrCode from "@/components/admin/QrCode";
 
 // Paper sizes are exact physical dimensions. GP-3120TUD handles 2" and 3"
 // thermal labels well when the browser page size matches the media.
@@ -76,11 +76,11 @@ function Label({ order, shop, opts, layout, compact = false }) {
           </div>
         </div>
 
-        {/* Barcode */}
+        {/* QR code — scannable even if the thermal print is partly smudged. */}
         {opts.showBarcode && (
-          <div className="py-[1mm] text-center">
-            <Barcode value={scan} height={30} />
-            <p className="font-mono text-[7px] leading-none mt-[0.3mm] truncate">{scan}</p>
+          <div className="py-[1mm] flex flex-col items-center">
+            <QrCode value={scan} size={74} />
+            <p className="font-mono text-[7px] leading-none mt-[0.3mm] truncate max-w-full">{scan}</p>
           </div>
         )}
 
@@ -139,9 +139,9 @@ function Label({ order, shop, opts, layout, compact = false }) {
           {/* Right: barcode + CN + price + COD */}
           <div className="min-w-0 flex flex-col border-l border-black/30 pl-[2mm]">
             {opts.showBarcode && (
-              <div className="text-center">
-                <Barcode value={scan} height={20} />
-                <p className="font-mono text-[6px] leading-none truncate">{scan}</p>
+              <div className="flex flex-col items-center">
+                <QrCode value={scan} size={52} />
+                <p className="font-mono text-[6px] leading-none truncate max-w-full">{scan}</p>
               </div>
             )}
             <div className="py-[0.8mm] border-y border-black my-[0.8mm]">
@@ -174,10 +174,10 @@ function Label({ order, shop, opts, layout, compact = false }) {
         </div>
       </div>
 
-      {/* Barcode */}
+      {/* QR code — scannable even if the thermal print is partly smudged. */}
       {opts.showBarcode && (
-        <div className="py-2 text-center border-b border-black/60">
-          <Barcode value={scan} height={46} />
+        <div className="py-2 flex flex-col items-center border-b border-black/60">
+          <QrCode value={scan} size={104} />
           <p className="font-mono font-bold text-[11px] mt-0.5">{scan}</p>
         </div>
       )}
@@ -563,7 +563,7 @@ export default function LabelsPage() {
               is fastest for bulk; PDF is the fallback.
             </p>
             <div className="space-y-2 pt-1">
-              {[["showLogo", "Shop name"], ["showBarcode", "Barcode / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
+              {[["showLogo", "Shop name"], ["showBarcode", "QR code / CN"], ["showPrices", "Item prices"], ["showCod", "COD amount"]].map(([k, lbl]) => (
                 <label key={k} className="flex items-center justify-between">
                   <span className="text-[13px] text-brand-brown">{lbl}</span>
                   <Toggle checked={opts[k]} onChange={(v) => setOpts((o) => ({ ...o, [k]: v }))} />
