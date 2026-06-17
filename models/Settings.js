@@ -5,6 +5,7 @@ const settingsSchema = new mongoose.Schema(
     siteInfo: {
       siteName: { type: String, default: "Elysium Lifestyle" },
       logo: { type: String },
+      merchantId: { type: String, default: "" }, // shown on shipping labels
       whatsappNumber: { type: String, default: "8801700000000" },
       freeShippingThreshold: { type: Number, default: 1500 },
       shippingFee: { type: Number, default: 80 },
@@ -57,6 +58,8 @@ const settingsSchema = new mongoose.Schema(
       autoProcess: { type: Boolean, default: true }, // auto-move to processing when thresholds met
       minDelivery: { type: Number, default: 10 }, // min total parcels in history
       minSuccessfulDelivery: { type: Number, default: 10 }, // min successful (delivered) parcels
+      minSuccessRate: { type: Number, default: 0 }, // min delivery success rate % (0 = ignore)
+      maxFrauds: { type: Number, default: 0 }, // max acceptable fraud reports (block above this)
     },
     // Steadfast Courier (Packzy) order-placement API + webhook. Separate from the
     // fraud-history package above — these are the portal Api-Key/Secret-Key.

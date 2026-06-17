@@ -3,7 +3,7 @@
 import { useState, useEffect, forwardRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings, ShieldAlert } from "lucide-react";
+import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings } from "lucide-react";
 import Input from "@/components/ui/Input";
 import { PageHeader, Button, Toggle } from "@/components/admin/ui";
 import { buildBaseCode, buildVariantSku, buildSlug } from "@/lib/sku";
@@ -31,7 +31,7 @@ function FieldLabel({ children }) {
 
 // forwardRef so react-hook-form's register() can bind the ref. Without this the
 // ref is dropped and the field never populates or saves (the bug that hit the
-// fraud thresholds + promo/announcement/testimonial inputs).
+// promo/announcement/testimonial inputs).
 const RawInput = forwardRef(function RawInput({ className = "", ...props }, ref) {
   return (
     <input
@@ -50,8 +50,6 @@ export default function AdminSettingsPage() {
   const [codEnabled, setCodEnabled] = useState(true);
   const [announcementEnabled, setAnnouncementEnabled] = useState(true);
   const [promoBannerEnabled, setPromoBannerEnabled] = useState(false);
-  const [fraudAutoCheck, setFraudAutoCheck] = useState(true);
-  const [fraudAutoProcess, setFraudAutoProcess] = useState(true);
   const [skuEnabled, setSkuEnabled] = useState(false);
   const [skuAppendSize, setSkuAppendSize] = useState(true);
   const [skuAppendToSlug, setSkuAppendToSlug] = useState(true);
@@ -74,8 +72,6 @@ export default function AdminSettingsPage() {
         setCodEnabled(data.paymentGateways?.cod?.enabled ?? true);
         setAnnouncementEnabled(data.announcementBar?.enabled ?? true);
         setPromoBannerEnabled(data.promoBanner?.enabled ?? false);
-        setFraudAutoCheck(data.fraud?.autoCheck ?? true);
-        setFraudAutoProcess(data.fraud?.autoProcess ?? true);
         setSkuEnabled(data.sku?.enabled ?? false);
         setSkuAppendSize(data.sku?.appendSize ?? true);
         setSkuAppendToSlug(data.sku?.appendToSlug ?? true);
@@ -84,9 +80,8 @@ export default function AdminSettingsPage() {
           skuPrefix: data.sku?.prefix || "ELY",
           skuSeparator: data.sku?.separator ?? "-",
           skuPadding: data.sku?.padding ?? 4,
-          fraudMinDelivery: data.fraud?.minDelivery ?? 10,
-          fraudMinSuccessful: data.fraud?.minSuccessfulDelivery ?? 10,
           siteName: data.siteInfo?.siteName || "",
+          merchantId: data.siteInfo?.merchantId || "",
           whatsappNumber: data.siteInfo?.whatsappNumber || "",
           freeShippingThreshold: data.siteInfo?.freeShippingThreshold || 1500,
           shippingFee: data.siteInfo?.shippingFee || 80,
@@ -139,12 +134,6 @@ export default function AdminSettingsPage() {
         "sku.padding": Number(data.skuPadding) || 4,
         "sku.appendSize": skuAppendSize,
         "sku.appendToSlug": skuAppendToSlug,
-        fraud: {
-          autoCheck: fraudAutoCheck,
-          autoProcess: fraudAutoProcess,
-          minDelivery: Number(data.fraudMinDelivery) || 0,
-          minSuccessfulDelivery: Number(data.fraudMinSuccessful) || 0,
-        },
         announcementBar: {
           enabled: announcementEnabled,
           text: data.announcementText,
@@ -170,6 +159,7 @@ export default function AdminSettingsPage() {
         })),
         siteInfo: {
           siteName: data.siteName,
+          merchantId: data.merchantId,
           whatsappNumber: data.whatsappNumber,
           freeShippingThreshold: Number(data.freeShippingThreshold),
           shippingFee: Number(data.shippingFee),
@@ -507,7 +497,10 @@ export default function AdminSettingsPage() {
         {/* Site Info */}
         <SectionCard icon={Globe} title="Site Information" description="Basic store details visible to customers">
           <div className="space-y-4">
-            <Input label="Site Name" {...register("siteName")} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Site Name" {...register("siteName")} />
+              <Input label="Merchant ID" {...register("merchantId")} placeholder="Shown on shipping labels" />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Contact Email" type="email" {...register("email")} />
               <Input label="WhatsApp Number" {...register("whatsappNumber")} placeholder="8801700000000" />
@@ -596,43 +589,6 @@ export default function AdminSettingsPage() {
               </div>
               <p className="text-[10px] text-brand-tan/60 mt-2">Save your settings before sending a test email</p>
             </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          icon={ShieldAlert}
-          title="Fraud Check & Auto-Processing"
-          description="New orders stay Pending until the customer's Steadfast courier history clears these thresholds — then they auto-move to Processing."
-        >
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[13px] font-medium text-brand-brown">Auto fraud check on new orders</p>
-                <p className="text-[11px] text-brand-tan">Looks up the order&apos;s phone on Steadfast automatically</p>
-              </div>
-              <Toggle checked={fraudAutoCheck} onChange={setFraudAutoCheck} />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[13px] font-medium text-brand-brown">Auto-move to Processing</p>
-                <p className="text-[11px] text-brand-tan">When both thresholds below are met; otherwise stays Pending</p>
-              </div>
-              <Toggle checked={fraudAutoProcess} onChange={setFraudAutoProcess} />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <FieldLabel>Min total deliveries</FieldLabel>
-                <RawInput type="number" min="0" {...register("fraudMinDelivery")} />
-              </div>
-              <div>
-                <FieldLabel>Min successful deliveries</FieldLabel>
-                <RawInput type="number" min="0" {...register("fraudMinSuccessful")} />
-              </div>
-            </div>
-            <p className="text-[11px] text-brand-tan">
-              Manage Steadfast accounts on the{" "}
-              <a href="/admin/frauds" className="text-brand-terracotta underline">Fraud Check</a> page.
-            </p>
           </div>
         </SectionCard>
 
