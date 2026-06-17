@@ -8,9 +8,10 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
-  Tag, PackageCheck, Printer, ScanLine,
+  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import NotificationBell from "@/components/admin/NotificationBell";
 
 // `perm` gates visibility. Items with no `perm` show for every staff member.
 const navGroups = [
@@ -22,8 +23,10 @@ const navGroups = [
       { href: "/admin/orders",    label: "Orders",     icon: ShoppingCart, perm: "orders.view" },
       { href: "/admin/labels",    label: "Labels",     icon: Printer,      perm: "orders.view" },
       { href: "/admin/scan",      label: "Scan",       icon: ScanLine,     perm: "orders.view" },
+      { href: "/admin/notifications", label: "Notifications", icon: Bell },
       { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert, perm: "orders.manage" },
       { href: "/admin/customers", label: "Users",      icon: Users,        perm: "users.manage" },
+      { href: "/admin/roles",     label: "Roles & PINs", icon: ShieldCheck, perm: "users.manage" },
     ],
   },
   {
@@ -131,10 +134,11 @@ export default function AdminSidebar({ user, permissions = [] }) {
           <div className="w-9 h-9 rounded-full bg-brand-terracotta flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0">
             {user?.name?.charAt(0)?.toUpperCase() || "A"}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-white/80 text-[12px] font-medium truncate">{user?.name || "Admin"}</p>
             <p className="text-white/25 text-[10px] truncate">{user?.email || ""}</p>
           </div>
+          <NotificationBell />
         </div>
         <Link
           href="/"
@@ -176,6 +180,7 @@ export default function AdminSidebar({ user, permissions = [] }) {
             className="h-7 w-auto object-contain"
           />
         </div>
+        <NotificationBell />
         <div className="w-8 h-8 rounded-full bg-brand-terracotta flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
           {user?.name?.charAt(0)?.toUpperCase() || "A"}
         </div>

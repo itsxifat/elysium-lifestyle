@@ -22,6 +22,16 @@ const userSchema = new mongoose.Schema(
     // Additive permission grants beyond the role's defaults (managed by a
     // superadmin). See lib/permissions.js for the catalog of keys.
     permissions: { type: [String], default: [] },
+
+    // ── Admin security PIN ──────────────────────────────────────────────────
+    // 6-digit PIN every panel member (incl. superadmin) must create. Required
+    // as a second factor for critical actions (order edits, status/payment
+    // changes, returns). Stored as a bcrypt hash. See lib/pin.js.
+    adminPin: { type: String, select: false },
+    pinSetAt: { type: Date, default: null },
+    pinFailedAttempts: { type: Number, default: 0, select: false }, // brute-force counter
+    pinLockedUntil: { type: Date, default: null }, // temporary lockout after too many fails
+
     address: addressSchema,
     phone: { type: String, trim: true },
     emailVerified: { type: Boolean, default: false },

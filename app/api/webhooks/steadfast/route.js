@@ -6,6 +6,8 @@ import Order from "@/models/Order";
 import "@/models/User";
 import { getSteadfastConfig, mapSteadfastStatus } from "@/lib/steadfast";
 import { sendEmail, orderStatusTemplate } from "@/lib/email";
+import { applyCodAutoPaid } from "@/lib/orders";
+import { notifyAdmins } from "@/lib/notifications";
 
 // Steadfast Courier webhook. They POST delivery-status + tracking updates here.
 // Auth: header `Authorization: Bearer <token>` where token = our configured
@@ -78,6 +80,9 @@ export async function POST(request) {
       statusChanged = true;
     }
 
+    // COD auto-paid: courier-confirmed delivery means cash was collected.
+    const autoPaid = applyCodAutoPaid(order);
+
     await order.save();
 
     if (statusChanged) {
@@ -89,6 +94,31 @@ export async function POST(request) {
           html: orderStatusTemplate(order.toObject()),
         }).catch(() => {});
       }
+    }
+
+    // Notify admins on courier-driven delivery / cancellation / partial-return.
+    const isPartial = /partial|return/.test(rawStatus);
+    if (statusChanged && mapped === "cancelled") {
+      notifyAdmins({
+        type: "order_cancelled", severity: "warning",
+        title: `Order ${order.orderNumber} cancelled (courier)`,
+        body: `Steadfast reported "${rawStatus}".`,
+        link: `/admin/orders/${order._id}`, order: order._id,
+      }).catch(() => {});
+    } else if (isPartial) {
+      notifyAdmins({
+        type: "order_returned", severity: "warning",
+        title: `Order ${order.orderNumber} partially returned (courier)`,
+        body: `Steadfast reported "${rawStatus}". Review and record the return.`,
+        link: `/admin/orders/${order._id}`, order: order._id,
+      }).catch(() => {});
+    } else if (statusChanged && mapped === "delivered") {
+      notifyAdmins({
+        type: "status_change", severity: "info",
+        title: `Order ${order.orderNumber} delivered (courier)`,
+        body: autoPaid ? "Marked COD payment as paid." : "",
+        link: `/admin/orders/${order._id}`, order: order._id,
+      }).catch(() => {});
     }
 
     return NextResponse.json({ status: "success", message: "Webhook received successfully." });

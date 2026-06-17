@@ -9,8 +9,11 @@ import Order from "@/models/Order";
 import "@/models/User";
 import "@/models/Product";
 import { sendEmail, orderStatusTemplate } from "@/lib/email";
-import { isStaff } from "@/lib/permissions";
+import { isStaff, isElevated } from "@/lib/permissions";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
+import { requirePin } from "@/lib/pin";
+import { applyCodAutoPaid } from "@/lib/orders";
+import { notifyAdmins } from "@/lib/notifications";
 
 export async function GET(request, { params }) {
   try {
@@ -45,47 +48,105 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
-  const { error } = await requireAdmin("orders.manage");
+  const { error, session } = await requireAdmin("orders.manage");
   if (error) return error;
 
   try {
     await connectDB();
     const data = await request.json();
 
-    const allowedFields = ["orderStatus", "paymentStatus", "notes"];
-    const update = {};
-    for (const field of allowedFields) {
-      if (data[field] !== undefined) update[field] = data[field];
+    const order = await Order.findById(params.id);
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    const prevStatus = order.orderStatus;
+    const prevPaymentStatus = order.paymentStatus;
+
+    const nextStatus = typeof data.orderStatus === "string" ? data.orderStatus : prevStatus;
+    const nextPaymentStatus = typeof data.paymentStatus === "string" ? data.paymentStatus : prevPaymentStatus;
+    const statusChanged = nextStatus !== prevStatus;
+    const paymentStatusChanged = nextPaymentStatus !== prevPaymentStatus;
+
+    // ── Critical actions require the security PIN ────────────────────────────
+    // Moving an order to delivered/cancelled, or touching the payment status, is
+    // financially significant — gate it behind the member's 6-digit PIN.
+    const needsPin =
+      (statusChanged && (nextStatus === "delivered" || nextStatus === "cancelled")) ||
+      paymentStatusChanged;
+    if (needsPin) {
+      const pinError = await requirePin(session, data.pin, request);
+      if (pinError) return pinError;
     }
 
-    // Track the prior status so we can detect a transition into "processing".
-    const prev = await Order.findById(params.id).select("orderStatus courier.consignmentId").lean();
+    // Apply the allowed field changes.
+    if (data.orderStatus !== undefined) order.orderStatus = data.orderStatus;
+    if (data.paymentStatus !== undefined) order.paymentStatus = data.paymentStatus;
+    if (data.notes !== undefined) order.notes = data.notes;
 
-    const order = await Order.findByIdAndUpdate(params.id, update, { new: true })
-      .populate("user", "name email")
-      .lean();
+    // COD auto-paid: collecting cash at delivery means the order is now paid.
+    const autoPaid = applyCodAutoPaid(order);
 
-    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    // Record who did what (audit trail).
+    const actorName = session.user.name || session.user.email || "Staff";
+    const parts = [];
+    if (statusChanged) parts.push(`status ${prevStatus} → ${nextStatus}`);
+    if (order.paymentStatus !== prevPaymentStatus)
+      parts.push(`payment ${prevPaymentStatus} → ${order.paymentStatus}${autoPaid ? " (auto, COD delivered)" : ""}`);
+    if (parts.length) {
+      order.editHistory = order.editHistory || [];
+      order.editHistory.push({
+        at: new Date(),
+        by: session.user.id,
+        byName: actorName,
+        action: statusChanged ? "status_change" : "payment_update",
+        summary: parts.join("; "),
+        pinVerified: needsPin,
+      });
+    }
+
+    await order.save();
 
     // Entering "processing" → auto-create the Steadfast consignment (idempotent;
     // skips if it already has one or auto-send is off).
-    if (data.orderStatus === "processing" && prev?.orderStatus !== "processing" && !prev?.courier?.consignmentId) {
+    if (statusChanged && nextStatus === "processing" && !order.courier?.consignmentId) {
       maybeAutoSendToCourier(order._id).catch(() => {});
     }
 
+    const populated = await Order.findById(params.id).populate("user", "name email").lean();
+
     // Send status update email
-    if (data.orderStatus && ["processing", "shipped", "delivered", "cancelled"].includes(data.orderStatus)) {
-      const toEmail = order.user?.email || order.guestEmail;
+    if (statusChanged && ["processing", "shipped", "delivered", "cancelled"].includes(nextStatus)) {
+      const toEmail = populated.user?.email || populated.guestEmail;
       if (toEmail) {
         sendEmail({
           to: toEmail,
-          subject: `Order Update — ${order.orderNumber}`,
-          html: orderStatusTemplate(order),
+          subject: `Order Update — ${populated.orderNumber}`,
+          html: orderStatusTemplate(populated),
         }).catch(console.error);
       }
     }
 
-    return NextResponse.json(order);
+    // ── Notify admins ────────────────────────────────────────────────────────
+    const link = `/admin/orders/${order._id}`;
+    if (statusChanged && nextStatus === "cancelled") {
+      notifyAdmins({
+        type: "order_cancelled",
+        severity: "warning",
+        title: `Order ${order.orderNumber} cancelled`,
+        body: `Cancelled by ${actorName}.`,
+        link, order: order._id, actor: session.user.id, actorName,
+      }).catch(() => {});
+    } else if (!isElevated(session.user.role) && parts.length) {
+      // A moderator/staff member acted — keep admins in the loop.
+      notifyAdmins({
+        type: statusChanged ? "status_change" : "payment_update",
+        severity: "info",
+        title: `Order ${order.orderNumber} updated`,
+        body: `${actorName}: ${parts.join("; ")}.`,
+        link, order: order._id, actor: session.user.id, actorName,
+      }).catch(() => {});
+    }
+
+    return NextResponse.json(populated);
   } catch {
     return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
   }

@@ -44,6 +44,8 @@ export async function GET(request, { params }) {
       emailVerified: user.emailVerified || false,
       address: user.address || {},
       createdAt: user.createdAt,
+      hasPin: !!user.pinSetAt,
+      pinLockedUntil: user.pinLockedUntil && user.pinLockedUntil.getTime() > Date.now() ? user.pinLockedUntil : null,
       orderCount: orders.length,
       totalSpent,
     },

@@ -357,18 +357,18 @@ export default function LabelsPage() {
       .admin-shell, .no-print { display: none !important; }
 
       #label-print-root { display: block !important; }
-      /* Each label stays in NORMAL FLOW and centers its content with flexbox.
-         (Absolute positioning + transform only renders on one page when content
-         paginates — that's why bulk used to keep just the last label perfect.) */
+      /* Plain BLOCK per label — never flexbox on the paginating element. Chrome's
+         print fragmentation drifts/accumulates with a full-height flex container
+         (early pages crept up and clipped at the bottom). The rot box fills the
+         sheet 1:1 and the scale() transform self-centers the design inside it. */
       .label-sheet {
+        display: block !important;
         width: ${boxW}mm !important;
         height: ${boxH}mm !important;
         margin: 0 !important;
+        padding: 0 !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -379,10 +379,10 @@ export default function LabelsPage() {
         page-break-after: always !important;
       }
 
-      /* Fill the printable page, scaled (transform is paint-only, so it
-         paginates correctly across a bulk run). */
+      /* Fills the sheet exactly; scale() (origin center) shrinks it in place, so
+         the design stays centered without any flexbox. */
       .label-rot {
-        flex: none !important;
+        display: block !important;
         width: ${boxW}mm !important;
         height: ${boxH}mm !important;
         padding: ${pad} !important;

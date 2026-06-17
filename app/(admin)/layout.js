@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import AdminSidebar from "@/components/layout/AdminSidebar";
+import PinGate from "@/components/admin/PinGate";
 import { isStaff, getEffectivePermissions } from "@/lib/permissions";
 
 export const metadata = {
@@ -18,6 +19,8 @@ export default async function AdminLayout({ children }) {
 
   return (
     <div className="admin-shell flex min-h-screen bg-[#F6F2EC]">
+      {/* Forces every panel member to create a 6-digit security PIN. */}
+      <PinGate />
       <AdminSidebar user={session.user} permissions={permissions} />
 
       <div className="admin-shell-body flex-1 flex flex-col min-w-0 overflow-hidden">

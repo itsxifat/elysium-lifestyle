@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import Product from "@/models/Product";
+import { requirePin } from "@/lib/pin";
+import { notifyAdmins } from "@/lib/notifications";
 
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -16,6 +18,11 @@ export async function POST(request, { params }) {
   try {
     await connectDB();
     const data = await request.json();
+
+    // Recording / editing a return is a critical action → require the PIN.
+    const pinError = await requirePin(session, data.pin, request);
+    if (pinError) return pinError;
+
     const lines = Array.isArray(data.items) ? data.items : [];
     const waived = !!data.deliveryChargeWaived;
     const restock = data.restock !== false;
@@ -56,20 +63,43 @@ export async function POST(request, { params }) {
     const newTotal = Math.max(0, round(keptSubtotal - effectiveDiscount + (waived ? 0 : (order.shippingFee || 0))));
     const refundThis = Math.max(0, round(oldTotal - newTotal));
 
+    const actorName = session.user.name || session.user.email || "Staff";
     order.deliveryChargeWaived = waived;
     order.returnedAmount = round((order.returnedAmount || 0) + refundThis);
     order.totalAmount = newTotal;
     order.returns = order.returns || [];
     order.returns.push({
       at: new Date(),
-      by: session.user.name || session.user.email || "Staff",
+      by: actorName,
       items: returnedLines,
       refundAmount: refundThis,
       deliveryChargeWaived: waived,
       note: (data.note || "").trim(),
     });
 
+    const returnedUnits = returnedLines.reduce((s, l) => s + l.quantity, 0);
+    order.editHistory = order.editHistory || [];
+    order.editHistory.push({
+      at: new Date(),
+      by: session.user.id,
+      byName: actorName,
+      action: "return",
+      summary: `Recorded return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis})${waived ? ", delivery waived" : ""}`,
+      pinVerified: true,
+    });
+
     await order.save();
+
+    notifyAdmins({
+      type: "order_returned",
+      severity: "warning",
+      title: `Return on order ${order.orderNumber}`,
+      body: `${actorName} recorded a return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis}).`,
+      link: `/admin/orders/${order._id}`,
+      order: order._id,
+      actor: session.user.id,
+      actorName,
+    }).catch(() => {});
 
     const updated = await Order.findById(params.id).populate("user", "name email").lean();
     return NextResponse.json(updated);

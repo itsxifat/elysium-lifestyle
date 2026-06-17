@@ -11,6 +11,7 @@ import { escapeRegExp } from "@/lib/utils";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
+import { notifyAdmins } from "@/lib/notifications";
 
 export async function GET(request) {
   const { error } = await requireAdmin("orders.view");
@@ -157,6 +158,16 @@ export async function POST(request) {
 
     // Count the usage now that the order exists.
     if (appliedDiscounts.length) recordDiscountUsage(appliedDiscounts).catch(() => {});
+
+    // Notify admins of every new storefront order.
+    notifyAdmins({
+      type: "order_new",
+      severity: "info",
+      title: `New order ${orderNumber}`,
+      body: `${data.shippingAddress?.name || "A customer"} placed an order for ৳${totalAmount} (${orderItems.length} item${orderItems.length === 1 ? "" : "s"}, ${data.paymentMethod === "cod" ? "COD" : "online"}).`,
+      link: `/admin/orders/${order._id}`,
+      order: order._id,
+    }).catch(() => {});
 
     if (data.paymentMethod === "cod") {
       for (const item of orderItems) {

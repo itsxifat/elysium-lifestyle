@@ -81,6 +81,8 @@ export async function GET(request) {
     phone: u.phone || null,
     emailVerified: u.emailVerified || false,
     createdAt: u.createdAt,
+    hasPin: !!u.pinSetAt,
+    pinLockedUntil: u.pinLockedUntil && u.pinLockedUntil.getTime() > Date.now() ? u.pinLockedUntil : null,
     orderCount: orderMap[u._id.toString()]?.count || 0,
     totalSpent: orderMap[u._id.toString()]?.total || 0,
   }));

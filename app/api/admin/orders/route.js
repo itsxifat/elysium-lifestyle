@@ -7,6 +7,7 @@ import Settings from "@/models/Settings";
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
+import { notifyAdmins } from "@/lib/notifications";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 const PAYMENT_METHODS = ["cod", "bkash", "nagad", "bank", "cash"];
@@ -138,6 +139,18 @@ export async function POST(request) {
 
     // If the staff created it already in "processing", push it to the courier.
     if (orderStatus === "processing") maybeAutoSendToCourier(order._id).catch(() => {});
+
+    // Keep admins in the loop on every new (manual/POS) sale.
+    notifyAdmins({
+      type: "order_new",
+      severity: "info",
+      title: `New ${source} order ${order.orderNumber}`,
+      body: `${session.user.name || "Staff"} created an order for ৳${totalAmount} (${orderItems.length} item${orderItems.length === 1 ? "" : "s"}).`,
+      link: `/admin/orders/${order._id}`,
+      order: order._id,
+      actor: session.user.id,
+      actorName: session.user.name || session.user.email || "Staff",
+    }).catch(() => {});
 
     return NextResponse.json({ orderId: order._id.toString(), orderNumber: order.orderNumber }, { status: 201 });
   } catch (err) {

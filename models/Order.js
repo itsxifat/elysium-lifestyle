@@ -84,6 +84,21 @@ const orderSchema = new mongoose.Schema(
     valId: { type: String },
     notes: { type: String },
 
+    // ── Audit trail ─────────────────────────────────────────────────────────
+    // Who changed this order and what. Appended on every PIN-gated mutation
+    // (edits, status/payment changes, returns) so we can always tell who did
+    // what. byName is a snapshot kept even if the staff account is removed.
+    editHistory: [
+      {
+        at: { type: Date, default: Date.now },
+        by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        byName: { type: String, default: "" },
+        action: { type: String, default: "" }, // edit | status_change | payment_update | payment_change | return | return_edit
+        summary: { type: String, default: "" }, // human-readable description of the change
+        pinVerified: { type: Boolean, default: false },
+      },
+    ],
+
     // ── Returns / partial delivery ──────────────────────────────────────────
     // Set when staff record a return; totals above are recomputed accordingly.
     returnedAmount: { type: Number, default: 0 }, // value refunded for returned items
