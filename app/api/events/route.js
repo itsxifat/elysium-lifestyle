@@ -34,7 +34,11 @@ export async function POST(request) {
     const result = await dispatchEvent({
       eventName: evt.eventName,
       eventId: evt.eventId || newEventId(),
-      source: evt.source === "server" ? "server" : "client",
+      // This is the public, browser-facing ingest. Real server-origin events call
+      // trackServerEvent()/dispatchEvent() in-process and never reach this route,
+      // so always log "client" here — a caller-supplied "server" can only be a
+      // forged source label.
+      source: "client",
       eventTime: evt.eventTime,
       eventSourceUrl: evt.eventSourceUrl,
       actionSource: evt.actionSource || "website",

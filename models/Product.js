@@ -52,6 +52,18 @@ productSchema.virtual("minPrice").get(function () {
   return Math.min(...this.variants.map((v) => v.price));
 });
 
+// Optional ref/enum fields arrive from the admin form as "" when left blank
+// (e.g. no category / no size chart / gender removed from the UI). Mongoose 500s
+// on those — "" fails ObjectId casting and enum validation — so coerce blanks to
+// a value it treats as "unset" before create/update.
+export function normalizeProductInput(data) {
+  const out = { ...data };
+  if (out.category === "") out.category = null;
+  if (out.sizeChart === "") out.sizeChart = null;
+  if (out.gender === "" || out.gender == null) delete out.gender;
+  return out;
+}
+
 const Product =
   mongoose.models.Product || mongoose.model("Product", productSchema);
 export default Product;

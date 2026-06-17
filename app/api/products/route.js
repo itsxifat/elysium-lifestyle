@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
-import Product from "@/models/Product";
+import Product, { normalizeProductInput } from "@/models/Product";
 import Category from "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { slugify, escapeRegExp } from "@/lib/utils";
@@ -102,7 +102,7 @@ export async function POST(request) {
 
   try {
     await connectDB();
-    const data = await request.json();
+    const data = normalizeProductInput(await request.json());
 
     if (!data.name || !data.variants?.length) {
       return NextResponse.json({ error: "Name and at least one variant are required" }, { status: 400 });
@@ -123,6 +123,11 @@ export async function POST(request) {
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("POST /api/products error:", error);
+    // Surface validation/cast problems as a 400 with the real reason instead of a
+    // silent 500, so the admin sees what field was wrong.
+    if (error?.name === "ValidationError" || error?.name === "CastError") {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
   }
 }

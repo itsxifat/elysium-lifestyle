@@ -24,7 +24,7 @@ export default function ProductForm({ categories, defaultValues, isEdit, product
 
   const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm({
     defaultValues: defaultValues || {
-      name: "", slug: "", description: "", category: "", gender: "",
+      name: "", slug: "", description: "", category: "",
       material: "", careInstructions: "", sizeChart: "",
       featured: false, isNewArrival: false, isPublished: true,
       variants: [{ size: "", price: 0, stock: 0, sku: "" }],

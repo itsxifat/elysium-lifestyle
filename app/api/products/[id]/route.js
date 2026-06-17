@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
-import Product from "@/models/Product";
+import Product, { normalizeProductInput } from "@/models/Product";
 import "@/models/Category";
 import { requireAdmin } from "@/lib/auth";
 import { deleteImageIfUnreferenced } from "@/lib/images";
@@ -34,7 +34,7 @@ export async function PUT(request, { params }) {
 
   try {
     await connectDB();
-    const data = await request.json();
+    const data = normalizeProductInput(await request.json());
 
     // Current state — needed for image cleanup and to keep the SKU base / record
     // the old slug for redirects when the name changes.
@@ -72,6 +72,10 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json(product);
   } catch (error) {
+    console.error("PUT /api/products/[id] error:", error);
+    if (error?.name === "ValidationError" || error?.name === "CastError") {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
   }
 }
