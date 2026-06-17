@@ -79,8 +79,8 @@ function Label({ order, shop, opts, layout, compact = false }) {
 
         {/* QR code — scannable even if the thermal print is partly smudged. */}
         {opts.showBarcode && (
-          <div className="py-[1mm] flex flex-col items-center">
-            <QrCode value={scan} size={74} />
+          <div className="py-[0.6mm] flex flex-col items-center">
+            <QrCode value={scan} size={64} />
             <p className="font-mono text-[7px] leading-none mt-[0.3mm] truncate max-w-full">{scan}</p>
           </div>
         )}
@@ -379,8 +379,9 @@ export default function LabelsPage() {
         page-break-after: always !important;
       }
 
-      /* Fills the sheet exactly; scale() (origin center) shrinks it in place, so
-         the design stays centered without any flexbox. */
+      /* Fills the sheet exactly; scale() shrinks from the TOP so all the freed
+         space lands at the BOTTOM — that's where the footer (payment method) sits,
+         so shrinking guarantees it survives instead of being clipped at the edge. */
       .label-rot {
         display: block !important;
         width: ${boxW}mm !important;
@@ -388,7 +389,7 @@ export default function LabelsPage() {
         padding: ${pad} !important;
         box-sizing: border-box !important;
         transform: scale(${sc}) !important;
-        transform-origin: center center !important;
+        transform-origin: top center !important;
         overflow: hidden !important;
         background: #fff !important;
       }
@@ -588,7 +589,7 @@ export default function LabelsPage() {
                     <div
                       style={{
                         width: `${boxW}mm`, height: `${boxH}mm`, padding: pad, boxSizing: "border-box", flex: "none",
-                        transform: `scale(${sc})`, transformOrigin: "center center", background: "#fff", overflow: "hidden",
+                        transform: `scale(${sc})`, transformOrigin: "top center", background: "#fff", overflow: "hidden",
                       }}
                     >
                       <Label order={selectedOrders[0]} shop={shop} opts={opts} layout={labelLayout} compact={compact} />
