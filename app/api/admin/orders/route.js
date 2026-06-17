@@ -8,6 +8,7 @@ import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { notifyAdmins } from "@/lib/notifications";
+import { normalizeBdPhone } from "@/lib/utils";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 const PAYMENT_METHODS = ["cod", "bkash", "nagad", "bank", "cash"];
@@ -95,7 +96,7 @@ export async function POST(request) {
       items: orderItems,
       shippingAddress: {
         name: c.name.trim(),
-        phone: c.phone.trim(),
+        phone: normalizeBdPhone(c.phone),
         email: c.email?.trim() || undefined,
         street: c.street.trim(),
         city: c.city.trim(),

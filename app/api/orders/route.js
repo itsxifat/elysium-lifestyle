@@ -7,7 +7,7 @@ import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import "@/models/User"; // ensure User schema is registered for .populate("user")
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
-import { escapeRegExp } from "@/lib/utils";
+import { escapeRegExp, normalizeBdPhone } from "@/lib/utils";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
@@ -62,6 +62,10 @@ export async function POST(request) {
 
     if (!data.items?.length) return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     if (!data.shippingAddress || !data.paymentMethod) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    // Normalise the phone (Bangla→English digits, strip country code) so it's
+    // stored, screened for fraud, and sent to the courier in ASCII 01XXXXXXXXX.
+    if (data.shippingAddress.phone) data.shippingAddress.phone = normalizeBdPhone(data.shippingAddress.phone);
 
     const productIds = data.items.map((i) => i.productId);
     const products = await Product.find({ _id: { $in: productIds } }).lean();

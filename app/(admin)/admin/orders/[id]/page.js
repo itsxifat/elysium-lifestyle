@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock } from "lucide-react";
-import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
 import PinPrompt from "@/components/admin/PinPrompt";
@@ -195,7 +195,7 @@ function EditOrderModal({ order, pinRef, onClose, onDone }) {
               <p className="text-[11px] uppercase tracking-widest text-brand-tan mb-2">Shipping address</p>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Name"><TextInput value={addr.name} onChange={(e) => setAddr({ ...addr, name: e.target.value })} /></Field>
-                <Field label="Phone"><TextInput value={addr.phone} onChange={(e) => setAddr({ ...addr, phone: e.target.value })} /></Field>
+                <Field label="Phone"><TextInput value={addr.phone} onChange={(e) => setAddr({ ...addr, phone: e.target.value })} onBlur={(e) => setAddr({ ...addr, phone: normalizeBdPhone(e.target.value) })} /></Field>
                 <Field label="Street" className="col-span-2"><TextInput value={addr.street} onChange={(e) => setAddr({ ...addr, street: e.target.value })} /></Field>
                 <Field label="City"><TextInput value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} /></Field>
                 <Field label="State / Area"><TextInput value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} /></Field>

@@ -7,6 +7,7 @@ import "@/models/User";
 import { requirePin } from "@/lib/pin";
 import { isElevated } from "@/lib/permissions";
 import { notifyAdmins } from "@/lib/notifications";
+import { normalizeBdPhone } from "@/lib/utils";
 
 const PAYMENT_METHODS = ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"];
 const SOURCES = ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -96,7 +97,7 @@ export async function PATCH(request, { params }) {
       const cur = order.shippingAddress || {};
       const merged = {
         name: a.name?.trim() || cur.name,
-        phone: a.phone?.trim() || cur.phone,
+        phone: a.phone?.trim() ? normalizeBdPhone(a.phone) : cur.phone,
         email: a.email !== undefined ? a.email?.trim() || undefined : cur.email,
         street: a.street?.trim() || cur.street,
         city: a.city?.trim() || cur.city,

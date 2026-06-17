@@ -9,7 +9,7 @@ import {
   Share2, Camera, MessageCircle, Phone, Store, MoreHorizontal,
   Loader2,
 } from "lucide-react";
-import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
 import { useSettings } from "@/context/SettingsContext";
 import {
   PageHeader, Card, Button, Field, TextInput, Select, Toggle, SectionTitle,
@@ -436,7 +436,12 @@ export default function NewOrderPage() {
                 <TextInput value={customer.name} onChange={(e) => setCust("name", e.target.value)} placeholder="e.g. Rahim Uddin" />
               </Field>
               <Field label="Phone *">
-                <TextInput value={customer.phone} onChange={(e) => setCust("phone", e.target.value)} placeholder="01XXXXXXXXX" />
+                <TextInput
+                  value={customer.phone}
+                  onChange={(e) => setCust("phone", e.target.value)}
+                  onBlur={(e) => setCust("phone", normalizeBdPhone(e.target.value))}
+                  placeholder="01XXXXXXXXX"
+                />
               </Field>
               <Field label="Email (optional)" className="sm:col-span-2">
                 <TextInput type="email" value={customer.email} onChange={(e) => setCust("email", e.target.value)} placeholder="customer@email.com" />
