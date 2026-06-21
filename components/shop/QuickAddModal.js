@@ -8,13 +8,17 @@ import { formatPrice, cn, shouldUnoptimizeImage } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import toast from "react-hot-toast";
 
-export default function QuickAddModal({ product, onClose }) {
+export default function QuickAddModal({ product, onClose, flashPrice = null, flashStock = null }) {
   const { addItem } = useCart();
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
 
+  // Flash sale: a single special price replaces the per-variant price, and the
+  // remaining flash allocation caps how many can be added at that price.
+  const isFlash = flashPrice != null && flashPrice >= 0;
   const variants = product.variants || [];
   const selectedVariant = variants.find((v) => v.size === selectedSize);
+  const unitPrice = isFlash ? flashPrice : selectedVariant?.price;
   const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
   const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
   const hasPriceRange = minPrice !== maxPrice;
@@ -34,7 +38,7 @@ export default function QuickAddModal({ product, onClose }) {
     if (!selectedSize) { toast.error("Please select a size"); return; }
     if (!selectedVariant || selectedVariant.stock === 0) { toast.error("This size is out of stock"); return; }
     addItem(
-      { id: product._id, slug: product.slug, name: product.name, image: product.images?.[0], price: selectedVariant.price },
+      { id: product._id, slug: product.slug, name: product.name, image: product.images?.[0], price: unitPrice },
       selectedSize,
       quantity
     );
@@ -42,7 +46,10 @@ export default function QuickAddModal({ product, onClose }) {
     onClose();
   };
 
-  const maxQty = selectedVariant ? Math.min(selectedVariant.stock, 10) : 10;
+  // Cap quantity by the size's real stock, the flash allocation (if any), and 10.
+  const maxQty = selectedVariant
+    ? Math.min(selectedVariant.stock, isFlash && flashStock != null ? flashStock : Infinity, 10)
+    : 10;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -81,7 +88,12 @@ export default function QuickAddModal({ product, onClose }) {
               </h3>
             </Link>
             <div className="mt-1.5">
-              {selectedVariant ? (
+              {isFlash ? (
+                <span className="flex items-baseline gap-2">
+                  <span className="text-base font-bold text-brand-terracotta">{formatPrice(flashPrice)}</span>
+                  {minPrice > flashPrice && <span className="text-[12px] text-brand-tan line-through">{formatPrice(minPrice)}</span>}
+                </span>
+              ) : selectedVariant ? (
                 <span className="text-base font-bold text-brand-terracotta">
                   {formatPrice(selectedVariant.price)}
                 </span>
@@ -107,7 +119,7 @@ export default function QuickAddModal({ product, onClose }) {
               </p>
               {selectedSize && selectedVariant && (
                 <span className="text-[11px] text-brand-tan">
-                  {selectedSize} · {formatPrice(selectedVariant.price)}
+                  {selectedSize} · {formatPrice(unitPrice)}
                 </span>
               )}
             </div>
@@ -136,7 +148,7 @@ export default function QuickAddModal({ product, onClose }) {
                       "text-[10px] mt-0.5 leading-tight",
                       isSelected ? "text-brand-cream/70" : "text-brand-tan"
                     )}>
-                      {formatPrice(v.price)}
+                      {formatPrice(isFlash ? flashPrice : v.price)}
                     </span>
                     {!available && (
                       <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -202,7 +214,7 @@ export default function QuickAddModal({ product, onClose }) {
                 ? "Select a Size"
                 : selectedVariant?.stock === 0
                 ? "Out of Stock"
-                : `Add to Bag · ${formatPrice(selectedVariant.price * quantity)}`}
+                : `Add to Bag · ${formatPrice(unitPrice * quantity)}`}
             </button>
             <Link
               href={`/shop/${product.slug}`}

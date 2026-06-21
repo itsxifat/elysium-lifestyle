@@ -58,6 +58,7 @@ export async function GET(request) {
       name: p.name,
       sku: p.skuBase || "",
       image: p.images?.[0] || "",
+      price: p.variants?.length ? Math.min(...p.variants.map((v) => v.price)) : 0,
     }));
 
     return NextResponse.json({ products: items, page, hasMore });

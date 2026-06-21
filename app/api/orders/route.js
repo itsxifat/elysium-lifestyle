@@ -11,6 +11,7 @@ import { escapeRegExp, normalizeBdPhone } from "@/lib/utils";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
+import { getActiveFlashSale, getFlashPriceMap, recordFlashSold } from "@/lib/flashSale";
 import { notifyAdmins } from "@/lib/notifications";
 
 export async function GET(request) {
@@ -71,6 +72,12 @@ export async function POST(request) {
     const products = await Product.find({ _id: { $in: productIds } }).lean();
     const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
 
+    // Active flash sale → special price + limited stock, enforced here (never
+    // trust the client's price). soldByProduct tracks units to claim afterwards.
+    const flashSale = await getActiveFlashSale();
+    const flashMap = getFlashPriceMap(flashSale);
+    const soldByProduct = {};
+
     const orderItems = [];
     for (const item of data.items) {
       const product = productMap[item.productId];
@@ -80,13 +87,22 @@ export async function POST(request) {
       const variant = product.variants?.find((v) => v.size === item.size);
       if (!variant) return NextResponse.json({ error: `Size ${item.size} not found for ${product.name}` }, { status: 400 });
 
+      // Apply the flash price while the allocation lasts and it actually undercuts
+      // the regular price.
+      let unitPrice = variant.price;
+      const flash = flashMap.get(String(product._id));
+      if (flash && flash.remaining > 0 && flash.salePrice < variant.price) {
+        unitPrice = flash.salePrice;
+        soldByProduct[String(product._id)] = (soldByProduct[String(product._id)] || 0) + item.quantity;
+      }
+
       orderItems.push({
         product: product._id,
         name: product.name,
         image: product.images?.[0] || "",
         sku: variant.sku || "",
         size: item.size,
-        price: variant.price,
+        price: unitPrice,
         quantity: item.quantity,
       });
     }
@@ -115,6 +131,11 @@ export async function POST(request) {
     let appliedDiscounts = [];
     try {
       const engineItems = await priceCartItems(data.items);
+      // Keep the discount engine consistent with the flash price we charged.
+      for (const ei of engineItems) {
+        const flash = flashMap.get(String(ei.productId));
+        if (flash && flash.remaining > 0 && flash.salePrice < ei.price) ei.price = flash.salePrice;
+      }
       const dres = await applyDiscounts({
         items: engineItems,
         codes: data.discountCodes || [],
@@ -162,6 +183,11 @@ export async function POST(request) {
 
     // Count the usage now that the order exists.
     if (appliedDiscounts.length) recordDiscountUsage(appliedDiscounts).catch(() => {});
+
+    // Claim the flash-sale units so "X left" drops for the next visitor.
+    if (flashSale && Object.keys(soldByProduct).length) {
+      recordFlashSold(flashSale._id, soldByProduct).catch(() => {});
+    }
 
     // Notify admins of every new storefront order.
     notifyAdmins({

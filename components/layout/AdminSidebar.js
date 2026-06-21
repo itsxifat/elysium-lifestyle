@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
-  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck, Link2,
+  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck, Link2, Zap,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import NotificationBell from "@/components/admin/NotificationBell";
@@ -49,6 +49,7 @@ const navGroups = [
   {
     label: "Marketing",
     items: [
+      { href: "/admin/flash-sales", label: "Flash Sales", icon: Zap, perm: "content.manage" },
       { href: "/admin/tracking", label: "Tracking",  icon: Radio, perm: "tracking.manage" },
     ],
   },
