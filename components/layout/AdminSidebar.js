@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
-  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck,
+  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck, Link2,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import NotificationBell from "@/components/admin/NotificationBell";
@@ -43,6 +43,7 @@ const navGroups = [
     items: [
       { href: "/admin/hero",   label: "Hero Slides",   icon: Layers,     perm: "content.manage" },
       { href: "/admin/navbar", label: "Navbar Config", icon: Navigation, perm: "content.manage" },
+      { href: "/admin/custom-urls", label: "Custom URLs", icon: Link2,   perm: "content.manage" },
     ],
   },
   {

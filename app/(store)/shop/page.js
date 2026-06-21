@@ -2,11 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, Sparkles } from "lucide-react";
 import ProductCard from "@/components/shop/ProductCard";
 import FilterSidebar from "@/components/shop/FilterSidebar";
 import Pagination from "@/components/shop/Pagination";
 import Spinner from "@/components/ui/Spinner";
+import { useCustomCampaign } from "@/hooks/useCustomCampaign";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -26,6 +27,10 @@ function ShopContent() {
 
   const page = parseInt(searchParams.get("page") || "1");
   const sort = searchParams.get("sort") || "newest";
+
+  // Custom-URL (?cu=) highlighted products, pinned above the listing.
+  const campaign = useCustomCampaign(searchParams.get("cu"));
+  const highlights = campaign?.highlightProducts || [];
 
   useEffect(() => {
     fetch("/api/categories")
@@ -60,6 +65,21 @@ function ShopContent() {
         <p className="section-subtitle mb-1">Shop</p>
         <h1 className="section-title">{title}</h1>
       </div>
+
+      {/* Highlighted products from a custom URL (?cu=) — pinned on top. */}
+      {highlights.length > 0 && (
+        <div className="mb-10">
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-brand-terracotta/30">
+            <Sparkles size={16} className="text-brand-terracotta" />
+            <h2 className="text-sm font-semibold uppercase tracking-[2px] text-brand-terracotta">Featured</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {highlights.map((product) => (
+              <ProductCard key={`hl-${product._id}`} product={product} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-8">
         {/* Desktop Filter sidebar */}
