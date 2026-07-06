@@ -83,6 +83,7 @@ export default function AdminSettingsPage() {
           siteName: data.siteInfo?.siteName || "",
           merchantId: data.siteInfo?.merchantId || "",
           whatsappNumber: data.siteInfo?.whatsappNumber || "",
+          phone: data.siteInfo?.phone || "",
           freeShippingThreshold: data.siteInfo?.freeShippingThreshold || 1500,
           shippingFee: data.siteInfo?.shippingFee || 80,
           email: data.siteInfo?.email || "",
@@ -161,6 +162,7 @@ export default function AdminSettingsPage() {
           siteName: data.siteName,
           merchantId: data.merchantId,
           whatsappNumber: data.whatsappNumber,
+          phone: data.phone,
           freeShippingThreshold: Number(data.freeShippingThreshold),
           shippingFee: Number(data.shippingFee),
           email: data.email,
@@ -503,9 +505,12 @@ export default function AdminSettingsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Contact Email" type="email" {...register("email")} />
-              <Input label="WhatsApp Number" {...register("whatsappNumber")} placeholder="8801700000000" />
+              <Input label="Contact Phone" {...register("phone")} placeholder="+880 1700-000000" />
             </div>
-            <Input label="Business Address" {...register("address")} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="WhatsApp Number" {...register("whatsappNumber")} placeholder="8801700000000" />
+              <Input label="Business Address" {...register("address")} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Free Shipping Threshold (Tk)" type="number" {...register("freeShippingThreshold")} />
               <Input label="Standard Shipping Fee (Tk)" type="number" {...register("shippingFee")} />

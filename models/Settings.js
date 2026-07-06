@@ -7,6 +7,7 @@ const settingsSchema = new mongoose.Schema(
       logo: { type: String },
       merchantId: { type: String, default: "" }, // shown on shipping labels
       whatsappNumber: { type: String, default: "8801700000000" },
+      phone: { type: String, default: "" }, // public call/contact number shown in footer & policy pages
       freeShippingThreshold: { type: Number, default: 1500 },
       shippingFee: { type: Number, default: 80 },
       email: { type: String },

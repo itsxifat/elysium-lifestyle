@@ -8,6 +8,9 @@ const defaultSettings = {
   siteInfo: {
     siteName: "Elysium Lifestyle",
     whatsappNumber: "8801700000000",
+    phone: "",
+    email: "",
+    address: "",
     freeShippingThreshold: 1500,
     shippingFee: 80,
   },

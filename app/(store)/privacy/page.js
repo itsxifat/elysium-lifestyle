@@ -1,11 +1,18 @@
+import { getSiteInfo } from "@/lib/getSiteInfo";
+import { telHref } from "@/lib/siteInfo";
+
 export const metadata = {
   title: "Privacy Policy — Elysium Lifestyle",
   description: "Elysium Lifestyle's privacy policy — how we collect, use, and protect your information.",
 };
 
+// Re-read settings on each request so contact details stay in sync with admin.
+export const dynamic = "force-dynamic";
+
 const LAST_UPDATED = "1 May 2025";
 
-export default function PrivacyPolicyPage() {
+export default async function PrivacyPolicyPage() {
+  const { phone, email, address } = await getSiteInfo();
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
@@ -91,7 +98,7 @@ export default function PrivacyPolicyPage() {
                 <li>Request deletion of your account and associated data</li>
                 <li>Opt out of marketing communications at any time</li>
               </ul>
-              <p>To exercise these rights, please contact us at hello@elysiumlifestyle.com.</p>
+              <p>To exercise these rights, please contact us at <a href={`mailto:${email}`}>{email}</a>.</p>
             </LegalSection>
 
             <LegalSection title="8. Children's Privacy">
@@ -109,9 +116,9 @@ export default function PrivacyPolicyPage() {
             <LegalSection title="10. Contact Us">
               <p>If you have any questions about this Privacy Policy or how we handle your data, please contact us:</p>
               <ul>
-                <li>Email: hello@elysiumlifestyle.com</li>
-                <li>Phone: +880 1700-000000</li>
-                <li>Address: Dhaka, Bangladesh</li>
+                <li>Email: <a href={`mailto:${email}`}>{email}</a></li>
+                <li>Phone: <a href={telHref(phone)}>{phone}</a></li>
+                <li>Address: {address}</li>
               </ul>
             </LegalSection>
 

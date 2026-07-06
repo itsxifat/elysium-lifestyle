@@ -12,6 +12,7 @@ import VariantSelector from "@/components/product/VariantSelector";
 import AddToCartButton from "@/components/product/AddToCartButton";
 import ProductCard from "@/components/shop/ProductCard";
 import { track } from "@/lib/tracking/client";
+import { useSettings } from "@/context/SettingsContext";
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -86,6 +87,7 @@ function SizeChartModal({ chart, onClose }) {
 }
 
 export default function ProductDetailClient({ product, related = [], categoryPath = [] }) {
+  const { settings } = useSettings();
   const [selectedSize, setSelectedSize] = useState("");
   const [showSizeChart, setShowSizeChart] = useState(false);
 
@@ -115,7 +117,8 @@ export default function ProductDetailClient({ product, related = [], categoryPat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "8801700000000";
+  const whatsappNumber =
+    settings?.siteInfo?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "8801700000000";
   const whatsappMsg = encodeURIComponent(`Hi, I'm interested in: ${product.name}`);
 
   return (

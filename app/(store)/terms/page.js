@@ -1,11 +1,18 @@
+import { getSiteInfo } from "@/lib/getSiteInfo";
+import { telHref } from "@/lib/siteInfo";
+
 export const metadata = {
   title: "Terms & Conditions — Elysium Lifestyle",
   description: "Elysium Lifestyle's terms and conditions governing the use of our website and services.",
 };
 
+// Re-read settings on each request so contact details stay in sync with admin.
+export const dynamic = "force-dynamic";
+
 const LAST_UPDATED = "1 May 2025";
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { phone, email, address } = await getSiteInfo();
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
@@ -65,7 +72,7 @@ export default function TermsPage() {
               <ul>
                 <li>We accept returns within 7 days of delivery for unused, unwashed items in original packaging with tags attached.</li>
                 <li>Sale items, innerwear, and customised products are non-returnable.</li>
-                <li>To initiate a return, contact us at hello@elysiumlifestyle.com with your order number and reason.</li>
+                <li>To initiate a return, contact us at <a href={`mailto:${email}`}>{email}</a> with your order number and reason.</li>
                 <li>Refunds are processed within 5–7 business days after we receive and inspect the returned item.</li>
                 <li>Shipping costs for returns are borne by the customer unless the item is defective or incorrect.</li>
               </ul>
@@ -115,9 +122,9 @@ export default function TermsPage() {
             <LegalSection title="12. Contact Us">
               <p>If you have questions about these Terms, please contact us:</p>
               <ul>
-                <li>Email: hello@elysiumlifestyle.com</li>
-                <li>Phone: +880 1700-000000</li>
-                <li>Address: Dhaka, Bangladesh</li>
+                <li>Email: <a href={`mailto:${email}`}>{email}</a></li>
+                <li>Phone: <a href={telHref(phone)}>{phone}</a></li>
+                <li>Address: {address}</li>
               </ul>
             </LegalSection>
 
