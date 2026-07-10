@@ -24,6 +24,25 @@ const shippingAddressSchema = new mongoose.Schema({
   country: { type: String, default: "Bangladesh" },
 });
 
+// A discount that was applied to the order, snapshotted for the record.
+//
+// This MUST be its own Schema rather than an inline object literal. Mongoose
+// treats a plain object containing a `type` key as a type declaration, so the
+// inline form silently compiled `appliedDiscounts` to an array of Strings and
+// every order carrying a discount failed to save.
+const appliedDiscountSchema = new mongoose.Schema(
+  {
+    discount: { type: mongoose.Schema.Types.ObjectId, ref: "Discount" },
+    code: { type: String },
+    title: { type: String },
+    // percentage | fixed | free_shipping | buy_x_get_y | tiered
+    type: { type: String },
+    amount: { type: Number, default: 0 }, // money taken off (shipping excluded)
+    freeShipping: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, unique: true },
@@ -33,11 +52,26 @@ const orderSchema = new mongoose.Schema(
     shippingAddress: { type: shippingAddressSchema, required: true },
 
     // Sales channel the order came through. "website" = customer self-checkout;
-    // the rest are manual/POS orders created by staff from the admin panel.
+    // "landing_page" = a /lp/<code> funnel; the rest are manual/POS orders
+    // created by staff from the admin panel.
     source: {
       type: String,
-      enum: ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"],
+      enum: ["website", "landing_page", "facebook", "instagram", "whatsapp", "phone", "offline", "other"],
       default: "website",
+    },
+
+    // Which landing page produced this order, and which offer the customer took.
+    // ADMIN-ONLY: the customer's own account pages must render this order as a
+    // perfectly ordinary order, so never project these fields into storefront
+    // views. Fields are snapshots so the record survives the LP being deleted.
+    landingPage: {
+      page: { type: mongoose.Schema.Types.ObjectId, ref: "LandingPage", default: null },
+      code: { type: String, default: "" }, // the /lp/<code> slug
+      name: { type: String, default: "" }, // internal LP name
+      offerKey: { type: String, default: "" },
+      offerLabel: { type: String, default: "" },
+      offerPrice: { type: Number, default: 0 }, // LP price charged for the offer
+      regularPrice: { type: Number, default: 0 }, // undiscounted product total
     },
     // Who created the order (null for customer self-checkout). createdByName is a
     // snapshot kept even if the staff account is later removed.
@@ -69,16 +103,7 @@ const orderSchema = new mongoose.Schema(
     discount: { type: Number, default: 0 },
     // Discounts/coupons applied to the order (snapshot for the record).
     discountCodes: { type: [String], default: [] },
-    appliedDiscounts: [
-      {
-        discount: { type: mongoose.Schema.Types.ObjectId, ref: "Discount" },
-        code: String,
-        title: String,
-        type: String, // percentage | fixed | free_shipping | buy_x_get_y | tiered
-        amount: { type: Number, default: 0 }, // money taken off (shipping excluded)
-        freeShipping: { type: Boolean, default: false },
-      },
-    ],
+    appliedDiscounts: { type: [appliedDiscountSchema], default: [] },
     totalAmount: { type: Number, required: true },
     transactionId: { type: String },
     valId: { type: String },

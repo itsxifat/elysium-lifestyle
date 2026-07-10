@@ -67,7 +67,14 @@ function OrderTracker({ status }) {
 
 async function getUserOrders(userId) {
   await connectDB();
-  return serializeDoc(await Order.find({ user: userId }).sort({ createdAt: -1 }).lean());
+  // Landing-page orders list here like any other order — the campaign
+  // attribution and internal audit trail are staff-only and never fetched.
+  return serializeDoc(
+    await Order.find({ user: userId })
+      .select("-landingPage -editHistory -fraudCheck")
+      .sort({ createdAt: -1 })
+      .lean()
+  );
 }
 
 export default async function OrdersPage() {

@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import Product from "@/models/Product";
 import { requirePin } from "@/lib/pin";
-import { notifyAdmins } from "@/lib/notifications";
+import { notifyEvent } from "@/lib/notifications";
 
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -90,8 +90,7 @@ export async function POST(request, { params }) {
 
     await order.save();
 
-    notifyAdmins({
-      type: "order_returned",
+    notifyEvent("order_returned", {
       severity: "warning",
       title: `Return on order ${order.orderNumber}`,
       body: `${actorName} recorded a return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis}).`,

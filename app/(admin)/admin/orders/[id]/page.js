@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
@@ -24,10 +25,13 @@ const PAYMENT_OPTIONS = [
   { value: "bank", label: "Bank" },
   { value: "sslcommerz", label: "SSLCommerz (online)" },
 ];
+// Channels staff may assign by hand. "landing_page" is deliberately absent: it's
+// set by the system when an order arrives from a /lp funnel and must never be
+// reassigned (or silently overwritten) from this dropdown.
 const SOURCE_OPTIONS = ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 
 const SOURCE_LABELS = {
-  website: "Website", facebook: "Facebook", instagram: "Instagram",
+  website: "Website", landing_page: "Landing Page", facebook: "Facebook", instagram: "Instagram",
   whatsapp: "WhatsApp", phone: "Phone Call", offline: "Walk-in", other: "Manual",
 };
 
@@ -60,6 +64,7 @@ function EditOrderModal({ order, pinRef, onClose, onDone }) {
   const [source, setSource] = useState(order.source || "website");
   const [notes, setNotes] = useState(order.notes || "");
   const [saving, setSaving] = useState(false);
+  const isLanding = order.source === "landing_page";
 
   // Product search for adding items.
   const [query, setQuery] = useState("");
@@ -211,10 +216,17 @@ function EditOrderModal({ order, pinRef, onClose, onDone }) {
                   {PAYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               </Field>
-              <Field label="Sales channel">
-                <Select value={source} onChange={(e) => setSource(e.target.value)}>
-                  {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{SOURCE_LABELS[s] || s}</option>)}
-                </Select>
+              <Field
+                label="Sales channel"
+                hint={isLanding ? "Locked — this order came from a landing page." : undefined}
+              >
+                {isLanding ? (
+                  <TextInput value={SOURCE_LABELS.landing_page} disabled readOnly />
+                ) : (
+                  <Select value={source} onChange={(e) => setSource(e.target.value)}>
+                    {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{SOURCE_LABELS[s] || s}</option>)}
+                  </Select>
+                )}
               </Field>
               <Field label="Notes" className="col-span-2"><TextInput value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="internal notes" /></Field>
             </div>
@@ -647,6 +659,54 @@ export default function AdminOrderDetailPage() {
               </Button>
             )}
           </div>
+
+          {/* Campaign attribution. Staff-only — the customer's own order page
+              shows this exactly like any other order. */}
+          {order.source === "landing_page" && order.landingPage && (
+            <div className="bg-white border border-violet-200 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
+              <h2 className="font-semibold text-brand-brown mb-3 flex items-center gap-2">
+                <Rocket size={15} className="text-violet-600" /> Landing Page Order
+              </h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-brand-tan">Campaign</span>
+                  <span className="font-medium text-brand-brown text-right">{order.landingPage.name || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-brand-tan">Page</span>
+                  <a
+                    href={`/lp/${order.landingPage.code}`} target="_blank" rel="noopener"
+                    className="font-mono text-violet-700 hover:underline"
+                  >
+                    /lp/{order.landingPage.code}
+                  </a>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-brand-tan">Offer taken</span>
+                  <span className="font-medium text-brand-brown text-right">{order.landingPage.offerLabel || "—"}</span>
+                </div>
+                {order.landingPage.regularPrice > order.landingPage.offerPrice && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-brand-tan">Offer price</span>
+                    <span className="font-medium text-brand-brown">
+                      {formatPrice(order.landingPage.offerPrice)}
+                      <span className="text-brand-tan line-through font-normal ml-1.5">
+                        {formatPrice(order.landingPage.regularPrice)}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {order.landingPage.page && (
+                  <Link
+                    href={`/admin/landing-pages/${order.landingPage.page}`}
+                    className="block pt-2 text-[12px] text-violet-700 hover:underline"
+                  >
+                    Edit this landing page →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-3">Order Info</h2>

@@ -14,6 +14,30 @@ const settingsSchema = new mongoose.Schema(
       address: { type: String },
     },
     masterSizes: { type: [String], default: ["XS", "S", "M", "L", "XL", "XXL", "3XL", "One Size"] },
+    // In-panel notification routing. `routing` maps each notification event key
+    // (see lib/notification-events.js) to the array of staff roles that should
+    // receive it. Missing/empty for an event → that event's built-in defaults.
+    // Managed from /admin/notifications/settings; redacted from the public
+    // /api/admin/settings GET (storefront reads that endpoint).
+    notifications: {
+      routing: { type: mongoose.Schema.Types.Mixed, default: {} },
+    },
+    // Row background colours for the admin Orders list, so staff can tell
+    // manual/POS orders (Facebook, walk-in, phone…) and landing-page funnel
+    // orders apart from automated website checkouts at a glance. All are light
+    // tints so the dark row text stays readable; admins can change them on the
+    // Settings page.
+    orderRowColors: {
+      website: { type: String, default: "#EAF2FB" }, // automated website orders (soft blue)
+      staff:   { type: String, default: "#FEF3C7" }, // staff-made manual/POS orders (warm amber)
+      landing: { type: String, default: "#F3E8FF" }, // /lp campaign funnel orders (soft violet)
+    },
+    // Orders-list filtering behaviour. weekStartsOn (0=Sunday … 6=Saturday)
+    // defines which day begins a "week" for the This week / Last week quick
+    // filters. Defaults to Saturday, the usual start of the Bangladeshi week.
+    orderFilters: {
+      weekStartsOn: { type: Number, default: 6, min: 0, max: 6 },
+    },
     // Configurable SKU scheme. A product gets a base code (prefix OR its
     // category's code, + a zero-padded running number); each size variant
     // optionally appends its size. Every knob is toggleable from /admin/settings.

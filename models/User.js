@@ -11,7 +11,21 @@ const addressSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    // Guests created from a landing-page order may have no email at all (a phone
+    // number is the only thing we're guaranteed), so the unique index is sparse:
+    // any number of documents may omit the field, but a present email is unique.
+    // NOTE: existing databases carry a non-sparse `email_1` index — run
+    // scripts/migrate-guest-users.mjs once to rebuild it.
+    email: {
+      type: String,
+      required: function () {
+        return !this.isGuest;
+      },
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+    },
     password: { type: String, select: false },
     image: { type: String },
     role: {
@@ -32,8 +46,18 @@ const userSchema = new mongoose.Schema(
     pinFailedAttempts: { type: Number, default: 0, select: false }, // brute-force counter
     pinLockedUntil: { type: Date, default: null }, // temporary lockout after too many fails
 
+    // ── Guest customers ─────────────────────────────────────────────────────
+    // A stub created when an order arrives (today: from a landing page) whose
+    // phone/email matches nobody. It holds the order history so that when the
+    // person eventually registers with an email and verifies it, we claim this
+    // same document — their past orders are already attached. Guests can never
+    // sign in: they have no password and `isGuest` stays true until verified.
+    // See lib/customer-link.js.
+    isGuest: { type: Boolean, default: false },
+    guestSource: { type: String, default: "" }, // e.g. "landing_page"
+
     address: addressSchema,
-    phone: { type: String, trim: true },
+    phone: { type: String, trim: true, index: true }, // normalised 01XXXXXXXXX
     emailVerified: { type: Boolean, default: false },
     verificationOTP: { type: String, select: false },
     verificationOTPExpiry: { type: Date },

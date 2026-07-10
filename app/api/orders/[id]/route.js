@@ -13,7 +13,7 @@ import { isStaff, isElevated } from "@/lib/permissions";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { requirePin } from "@/lib/pin";
 import { applyCodAutoPaid } from "@/lib/orders";
-import { notifyAdmins } from "@/lib/notifications";
+import { notifyEvent } from "@/lib/notifications";
 
 export async function GET(request, { params }) {
   try {
@@ -39,6 +39,14 @@ export async function GET(request, { params }) {
     const isGuest = !order.user;
 
     if (!isAdmin && !isOwner && !isGuest) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    // Campaign attribution and the staff audit trail are internal. A customer
+    // must see a landing-page order as a perfectly ordinary order.
+    if (!isAdmin) {
+      delete order.landingPage;
+      delete order.editHistory;
+      delete order.fraudCheck;
+    }
 
     return NextResponse.json(order);
   } catch (err) {
@@ -125,20 +133,18 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // ── Notify admins ────────────────────────────────────────────────────────
+    // ── Notify subscribed roles ────────────────────────────────────────────────
     const link = `/admin/orders/${order._id}`;
     if (statusChanged && nextStatus === "cancelled") {
-      notifyAdmins({
-        type: "order_cancelled",
+      notifyEvent("order_cancelled", {
         severity: "warning",
         title: `Order ${order.orderNumber} cancelled`,
         body: `Cancelled by ${actorName}.`,
         link, order: order._id, actor: session.user.id, actorName,
       }).catch(() => {});
     } else if (!isElevated(session.user.role) && parts.length) {
-      // A moderator/staff member acted — keep admins in the loop.
-      notifyAdmins({
-        type: statusChanged ? "status_change" : "payment_update",
+      // A moderator/staff member acted — notify the subscribed roles.
+      notifyEvent(statusChanged ? "order_status" : "order_payment", {
         severity: "info",
         title: `Order ${order.orderNumber} updated`,
         body: `${actorName}: ${parts.join("; ")}.`,

@@ -6,7 +6,7 @@ import Product from "@/models/Product";
 import "@/models/User";
 import { requirePin } from "@/lib/pin";
 import { isElevated } from "@/lib/permissions";
-import { notifyAdmins } from "@/lib/notifications";
+import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 
 const PAYMENT_METHODS = ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"];
@@ -128,7 +128,10 @@ export async function PATCH(request, { params }) {
     if (typeof data.shippingZone === "string" && ZONES.includes(data.shippingZone)) {
       order.shippingZone = data.shippingZone;
     }
-    if (typeof data.source === "string" && SOURCES.includes(data.source)) {
+    // A landing-page order's channel is system-assigned and carries the campaign
+    // attribution on order.landingPage — never let an edit reassign it. (It's
+    // also absent from SOURCES, so it can't be assigned to another order.)
+    if (typeof data.source === "string" && SOURCES.includes(data.source) && order.source !== "landing_page") {
       order.source = data.source;
     }
     if (data.notes !== undefined) order.notes = data.notes?.trim() || undefined;
@@ -168,8 +171,7 @@ export async function PATCH(request, { params }) {
     // change (it's a fraud-sensitive action).
     const link = `/admin/orders/${order._id}`;
     if (paymentMethodChanged || !isElevated(session.user.role)) {
-      notifyAdmins({
-        type: paymentMethodChanged ? "payment_change" : "order_edit",
+      notifyEvent(paymentMethodChanged ? "order_payment_method" : "order_edit", {
         severity: paymentMethodChanged ? "warning" : "info",
         title: `Order ${order.orderNumber} edited`,
         body: `${actorName}: ${changes.join("; ")}.`,

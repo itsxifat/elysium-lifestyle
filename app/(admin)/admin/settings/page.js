@@ -3,10 +3,11 @@
 import { useState, useEffect, forwardRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings } from "lucide-react";
+import { Globe, Share2, CreditCard, Mail, AlertCircle, Megaphone, Tag, MessageSquare, Plus, Trash2, Settings, Palette } from "lucide-react";
 import Input from "@/components/ui/Input";
 import { PageHeader, Button, Toggle } from "@/components/admin/ui";
 import { buildBaseCode, buildVariantSku, buildSlug } from "@/lib/sku";
+import { WEEKDAY_NAMES } from "@/lib/order-date-range";
 
 function SectionCard({ icon: Icon, title, description, children }) {
   return (
@@ -42,6 +43,35 @@ const RawInput = forwardRef(function RawInput({ className = "", ...props }, ref)
   );
 });
 
+// Light row-colour presets for the Orders list. All are pale tints so the dark
+// order text stays readable on top of them.
+const ROW_COLOR_PALETTE = ["#FFFFFF", "#F5F0E8", "#FEF3C7", "#FDE2CE", "#E6F6EC", "#DFF3F1", "#EAF2FB", "#ECEAFB", "#FBE9F1"];
+
+// Swatch palette + hex box for picking one of the two order-row colours.
+function ColorSwatchPicker({ value, onChange }) {
+  const current = String(value || "").toLowerCase();
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap gap-2">
+        {ROW_COLOR_PALETTE.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            title={c}
+            className={`w-8 h-8 rounded-md transition ${current === c.toLowerCase() ? "ring-2 ring-brand-brown ring-offset-1" : "border border-brand-tan/30 hover:border-brand-brown"}`}
+            style={{ backgroundColor: c }}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-8 h-8 rounded-md border border-brand-tan/30 flex-shrink-0" style={{ backgroundColor: value }} />
+        <RawInput value={value} onChange={(e) => onChange(e.target.value)} className="font-mono max-w-[140px]" placeholder="#EAF2FB" />
+      </div>
+    </div>
+  );
+}
+
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,6 +84,10 @@ export default function AdminSettingsPage() {
   const [skuAppendSize, setSkuAppendSize] = useState(true);
   const [skuAppendToSlug, setSkuAppendToSlug] = useState(true);
   const [skuMigrating, setSkuMigrating] = useState(false);
+  const [orderWebsiteColor, setOrderWebsiteColor] = useState("#EAF2FB");
+  const [orderStaffColor, setOrderStaffColor] = useState("#FEF3C7");
+  const [orderLandingColor, setOrderLandingColor] = useState("#F3E8FF");
+  const [orderWeekStartsOn, setOrderWeekStartsOn] = useState(6);
 
   const { register, handleSubmit, reset, getValues, watch, control } = useForm({
     defaultValues: { testimonials: [] },
@@ -75,6 +109,10 @@ export default function AdminSettingsPage() {
         setSkuEnabled(data.sku?.enabled ?? false);
         setSkuAppendSize(data.sku?.appendSize ?? true);
         setSkuAppendToSlug(data.sku?.appendToSlug ?? true);
+        setOrderWebsiteColor(data.orderRowColors?.website || "#EAF2FB");
+        setOrderStaffColor(data.orderRowColors?.staff || "#FEF3C7");
+        setOrderLandingColor(data.orderRowColors?.landing || "#F3E8FF");
+        setOrderWeekStartsOn(data.orderFilters?.weekStartsOn ?? 6);
         reset({
           skuCodeSource: data.sku?.codeSource || "prefix",
           skuPrefix: data.sku?.prefix || "ELY",
@@ -135,6 +173,14 @@ export default function AdminSettingsPage() {
         "sku.padding": Number(data.skuPadding) || 4,
         "sku.appendSize": skuAppendSize,
         "sku.appendToSlug": skuAppendToSlug,
+        orderRowColors: {
+          website: orderWebsiteColor || "#EAF2FB",
+          staff: orderStaffColor || "#FEF3C7",
+          landing: orderLandingColor || "#F3E8FF",
+        },
+        orderFilters: {
+          weekStartsOn: Number(orderWeekStartsOn),
+        },
         announcementBar: {
           enabled: announcementEnabled,
           text: data.announcementText,
@@ -355,6 +401,60 @@ export default function AdminSettingsPage() {
           </div>
         </SectionCard>
 
+
+        {/* Order List Colors */}
+        <SectionCard icon={Palette} title="Order List Colours" description="Colour-code the admin Orders list so landing-page and staff-made orders stand out from automated website orders">
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Website order</p>
+                <p className="text-[11px] text-brand-tan mt-0.5 mb-3">Automated customer checkouts on the site.</p>
+                <ColorSwatchPicker value={orderWebsiteColor} onChange={setOrderWebsiteColor} />
+              </div>
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Landing page order</p>
+                <p className="text-[11px] text-brand-tan mt-0.5 mb-3">Placed on a /lp campaign funnel page.</p>
+                <ColorSwatchPicker value={orderLandingColor} onChange={setOrderLandingColor} />
+              </div>
+              <div>
+                <p className="text-[13px] font-medium text-brand-brown">Staff order</p>
+                <p className="text-[11px] text-brand-tan mt-0.5 mb-3">Manual / POS orders (Facebook, walk-in, phone…).</p>
+                <ColorSwatchPicker value={orderStaffColor} onChange={setOrderStaffColor} />
+              </div>
+            </div>
+
+            <div className="border border-brand-tan/15 rounded-lg overflow-hidden">
+              <p className="text-[10px] uppercase tracking-widest text-brand-tan px-3 py-2 bg-brand-cream/40 border-b border-brand-tan/10">Preview</p>
+              <div className="text-[12px] text-brand-brown px-3 py-2.5 flex items-center justify-between" style={{ backgroundColor: orderWebsiteColor }}>
+                <span className="font-medium">#EL-1042 · Website order</span>
+                <span className="text-brand-tan">Guest · 2 items</span>
+              </div>
+              <div className="text-[12px] text-brand-brown px-3 py-2.5 flex items-center justify-between border-t border-brand-tan/10" style={{ backgroundColor: orderLandingColor }}>
+                <span className="font-medium">#EL-1043 · Landing page order <span className="text-violet-700 font-normal">/lp/eid24</span></span>
+                <span className="text-brand-tan">Rahim · 1 item</span>
+              </div>
+              <div className="text-[12px] text-brand-brown px-3 py-2.5 flex items-center justify-between border-t border-brand-tan/10" style={{ backgroundColor: orderStaffColor }}>
+                <span className="font-medium">#EL-1044 · Staff order <span className="text-brand-terracotta font-normal">via Facebook</span></span>
+                <span className="text-brand-tan">Karim · 1 item</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-brand-tan">A colour key is shown at the top of the Orders list so the meaning is always clear.</p>
+
+            <div className="border-t border-brand-tan/10 pt-4">
+              <p className="text-[13px] font-medium text-brand-brown">Week starts on</p>
+              <p className="text-[11px] text-brand-tan mt-0.5 mb-2.5">Which day begins a week for the “This week” / “Last week” date filters on the Orders list.</p>
+              <select
+                value={orderWeekStartsOn}
+                onChange={(e) => setOrderWeekStartsOn(Number(e.target.value))}
+                className="w-full max-w-[220px] px-3 py-2 text-[13px] border border-brand-tan/20 rounded-lg bg-white text-brand-brown focus:outline-none focus:border-brand-terracotta"
+              >
+                {WEEKDAY_NAMES.map((d, i) => (
+                  <option key={i} value={i}>{d}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </SectionCard>
 
         {/* Announcement Bar */}
         <SectionCard icon={Megaphone} title="Announcement Bar" description="The bold bar shown at the very top of every page">

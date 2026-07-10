@@ -33,7 +33,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.name, email: data.email, password: data.password }),
+        body: JSON.stringify({ name: data.name, email: data.email, password: data.password, phone: data.phone }),
       });
       const result = await res.json();
 
@@ -178,6 +178,28 @@ export default function RegisterPage() {
                   autoComplete="email"
                 />
                 {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email.message}</p>}
+              </div>
+
+              {/* Optional, but it's how we find orders you already placed as a
+                  guest and attach them to this account. */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-[2px] text-brand-tan mb-1.5">
+                  Mobile number <span className="normal-case tracking-normal text-brand-tan/60">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  {...register("phone", {
+                    validate: (v) => !v || /^01\d{9}$/.test(v.replace(/\D/g, "").replace(/^88/, "")) || "Enter a valid 11-digit number",
+                  })}
+                  className="w-full bg-white border border-brand-tan/30 px-4 py-3 text-[13px] text-brand-brown placeholder-brand-tan/40 focus:outline-none focus:border-brand-brown transition-colors"
+                  placeholder="01XXXXXXXXX"
+                  autoComplete="tel"
+                />
+                {errors.phone ? (
+                  <p className="text-red-500 text-[11px] mt-1">{errors.phone.message}</p>
+                ) : (
+                  <p className="text-brand-tan/70 text-[11px] mt-1">Ordered before without an account? Add it to find your past orders.</p>
+                )}
               </div>
 
               <div>

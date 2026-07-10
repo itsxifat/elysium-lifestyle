@@ -55,7 +55,15 @@ function TreeNode({ node, level, activeId, onSelect }) {
   );
 }
 
-export default function CategoryProductBrowser({ categories, selectedIds, onAdd, onRemove }) {
+export default function CategoryProductBrowser({
+  categories,
+  selectedIds,
+  onAdd,
+  onRemove,
+  // Each caller has its own permission-guarded picker endpoint (they share the
+  // query contract — see lib/product-picker.js).
+  endpoint = "/api/admin/custom-urls/products",
+}) {
   const tree = buildTree(categories);
   const [activeCat, setActiveCat] = useState(null); // { _id, name }
   const [subtree, setSubtree] = useState(true);
@@ -83,7 +91,7 @@ export default function CategoryProductBrowser({ categories, selectedIds, onAdd,
       }
       if (q) params.set("q", q);
       params.set("page", String(pageNum));
-      const res = await fetch(`/api/admin/custom-urls/products?${params.toString()}`);
+      const res = await fetch(`${endpoint}?${params.toString()}`);
       const data = await res.json();
       setProducts((prev) => (pageNum === 1 ? data.products || [] : [...prev, ...(data.products || [])]));
       setHasMore(!!data.hasMore);
@@ -94,7 +102,7 @@ export default function CategoryProductBrowser({ categories, selectedIds, onAdd,
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [endpoint]);
 
   // Reload whenever the active category, subtree toggle, or (debounced) search changes.
   useEffect(() => {

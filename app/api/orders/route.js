@@ -12,7 +12,7 @@ import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
 import { getActiveFlashSale, getFlashPriceMap, recordFlashSold } from "@/lib/flashSale";
-import { notifyAdmins } from "@/lib/notifications";
+import { notifyEvent } from "@/lib/notifications";
 
 export async function GET(request) {
   const { error } = await requireAdmin("orders.view");
@@ -189,9 +189,8 @@ export async function POST(request) {
       recordFlashSold(flashSale._id, soldByProduct).catch(() => {});
     }
 
-    // Notify admins of every new storefront order.
-    notifyAdmins({
-      type: "order_new",
+    // Notify the roles subscribed to new storefront orders.
+    notifyEvent("order_new", {
       severity: "info",
       title: `New order ${orderNumber}`,
       body: `${data.shippingAddress?.name || "A customer"} placed an order for ৳${totalAmount} (${orderItems.length} item${orderItems.length === 1 ? "" : "s"}, ${data.paymentMethod === "cod" ? "COD" : "online"}).`,

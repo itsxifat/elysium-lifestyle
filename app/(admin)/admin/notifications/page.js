@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
-import { Bell, Send, X, CheckCheck, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { Bell, Send, X, CheckCheck, AlertTriangle, Info, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import { PageHeader, Card, Button, Field, TextInput, Select, EmptyState } from "@/components/admin/ui";
 import { isElevated, STAFF_ROLES, ROLE_LABELS } from "@/lib/permissions";
 
@@ -153,6 +154,11 @@ export default function NotificationsPage() {
         actions={
           <div className="flex items-center gap-2">
             {unread > 0 && <Button variant="outline" onClick={markAll}><CheckCheck size={14} /> Mark all read</Button>}
+            {elevated && (
+              <Button as={Link} href="/admin/notifications/settings" variant="outline">
+                <SlidersHorizontal size={14} /> Rules
+              </Button>
+            )}
             {elevated && <Button onClick={() => setComposeOpen(true)}><Send size={14} /> Send</Button>}
           </div>
         }

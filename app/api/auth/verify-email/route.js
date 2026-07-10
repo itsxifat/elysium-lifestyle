@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { completeGuestClaim } from "@/lib/customer-link";
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -62,6 +63,11 @@ export async function POST(request) {
       verificationOTPExpiry: null,
       verificationOTPAttempts: 0,
     });
+
+    // If this account started life as a guest stub (a landing-page order placed
+    // before they ever signed up), promote it now and fold in any other stub
+    // sharing their phone, so every past order lands in this one account.
+    await completeGuestClaim(user._id).catch((e) => console.error("[verify] guest claim:", e.message));
 
     return NextResponse.json({ success: true, message: "Email verified successfully" });
   } catch (err) {

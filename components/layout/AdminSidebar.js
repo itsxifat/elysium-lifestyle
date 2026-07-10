@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
-  Tag, PackageCheck, Printer, ScanLine, Bell, ShieldCheck, Link2, Zap,
+  Tag, PackageCheck, Printer, ScanLine, Bell, BellRing, ShieldCheck, Link2, Zap, Rocket,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import NotificationBell from "@/components/admin/NotificationBell";
@@ -23,7 +23,7 @@ const navGroups = [
       { href: "/admin/orders",    label: "Orders",     icon: ShoppingCart, perm: "orders.view" },
       { href: "/admin/labels",    label: "Labels",     icon: Printer,      perm: "orders.view" },
       { href: "/admin/scan",      label: "Scan",       icon: ScanLine,     perm: "orders.view" },
-      { href: "/admin/notifications", label: "Notifications", icon: Bell },
+      { href: "/admin/notifications", label: "Notifications", icon: Bell, exact: true },
       { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert, perm: "orders.manage" },
       { href: "/admin/customers", label: "Users",      icon: Users,        perm: "users.manage" },
       { href: "/admin/roles",     label: "Roles & PINs", icon: ShieldCheck, perm: "users.manage" },
@@ -49,6 +49,7 @@ const navGroups = [
   {
     label: "Marketing",
     items: [
+      { href: "/admin/landing-pages", label: "Landing Pages", icon: Rocket, perm: "landing.manage" },
       { href: "/admin/flash-sales", label: "Flash Sales", icon: Zap, perm: "content.manage" },
       { href: "/admin/tracking", label: "Tracking",  icon: Radio, perm: "tracking.manage" },
     ],
@@ -58,6 +59,7 @@ const navGroups = [
     items: [
       { href: "/admin/shipping",  label: "Shipping",   icon: Truck,        perm: "settings.manage" },
       { href: "/admin/steadfast", label: "Courier",    icon: PackageCheck, perm: "settings.manage" },
+      { href: "/admin/notifications/settings", label: "Notification Rules", icon: BellRing, perm: "settings.manage" },
       { href: "/admin/settings",  label: "Settings",   icon: Settings,     perm: "settings.manage" },
     ],
   },

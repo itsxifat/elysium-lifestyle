@@ -19,6 +19,8 @@ function redact(settings) {
   // endpoint instead.
   delete s.steadfast;
   delete s.fraud;
+  // Internal staff notification routing — not needed by the storefront.
+  delete s.notifications;
   return s;
 }
 

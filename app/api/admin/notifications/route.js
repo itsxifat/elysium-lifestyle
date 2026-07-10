@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaff, requireAdmin } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import Notification from "@/models/Notification";
-import { createNotification, notificationFilterFor } from "@/lib/notifications";
+import { notifyStaff, notifyUser, notificationFilterFor } from "@/lib/notifications";
 import { isElevated } from "@/lib/permissions";
 
 // List the current member's notifications (most recent first) + unread count.
@@ -53,9 +53,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Recipient is required" }, { status: 400 });
     }
 
-    await createNotification({
-      audience,
-      recipient: audience === "user" ? data.recipient : null,
+    const payload = {
       type: "broadcast",
       severity: ["info", "warning", "critical"].includes(data.severity) ? data.severity : "info",
       title: data.title.trim(),
@@ -63,7 +61,12 @@ export async function POST(request) {
       link: (data.link || "").trim(),
       actor: session.user.id,
       actorName: session.user.name || session.user.email || "Admin",
-    });
+    };
+    if (audience === "user") {
+      await notifyUser(data.recipient, payload);
+    } else {
+      await notifyStaff(payload); // all moderators + staff
+    }
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch {

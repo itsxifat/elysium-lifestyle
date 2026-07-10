@@ -66,9 +66,14 @@ function StatusTracker({ status }) {
   );
 }
 
+// The customer sees every order the same way, whatever channel it came through.
+// Campaign attribution and the internal audit/fraud trail are for staff only, so
+// they never leave the database on this path.
+const CUSTOMER_HIDDEN = "-landingPage -editHistory -fraudCheck";
+
 async function getOrder(orderId, userId) {
   await connectDB();
-  const order = await Order.findById(orderId).lean();
+  const order = await Order.findById(orderId).select(CUSTOMER_HIDDEN).lean();
   if (!order) return null;
   if (order.user?.toString() !== userId) return null;
   return serializeDoc(order);
