@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Upload, X, Plus, ArrowUp, ArrowDown, Loader2, Trash2 } from "lucide-react";
 import { Button, Field, TextInput, Select, Toggle, inputClass } from "@/components/admin/ui";
 import { shouldUnoptimizeImage } from "@/lib/utils";
+import ImageCropper from "./ImageCropper";
 
 // A generic form driven by a block's `fields` spec (see lib/landing-blocks.js).
 // Adding a block type means describing its fields there — no editor code.
@@ -21,11 +22,17 @@ async function uploadFile(file) {
 
 export function ImagePicker({ value, onChange, label }) {
   const [busy, setBusy] = useState(false);
+  // The just-chosen file waits here while the crop/resize dialog is open.
+  const [pending, setPending] = useState(null);
 
-  async function pick(e) {
+  function pick(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
+    if (file) setPending(file);
+  }
+
+  async function upload(file) {
+    setPending(null);
     setBusy(true);
     try {
       onChange(await uploadFile(file));
@@ -56,6 +63,10 @@ export function ImagePicker({ value, onChange, label }) {
           <span className="text-[11px]">{busy ? "Uploading…" : "Upload image"}</span>
           <input type="file" accept="image/*" className="hidden" onChange={pick} disabled={busy} />
         </label>
+      )}
+
+      {pending && (
+        <ImageCropper file={pending} onCancel={() => setPending(null)} onDone={upload} />
       )}
     </div>
   );

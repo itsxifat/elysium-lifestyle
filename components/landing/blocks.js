@@ -132,20 +132,57 @@ function RichText({ data }) {
 }
 
 // ── Image / Gallery ──────────────────────────────────────────────────────────
+const IMG_MAXW = { small: 320, medium: 520, large: 760, full: 9999 };
+const IMG_ASPECT = {
+  auto: "", // natural height
+  square: "aspect-square",
+  landscape: "aspect-[4/3]",
+  portrait: "aspect-[3/4]",
+  wide: "aspect-[16/9]",
+};
+const IMG_JUSTIFY = { left: "justify-start", center: "justify-center", right: "justify-end" };
+
 function SingleImage({ data }) {
   if (!data.image) return null;
   const full = data.width === "full";
-  const img = (
-    <div className={`relative w-full ${full ? "aspect-[16/7]" : "aspect-[4/3] sm:aspect-[16/9] rounded-2xl overflow-hidden"}`}>
-      <Img src={data.image} fill className="object-cover" sizes="100vw" />
+  const size = data.size || "large";
+  const aspect = IMG_ASPECT[data.aspect] ?? "";
+  const fit = data.fit === "contain" ? "object-contain" : "object-cover";
+  const rounded = data.rounded !== false && !full ? "rounded-2xl" : "";
+
+  // "auto" shape → let the image set its own height (no fill); otherwise the
+  // aspect box + object-fit crops/letterboxes it.
+  const inner = aspect ? (
+    <div className={`relative w-full ${aspect} overflow-hidden ${rounded}`}>
+      <Img src={data.image} fill className={fit} sizes="100vw" />
     </div>
+  ) : (
+    <Img
+      src={data.image}
+      width={1600}
+      height={1200}
+      className={`w-full h-auto ${fit === "object-contain" ? "object-contain" : ""} ${rounded}`}
+      sizes="100vw"
+    />
   );
+
+  if (full) {
+    return (
+      <Section full>
+        {inner}
+        {data.caption && <p className="text-center text-[12px] text-[color:var(--lp-text)]/50 mt-3 px-4">{data.caption}</p>}
+      </Section>
+    );
+  }
+
   return (
-    <Section className={full ? "" : "py-10"} full={full}>
-      {img}
-      {data.caption && (
-        <p className="text-center text-[12px] text-[color:var(--lp-text)]/50 mt-3 px-4">{data.caption}</p>
-      )}
+    <Section className="py-10">
+      <div className={`flex ${IMG_JUSTIFY[data.align] || "justify-center"}`}>
+        <div className="w-full" style={{ maxWidth: IMG_MAXW[size] || 760 }}>
+          {inner}
+          {data.caption && <p className="text-center text-[12px] text-[color:var(--lp-text)]/50 mt-3">{data.caption}</p>}
+        </div>
+      </div>
     </Section>
   );
 }
@@ -365,6 +402,36 @@ function Faq({ data }) {
   );
 }
 
+// ── CTA / Order button ───────────────────────────────────────────────────────
+// Scrolls to the order form. A page can carry as many of these as it likes —
+// the "multiple Order Now buttons" the spec asks for.
+function Cta({ data, onCta }) {
+  if (!data.text) return null;
+  const big = data.size !== "medium";
+  const outline = data.style === "outline";
+  return (
+    <Section className="py-6">
+      <div className={`flex flex-col ${ALIGN[data.align] || ALIGN.center}`}>
+        <button
+          type="button"
+          onClick={onCta}
+          className={`rounded-full font-semibold tracking-wide shadow-lg transition-transform hover:scale-[1.03] active:scale-[0.99] ${
+            big ? "px-9 py-4 text-[15px]" : "px-6 py-2.5 text-[13px]"
+          }`}
+          style={
+            outline
+              ? { border: "2px solid var(--lp-accent)", color: "var(--lp-accent)", background: "transparent" }
+              : { background: "var(--lp-accent)", color: "#fff" }
+          }
+        >
+          {data.text}
+        </button>
+        {data.note && <p className="text-[12px] text-[color:var(--lp-text)]/55 mt-2.5">{data.note}</p>}
+      </div>
+    </Section>
+  );
+}
+
 // ── Divider ──────────────────────────────────────────────────────────────────
 function Divider({ data }) {
   return (
@@ -385,6 +452,7 @@ const RENDERERS = {
   testimonials: Testimonials,
   trust: Trust,
   faq: Faq,
+  cta: Cta,
   divider: Divider,
 };
 

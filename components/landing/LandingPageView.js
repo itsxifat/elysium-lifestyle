@@ -19,6 +19,18 @@ export default function LandingPageView({ page, offers = [], shipping, preview =
     document.getElementById("order")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // A background image sits under the whole page; the solid colour is its
+  // fallback (shown while it loads, and around a `contain`-style image).
+  const bgStyle = theme.backgroundImage
+    ? {
+        backgroundColor: theme.background || "#FDFBF7",
+        backgroundImage: `url("${theme.backgroundImage}")`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+      }
+    : { background: theme.background || "#FDFBF7" };
+
   return (
     <div
       // landingFontVars declares every --font-* variable on this element; the
@@ -28,9 +40,9 @@ export default function LandingPageView({ page, offers = [], shipping, preview =
       style={{
         "--lp-accent": theme.accent || "#B85C3A",
         "--lp-text": theme.text || "#2C1810",
-        background: theme.background || "#FDFBF7",
         color: theme.text || "#2C1810",
         fontFamily: landingFontFamily(theme.font),
+        ...bgStyle,
       }}
     >
       {(page.blocks || [])

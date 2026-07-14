@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import {
-  Package, Plus, Trash2, ChevronDown, ChevronRight, Star, Minus, Tag,
+  Package, Plus, Trash2, ChevronDown, ChevronRight, Star, Minus, Tag, Layers, Boxes,
 } from "lucide-react";
 import {
   Card, Button, Field, TextInput, Select, Toggle, Pill, inputClass, EmptyState,
@@ -29,9 +29,11 @@ const blankOffer = () => ({
   description: "",
   badge: "",
   image: "",
+  kind: "fixed",
   items: [],
   pricingMode: "auto",
   priceValue: 0,
+  tiers: [],
   compareAtPrice: 0,
   isDefault: false,
   isActive: true,
@@ -50,7 +52,7 @@ function regularTotal(offer, products) {
   }, 0);
 }
 
-function OfferLine({ line, product, onChange, onRemove }) {
+function OfferLine({ line, product, onChange, onRemove, hideQuantity = false }) {
   const sizes = product?.variants || [];
   return (
     <div className="flex items-center gap-2.5 p-2 rounded-lg border border-brand-tan/20 bg-white">
@@ -82,25 +84,29 @@ function OfferLine({ line, product, onChange, onRemove }) {
         ))}
       </select>
 
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        <button
-          type="button" title="Decrease quantity"
-          onClick={() => onChange({ ...line, quantity: Math.max(1, (line.quantity || 1) - 1) })}
-          className="p-1.5 text-brand-tan hover:text-brand-brown"
-        >
-          <Minus size={13} />
-        </button>
-        <span className="w-6 text-center text-[12px] font-semibold text-brand-brown tabular-nums">
-          {line.quantity || 1}
-        </span>
-        <button
-          type="button" title="Increase quantity"
-          onClick={() => onChange({ ...line, quantity: Math.min(50, (line.quantity || 1) + 1) })}
-          className="p-1.5 text-brand-tan hover:text-brand-brown"
-        >
-          <Plus size={13} />
-        </button>
-      </div>
+      {/* Fixed offers set a per-line quantity; in a collection the CUSTOMER
+          chooses how many, so the stepper is hidden. */}
+      {!hideQuantity && (
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            type="button" title="Decrease quantity"
+            onClick={() => onChange({ ...line, quantity: Math.max(1, (line.quantity || 1) - 1) })}
+            className="p-1.5 text-brand-tan hover:text-brand-brown"
+          >
+            <Minus size={13} />
+          </button>
+          <span className="w-6 text-center text-[12px] font-semibold text-brand-brown tabular-nums">
+            {line.quantity || 1}
+          </span>
+          <button
+            type="button" title="Increase quantity"
+            onClick={() => onChange({ ...line, quantity: Math.min(50, (line.quantity || 1) + 1) })}
+            className="p-1.5 text-brand-tan hover:text-brand-brown"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+      )}
 
       <button type="button" onClick={onRemove} className="p-1.5 text-red-400 hover:text-red-600 flex-shrink-0">
         <Trash2 size={13} />
@@ -109,13 +115,65 @@ function OfferLine({ line, product, onChange, onRemove }) {
   );
 }
 
+// The manual quantity→price ladder for a collection offer. Each rung is "buy this
+// many total, pay this" — deliberately non-linear.
+function TierLadder({ tiers, onChange }) {
+  const rows = tiers || [];
+  const update = (i, patch) => onChange(rows.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  const remove = (i) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => {
+    const nextQ = rows.length ? Math.max(...rows.map((t) => Number(t.quantity) || 0)) + 1 : 1;
+    onChange([...rows, { quantity: nextQ, price: 0 }]);
+  };
+
+  return (
+    <div>
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-1.5 px-1">
+        <span className="text-[10px] uppercase tracking-wide text-brand-tan">Quantity</span>
+        <span className="text-[10px] uppercase tracking-wide text-brand-tan">Total price (৳)</span>
+        <span />
+      </div>
+      <div className="space-y-1.5">
+        {rows.map((t, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+            <TextInput
+              type="number" min="1" value={t.quantity ?? ""}
+              onChange={(e) => update(i, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+            />
+            <TextInput
+              type="number" min="0" value={t.price ?? ""}
+              onChange={(e) => update(i, { price: Math.max(0, Number(e.target.value) || 0) })}
+            />
+            <button type="button" onClick={() => remove(i)} className="p-1.5 text-red-400 hover:text-red-600">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <Button type="button" variant="outline" size="sm" className="mt-2" onClick={add}>
+        <Plus size={13} /> Add a quantity tier
+      </Button>
+      {rows.length > 0 && (
+        <p className="text-[11px] text-brand-tan mt-2">
+          Customer can order {Math.min(...rows.map((t) => Number(t.quantity) || 0))}–{Math.max(...rows.map((t) => Number(t.quantity) || 0))} pieces, mixing &amp; matching from the pool above.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefault, onProductsLoaded }) {
   const [open, setOpen] = useState(!offer.label);
   const [picking, setPicking] = useState(false);
+  const isCollection = offer.kind === "collection";
 
   const regular = useMemo(() => regularTotal(offer, products), [offer, products]);
   const price = applyOfferPricing(offer, regular);
   const savings = Math.max(0, (Number(offer.compareAtPrice) || regular) - price);
+
+  // Collection summary values.
+  const tierQtys = (offer.tiers || []).map((t) => Number(t.quantity) || 0).filter((q) => q >= 1);
+  const fromPrice = (offer.tiers || []).reduce((min, t) => Math.min(min, Number(t.price) || 0), Infinity);
 
   const set = (patch) => onChange({ ...offer, ...patch });
 
@@ -142,12 +200,24 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
             {!offer.isActive && <Pill tone="gray">Hidden</Pill>}
           </div>
           <p className="text-[11px] text-brand-tan mt-0.5">
-            {(offer.items || []).length} product{(offer.items || []).length === 1 ? "" : "s"}
-            {regular > 0 && (
+            {isCollection ? (
               <>
-                {" · "}
-                <span className="font-semibold text-brand-brown">{formatPrice(price)}</span>
-                {savings > 0 && <span className="line-through ml-1.5">{formatPrice(offer.compareAtPrice || regular)}</span>}
+                <span className="inline-flex items-center gap-1 text-brand-brown/70"><Boxes size={11} /> Collection</span>
+                {" · "}{(offer.items || []).length} in pool
+                {tierQtys.length > 0 && Number.isFinite(fromPrice) && (
+                  <> · from <span className="font-semibold text-brand-brown">{formatPrice(fromPrice)}</span></>
+                )}
+              </>
+            ) : (
+              <>
+                {(offer.items || []).length} product{(offer.items || []).length === 1 ? "" : "s"}
+                {regular > 0 && (
+                  <>
+                    {" · "}
+                    <span className="font-semibold text-brand-brown">{formatPrice(price)}</span>
+                    {savings > 0 && <span className="line-through ml-1.5">{formatPrice(offer.compareAtPrice || regular)}</span>}
+                  </>
+                )}
               </>
             )}
           </p>
@@ -180,10 +250,40 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
             <TextInput value={offer.description} onChange={(e) => set({ description: e.target.value })} placeholder="Save ৳500 vs buying separately" />
           </Field>
 
-          {/* ── Products ─────────────────────────────────────────────── */}
+          {/* ── Offer kind ───────────────────────────────────────────── */}
+          <div>
+            <span className="block text-[12px] font-medium text-brand-brown mb-1.5">Offer type</span>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { k: "fixed", icon: Layers, title: "Fixed set", desc: "A preset product (or bundle) at one price." },
+                { k: "collection", icon: Boxes, title: "Collection", desc: "A pool the customer mixes & matches; price by quantity." },
+              ].map(({ k, icon: Icon, title, desc }) => {
+                const active = (offer.kind || "fixed") === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => set({ kind: k })}
+                    className={`text-left rounded-lg border p-2.5 transition-colors ${
+                      active ? "border-brand-terracotta bg-brand-terracotta/[0.06]" : "border-brand-tan/20 hover:border-brand-brown/30"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-brown">
+                      <Icon size={13} /> {title}
+                    </span>
+                    <span className="block text-[10.5px] text-brand-tan leading-tight mt-0.5">{desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Products / pool ──────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] font-medium text-brand-brown">Products in this offer</span>
+              <span className="text-[12px] font-medium text-brand-brown">
+                {isCollection ? "Products in the pool" : "Products in this offer"}
+              </span>
               <Button type="button" variant="outline" size="sm" onClick={() => setPicking((v) => !v)}>
                 <Plus size={13} /> {picking ? "Done adding" : "Add products"}
               </Button>
@@ -192,7 +292,11 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
             {(offer.items || []).length === 0 && !picking ? (
               <div className="rounded-lg border border-dashed border-brand-tan/30 py-8 text-center">
                 <Package size={20} className="mx-auto text-brand-tan/40 mb-2" />
-                <p className="text-[12px] text-brand-tan">Add one product to sell it alone, or several to sell a bundle.</p>
+                <p className="text-[12px] text-brand-tan">
+                  {isCollection
+                    ? "Add the products the customer can mix & match between."
+                    : "Add one product to sell it alone, or several to sell a bundle."}
+                </p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -201,6 +305,7 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
                     key={`${line.product}-${i}`}
                     line={line}
                     product={products[line.product]}
+                    hideQuantity={isCollection}
                     onChange={(next) => set({ items: offer.items.map((it, idx) => (idx === i ? next : it)) })}
                     onRemove={() => set({ items: offer.items.filter((_, idx) => idx !== i) })}
                   />
@@ -224,53 +329,61 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
           {/* ── Pricing ──────────────────────────────────────────────── */}
           <div className="rounded-lg bg-brand-cream/40 border border-brand-tan/15 p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan mb-3">
-              <Tag size={12} /> Landing page price
+              <Tag size={12} /> {isCollection ? "Quantity price ladder" : "Landing page price"}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Discount type">
-                <Select value={offer.pricingMode} onChange={(e) => set({ pricingMode: e.target.value })}>
-                  {PRICING_MODES.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </Select>
-              </Field>
+            {isCollection ? (
+              <>
+                <TierLadder tiers={offer.tiers} onChange={(tiers) => set({ tiers })} />
+                <div className="grid gap-3 sm:grid-cols-2 mt-3 pt-3 border-t border-brand-tan/15">
+                  <Field label="Strike-through price (৳)" hint="Optional — shown crossed out.">
+                    <TextInput type="number" min="0" value={offer.compareAtPrice ?? 0} onChange={(e) => set({ compareAtPrice: Number(e.target.value) || 0 })} />
+                  </Field>
+                  <Field label="Offer thumbnail" hint="Defaults to the first product's photo.">
+                    <ImagePicker value={offer.image} onChange={(v) => set({ image: v })} />
+                  </Field>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Discount type">
+                    <Select value={offer.pricingMode} onChange={(e) => set({ pricingMode: e.target.value })}>
+                      {PRICING_MODES.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </Select>
+                  </Field>
 
-              {offer.pricingMode !== "auto" && (
-                <Field
-                  label={
-                    offer.pricingMode === "fixed" ? "Bundle price (৳)"
-                      : offer.pricingMode === "percent" ? "Percent off (%)"
-                      : "Amount off (৳)"
-                  }
-                >
-                  <TextInput
-                    type="number" min="0"
-                    value={offer.priceValue ?? 0}
-                    onChange={(e) => set({ priceValue: Number(e.target.value) || 0 })}
-                  />
-                </Field>
-              )}
+                  {offer.pricingMode !== "auto" && (
+                    <Field
+                      label={
+                        offer.pricingMode === "fixed" ? "Bundle price (৳)"
+                          : offer.pricingMode === "percent" ? "Percent off (%)"
+                          : "Amount off (৳)"
+                      }
+                    >
+                      <TextInput type="number" min="0" value={offer.priceValue ?? 0} onChange={(e) => set({ priceValue: Number(e.target.value) || 0 })} />
+                    </Field>
+                  )}
 
-              <Field label="Strike-through price (৳)" hint="Leave 0 to strike through the normal total.">
-                <TextInput
-                  type="number" min="0"
-                  value={offer.compareAtPrice ?? 0}
-                  onChange={(e) => set({ compareAtPrice: Number(e.target.value) || 0 })}
-                />
-              </Field>
+                  <Field label="Strike-through price (৳)" hint="Leave 0 to strike through the normal total.">
+                    <TextInput type="number" min="0" value={offer.compareAtPrice ?? 0} onChange={(e) => set({ compareAtPrice: Number(e.target.value) || 0 })} />
+                  </Field>
 
-              <Field label="Offer thumbnail" hint="Defaults to the first product's photo.">
-                <ImagePicker value={offer.image} onChange={(v) => set({ image: v })} />
-              </Field>
-            </div>
+                  <Field label="Offer thumbnail" hint="Defaults to the first product's photo.">
+                    <ImagePicker value={offer.image} onChange={(v) => set({ image: v })} />
+                  </Field>
+                </div>
 
-            {(offer.items || []).length > 0 && (
-              <div className="mt-3 pt-3 border-t border-brand-tan/15 flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                <span className="text-[11px] text-brand-tan">Normal total <b className="text-brand-brown">{formatPrice(regular)}</b></span>
-                <span className="text-[11px] text-brand-tan">Customer pays <b className="text-brand-terracotta text-[13px]">{formatPrice(price)}</b></span>
-                {savings > 0 && <span className="text-[11px] text-emerald-600 font-medium">They save {formatPrice(savings)}</span>}
-              </div>
+                {(offer.items || []).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-brand-tan/15 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                    <span className="text-[11px] text-brand-tan">Normal total <b className="text-brand-brown">{formatPrice(regular)}</b></span>
+                    <span className="text-[11px] text-brand-tan">Customer pays <b className="text-brand-terracotta text-[13px]">{formatPrice(price)}</b></span>
+                    {savings > 0 && <span className="text-[11px] text-emerald-600 font-medium">They save {formatPrice(savings)}</span>}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

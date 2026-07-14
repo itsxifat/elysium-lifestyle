@@ -37,6 +37,18 @@ const offerItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// One rung of a collection offer's manual price ladder: "buy this many total,
+// pay exactly this". Non-linear by design — 3 pieces is whatever the admin typed,
+// not 3× the single price. (No field named `type` here, so the inline shape is
+// safe — see [[mongoose-type-key-gotcha]].)
+const tierSchema = new mongoose.Schema(
+  {
+    quantity: { type: Number, required: true, min: 1 },
+    price: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
 const offerSchema = new mongoose.Schema(
   {
     key: { type: String, required: true },
@@ -44,8 +56,16 @@ const offerSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     badge: { type: String, default: "" }, // "Most popular", "Save 25%"
     image: { type: String, default: "" }, // optional override thumbnail
+
+    // Two shapes of offer:
+    //   fixed      → `items` is the exact set sold together; price via pricingMode.
+    //   collection → `items` is a POOL the customer mixes & matches from; they
+    //                pick any total quantity and pay `tiers[thatQuantity]`.
+    kind: { type: String, enum: ["fixed", "collection"], default: "fixed" },
+
     items: { type: [offerItemSchema], default: [] },
 
+    // ── fixed pricing ────────────────────────────────────────────────────────
     // How the offer's total is derived from the live variant prices ("regular"):
     //   auto    → regular total, no discount
     //   fixed   → `priceValue` is the total for the whole offer
@@ -53,6 +73,10 @@ const offerSchema = new mongoose.Schema(
     //   amount  → regular total minus ৳`priceValue`
     pricingMode: { type: String, enum: ["auto", "fixed", "percent", "amount"], default: "auto" },
     priceValue: { type: Number, default: 0, min: 0 },
+
+    // ── collection pricing ───────────────────────────────────────────────────
+    // The manual quantity→price ladder. Sorted ascending by quantity when saved.
+    tiers: { type: [tierSchema], default: [] },
 
     // Strike-through price. 0 → fall back to the computed regular total.
     compareAtPrice: { type: Number, default: 0, min: 0 },
@@ -117,6 +141,9 @@ const landingPageSchema = new mongoose.Schema(
       accent: { type: String, default: "#B85C3A" }, // brand terracotta
       background: { type: String, default: "#FDFBF7" },
       text: { type: String, default: "#2C1810" },
+      // Optional page-wide background image, layered under `background` (which
+      // then acts as the fallback / overlay tint).
+      backgroundImage: { type: String, default: "" },
       // A key from lib/landing-fonts.js — the typeface for the whole page. All
       // options carry Bengali + Latin so বাংলা and English render consistently.
       font: { type: String, default: "hind_siliguri" },

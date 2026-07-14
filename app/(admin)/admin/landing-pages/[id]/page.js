@@ -31,6 +31,46 @@ const TABS = [
 
 const ZONES = ["inside_dhaka", "suburbs", "outside_dhaka"];
 
+// A ready-made palette so colours can be set with one tap, not just the raw
+// picker. Warm brand tones first, then useful neutrals/accents.
+const PALETTE = [
+  "#B85C3A", "#8C3B24", "#D98E5A", "#E8B04B", "#2C1810", "#6B4423",
+  "#1F7A5A", "#0E7490", "#2563EB", "#7C3AED", "#DB2777", "#DC2626",
+  "#111111", "#4B5563", "#9CA3AF", "#FDFBF7", "#F3E8DD", "#FFFFFF",
+];
+
+// A colour input paired with the palette swatches.
+function ColorField({ label, value, onChange }) {
+  return (
+    <div>
+      <span className="block text-[12px] font-medium text-brand-brown mb-1.5">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value || "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-10 flex-shrink-0 rounded-lg border border-brand-tan/30 bg-white cursor-pointer p-0.5"
+        />
+        <TextInput value={value || ""} onChange={(e) => onChange(e.target.value)} className="font-mono text-[12px]" />
+      </div>
+      <div className="flex flex-wrap gap-1 mt-1.5">
+        {PALETTE.map((c) => (
+          <button
+            key={c}
+            type="button"
+            title={c}
+            onClick={() => onChange(c)}
+            className={`w-5 h-5 rounded-md border transition-transform hover:scale-110 ${
+              (value || "").toLowerCase() === c.toLowerCase() ? "border-brand-brown ring-1 ring-brand-brown" : "border-black/10"
+            }`}
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Turn the saved page (products populated by the API) into editor state: offer
 // lines hold plain ids, and a side cache holds the product details the offer
 // builder needs to price and preview them.
@@ -55,48 +95,83 @@ function hydrate(page) {
   return { form: { ...page, offers }, products };
 }
 
-// The offer shape the public renderer expects, computed from editor state so the
-// preview shows real prices and size pickers without a round-trip.
-function previewOffers(offers, products) {
-  return offers
-    .filter((o) => o.isActive !== false && o.items?.length)
-    .map((o) => {
-      let regular = 0;
-      const items = o.items.map((line) => {
-        const p = products[line.product] || {};
-        const inStock = (p.variants || []).filter((v) => v.stock >= (line.quantity || 1));
-        const pinned = line.size || (p.variants?.length === 1 ? p.variants[0].size : "");
-        const sizes = (pinned ? inStock.filter((v) => v.size === pinned) : inStock).map((v) => ({
-          size: v.size,
-          price: v.price,
-        }));
-        regular += (sizes[0]?.price ?? 0) * (line.quantity || 1);
-        return {
-          productId: line.product,
-          name: p.name || "Product",
-          image: p.image || "",
-          quantity: line.quantity || 1,
-          pinnedSize: pinned,
-          sizes,
-        };
-      });
+// In-stock sizes for one product from the editor's product cache, honouring a
+// pinned size. Mirrors sizesFor in lib/landing.js.
+function editorSizes(p, minQty, pinned) {
+  const inStock = (p.variants || []).filter((v) => v.stock >= minQty);
+  return (pinned ? inStock.filter((v) => v.size === pinned) : inStock).map((v) => ({ size: v.size, price: v.price }));
+}
 
-      const price = applyOfferPricing(o, regular);
-      return {
+// The offer shapes the public renderer expects, computed from editor state so the
+// preview shows real prices, size pickers and the collection pool without a
+// round-trip. Mirrors buildFixedOffer / buildCollectionOffer in lib/landing.js.
+function previewOffers(offers, products) {
+  const out = [];
+  for (const o of offers) {
+    if (o.isActive === false || !o.items?.length) continue;
+
+    if (o.kind === "collection") {
+      const tiers = (o.tiers || [])
+        .map((t) => ({ quantity: Number(t.quantity) || 0, price: Math.max(0, Number(t.price) || 0) }))
+        .filter((t) => t.quantity >= 1)
+        .sort((a, b) => a.quantity - b.quantity);
+      if (!tiers.length) continue;
+
+      const pool = [];
+      for (const line of o.items) {
+        const p = products[line.product] || {};
+        const pinned = line.size || (p.variants?.length === 1 ? p.variants[0].size : "");
+        const sizes = editorSizes(p, 1, pinned);
+        if (!sizes.length) continue;
+        pool.push({ productId: line.product, name: p.name || "Product", image: p.image || "", pinnedSize: pinned, sizes });
+      }
+      if (!pool.length) continue;
+
+      out.push({
         key: o.key,
+        kind: "collection",
         label: o.label || "Untitled offer",
         description: o.description || "",
         badge: o.badge || "",
-        image: o.image || items[0]?.image || "",
+        image: o.image || pool[0]?.image || "",
         isDefault: !!o.isDefault,
-        items,
-        pricing: { mode: o.pricingMode || "auto", value: Number(o.priceValue) || 0 },
+        pool,
+        tiers,
+        minQty: tiers[0].quantity,
+        maxQty: tiers[tiers.length - 1].quantity,
         manualCompareAt: Number(o.compareAtPrice) || 0,
-        price,
-        compareAtPrice: Number(o.compareAtPrice) || regular,
-        savings: Math.max(0, (Number(o.compareAtPrice) || regular) - price),
-      };
+        price: tiers[0].price,
+      });
+      continue;
+    }
+
+    let regular = 0;
+    const items = o.items.map((line) => {
+      const p = products[line.product] || {};
+      const pinned = line.size || (p.variants?.length === 1 ? p.variants[0].size : "");
+      const sizes = editorSizes(p, line.quantity || 1, pinned);
+      regular += (sizes[0]?.price ?? 0) * (line.quantity || 1);
+      return { productId: line.product, name: p.name || "Product", image: p.image || "", quantity: line.quantity || 1, pinnedSize: pinned, sizes };
     });
+
+    const price = applyOfferPricing(o, regular);
+    out.push({
+      key: o.key,
+      kind: "fixed",
+      label: o.label || "Untitled offer",
+      description: o.description || "",
+      badge: o.badge || "",
+      image: o.image || items[0]?.image || "",
+      isDefault: !!o.isDefault,
+      items,
+      pricing: { mode: o.pricingMode || "auto", value: Number(o.priceValue) || 0 },
+      manualCompareAt: Number(o.compareAtPrice) || 0,
+      price,
+      compareAtPrice: Number(o.compareAtPrice) || regular,
+      savings: Math.max(0, (Number(o.compareAtPrice) || regular) - price),
+    });
+  }
+  return out;
 }
 
 // The rates the preview's zone buttons show, mirroring lib/landing.js.
@@ -445,23 +520,27 @@ export default function LandingPageEditor() {
                     <TextInput value={page.code} onChange={(e) => update({ code: e.target.value })} className="font-mono" />
                   </div>
                 </Field>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-3">
                   {[
-                    { key: "accent", label: "Accent" },
-                    { key: "background", label: "Background" },
-                    { key: "text", label: "Text" },
+                    { key: "accent", label: "Accent colour" },
+                    { key: "background", label: "Background colour" },
+                    { key: "text", label: "Text colour" },
                   ].map((c) => (
-                    <div key={c.key}>
-                      <span className="block text-[12px] font-medium text-brand-brown mb-1.5">{c.label}</span>
-                      <input
-                        type="color"
-                        value={page.theme?.[c.key] || "#000000"}
-                        onChange={(e) => update({ theme: { ...page.theme, [c.key]: e.target.value } })}
-                        className="w-full h-9 rounded-lg border border-brand-tan/30 bg-white cursor-pointer p-0.5"
-                      />
-                    </div>
+                    <ColorField
+                      key={c.key}
+                      label={c.label}
+                      value={page.theme?.[c.key]}
+                      onChange={(v) => update({ theme: { ...page.theme, [c.key]: v } })}
+                    />
                   ))}
                 </div>
+
+                <Field
+                  label="Background image"
+                  hint="Optional. Sits behind the whole page; the background colour shows through / around it."
+                >
+                  <ImagePicker value={page.theme?.backgroundImage || ""} onChange={(v) => update({ theme: { ...page.theme, backgroundImage: v } })} />
+                </Field>
               </Card>
 
               <Card className="space-y-3">

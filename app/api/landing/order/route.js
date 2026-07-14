@@ -10,7 +10,7 @@ import Product from "@/models/Product";
 import "@/models/User";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { normalizeBdPhone } from "@/lib/utils";
-import { priceOffer, landingShippingFee } from "@/lib/landing";
+import { priceOffer, priceCollection, landingShippingFee } from "@/lib/landing";
 import { findOrCreateCustomer } from "@/lib/customer-link";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
@@ -66,13 +66,24 @@ export async function POST(request) {
     const zone = ZONES.includes(body.shippingZone) ? body.shippingZone : "inside_dhaka";
 
     // ── Price the offer from the live catalog ────────────────────────────────
-    // sizeChoices maps an offer line index → the size the customer picked.
-    const sizeChoices = {};
-    if (body.sizes && typeof body.sizes === "object") {
-      for (const [k, v] of Object.entries(body.sizes)) sizeChoices[Number(k)] = str(v, 40);
+    // Fixed offer: sizeChoices maps a line index → the size chosen.
+    // Collection offer: `selections` is the mix-and-match cart the customer built.
+    // Either way the price is recomputed from the DB — the body only picks items.
+    let priced;
+    if (offer.kind === "collection") {
+      const selections = (Array.isArray(body.selections) ? body.selections : []).map((s) => ({
+        productId: str(s.productId, 40),
+        size: str(s.size, 40),
+        quantity: Math.max(1, Number(s.quantity) || 1),
+      }));
+      priced = await priceCollection(offer, selections);
+    } else {
+      const sizeChoices = {};
+      if (body.sizes && typeof body.sizes === "object") {
+        for (const [k, v] of Object.entries(body.sizes)) sizeChoices[Number(k)] = str(v, 40);
+      }
+      priced = await priceOffer(offer, sizeChoices);
     }
-
-    const priced = await priceOffer(offer, sizeChoices);
     if (!priced.ok) return NextResponse.json({ error: priced.error }, { status: 400 });
 
     const { items, regularTotal, offerTotal, discount } = priced;

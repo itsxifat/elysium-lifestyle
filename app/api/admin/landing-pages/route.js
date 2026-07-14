@@ -21,26 +21,41 @@ const isId = (v) => mongoose.Types.ObjectId.isValid(v);
 // and `code` is handled by the callers (create generates it, update validates).
 export function sanitize(data = {}) {
   const offers = (Array.isArray(data.offers) ? data.offers : [])
-    .map((o) => ({
-      key: str(o.key, 40) || makeKey(),
-      label: str(o.label, 80),
-      description: str(o.description, 300),
-      badge: str(o.badge, 40),
-      image: str(o.image, 500),
-      items: (Array.isArray(o.items) ? o.items : [])
-        .filter((i) => isId(i?.product))
-        .map((i) => ({
-          product: i.product,
-          quantity: Math.min(50, Math.max(1, Number(i.quantity) || 1)),
-          size: str(i.size, 40),
-        })),
-      pricingMode: PRICING_MODES.includes(o.pricingMode) ? o.pricingMode : "auto",
-      priceValue: num(o.priceValue),
-      compareAtPrice: num(o.compareAtPrice),
-      isDefault: !!o.isDefault,
-      isActive: o.isActive !== false,
-    }))
-    .filter((o) => o.label && o.items.length);
+    .map((o) => {
+      const kind = o.kind === "collection" ? "collection" : "fixed";
+      // Dedup + sort the price ladder by quantity so tierPriceFor's floor lookup
+      // is well-defined; keep the last price entered for a duplicate quantity.
+      const tierMap = new Map();
+      for (const t of Array.isArray(o.tiers) ? o.tiers : []) {
+        const q = Math.min(100, Math.max(1, Math.round(Number(t.quantity) || 0)));
+        if (q >= 1) tierMap.set(q, num(t.price));
+      }
+      const tiers = [...tierMap.entries()].sort((a, b) => a[0] - b[0]).map(([quantity, price]) => ({ quantity, price }));
+
+      return {
+        key: str(o.key, 40) || makeKey(),
+        label: str(o.label, 80),
+        description: str(o.description, 300),
+        badge: str(o.badge, 40),
+        image: str(o.image, 500),
+        kind,
+        items: (Array.isArray(o.items) ? o.items : [])
+          .filter((i) => isId(i?.product))
+          .map((i) => ({
+            product: i.product,
+            quantity: Math.min(50, Math.max(1, Number(i.quantity) || 1)),
+            size: str(i.size, 40),
+          })),
+        pricingMode: PRICING_MODES.includes(o.pricingMode) ? o.pricingMode : "auto",
+        priceValue: num(o.priceValue),
+        tiers,
+        compareAtPrice: num(o.compareAtPrice),
+        isDefault: !!o.isDefault,
+        isActive: o.isActive !== false,
+      };
+    })
+    // A fixed offer needs products; a collection needs both a pool AND a ladder.
+    .filter((o) => o.label && o.items.length && (o.kind !== "collection" || o.tiers.length));
 
   // Exactly one default offer, so the page always has something pre-selected.
   const defaultIdx = offers.findIndex((o) => o.isDefault && o.isActive);
@@ -61,6 +76,7 @@ export function sanitize(data = {}) {
       accent: str(t.accent, 20) || "#B85C3A",
       background: str(t.background, 20) || "#FDFBF7",
       text: str(t.text, 20) || "#2C1810",
+      backgroundImage: str(t.backgroundImage, 500),
       font: LANDING_FONT_KEYS.includes(t.font) ? t.font : DEFAULT_LANDING_FONT,
     },
     blocks: sanitizeBlocks(data.blocks, makeKey),
