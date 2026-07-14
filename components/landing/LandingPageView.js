@@ -55,6 +55,7 @@ export default function LandingPageView({ page, offers = [], shipping, preview =
               offers={offers}
               form={page.form || {}}
               shipping={shipping}
+              promotions={page.promotions || {}}
               preview={preview}
             />
           ) : (

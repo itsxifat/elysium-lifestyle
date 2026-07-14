@@ -10,7 +10,8 @@ import Product from "@/models/Product";
 import "@/models/User";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { normalizeBdPhone } from "@/lib/utils";
-import { priceOffer, priceCollection, landingShippingFee } from "@/lib/landing";
+import { priceOffer, priceCollection, priceAlacarte, landingShippingFee } from "@/lib/landing";
+import { applyPromotions } from "@/lib/landing-promotions";
 import { findOrCreateCustomer } from "@/lib/customer-link";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
@@ -70,13 +71,15 @@ export async function POST(request) {
     // Collection offer: `selections` is the mix-and-match cart the customer built.
     // Either way the price is recomputed from the DB — the body only picks items.
     let priced;
-    if (offer.kind === "collection") {
+    if (offer.kind === "collection" || offer.kind === "alacarte") {
       const selections = (Array.isArray(body.selections) ? body.selections : []).map((s) => ({
         productId: str(s.productId, 40),
         size: str(s.size, 40),
         quantity: Math.max(1, Number(s.quantity) || 1),
       }));
-      priced = await priceCollection(offer, selections);
+      priced = offer.kind === "alacarte"
+        ? await priceAlacarte(offer, selections)
+        : await priceCollection(offer, selections);
     } else {
       const sizeChoices = {};
       if (body.sizes && typeof body.sizes === "object") {
@@ -86,11 +89,26 @@ export async function POST(request) {
     }
     if (!priced.ok) return NextResponse.json({ error: priced.error }, { status: 400 });
 
-    const { items, regularTotal, offerTotal, discount } = priced;
-    const shippingFee = await landingShippingFee(page, zone);
-    // Shipping is charged on top of the landing-page price; the offer discount is
-    // recorded separately so the order shows the real product prices.
-    const totalAmount = Math.max(0, offerTotal + shippingFee);
+    const { items, regularTotal, offerTotal } = priced;
+    const orderQuantity = items.reduce((n, i) => n + i.quantity, 0);
+    const baseShipping = await landingShippingFee(page, zone);
+
+    // Page-wide promotions apply on top of the offer price (server is authority;
+    // never trust a client-sent discount). goodsTotal = what they pay for goods.
+    const promo = applyPromotions({
+      goodsTotal: offerTotal,
+      quantity: orderQuantity,
+      shippingFee: baseShipping,
+      promotions: page.promotions,
+    });
+    const promoDiscount = Math.min(promo.promoDiscount, offerTotal); // never below ৳0 goods
+    const shippingFee = promo.shippingFee;
+
+    // The offer-level saving and the promo saving are both recorded as discount,
+    // so the order keeps honest product prices as its subtotal.
+    const offerDiscount = regularTotal - offerTotal;
+    const discount = offerDiscount + promoDiscount;
+    const totalAmount = Math.max(0, offerTotal - promoDiscount + shippingFee);
 
     // ── Who is this? ─────────────────────────────────────────────────────────
     // A signed-in shopper is themselves; otherwise match on phone/email, and
@@ -128,9 +146,11 @@ export async function POST(request) {
       subtotal: regularTotal,
       shippingFee,
       discount,
-      appliedDiscounts: discount > 0
-        ? [{ code: `LP-${page.code}`, title: `Landing page offer — ${offer.label}`, type: "fixed", amount: discount }]
-        : [],
+      appliedDiscounts: [
+        offerDiscount > 0 && { code: `LP-${page.code}`, title: `Landing page offer — ${offer.label}`, type: "fixed", amount: offerDiscount },
+        promoDiscount > 0 && { code: `LP-PROMO`, title: promo.promoLabel || "Promotion", type: "fixed", amount: promoDiscount },
+        promo.freeShipping && { code: `LP-FREESHIP`, title: "Free delivery", type: "free_shipping", amount: 0, freeShipping: true },
+      ].filter(Boolean),
       totalAmount,
       notes: page.form?.askNote ? str(body.note, 500) : "",
     });

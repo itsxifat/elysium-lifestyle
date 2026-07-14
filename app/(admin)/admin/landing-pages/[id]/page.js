@@ -13,6 +13,7 @@ import {
 } from "@/components/admin/ui";
 import BlockFields, { ImagePicker } from "@/components/admin/landing/BlockFields";
 import OfferBuilder from "@/components/admin/landing/OfferBuilder";
+import PromotionsEditor from "@/components/admin/landing/PromotionsEditor";
 import LandingPageView from "@/components/landing/LandingPageView";
 import { landingFontVars } from "@/components/landing/fonts";
 import { LANDING_BLOCKS, blockDefaults } from "@/lib/landing-blocks";
@@ -110,13 +111,7 @@ function previewOffers(offers, products) {
   for (const o of offers) {
     if (o.isActive === false || !o.items?.length) continue;
 
-    if (o.kind === "collection") {
-      const tiers = (o.tiers || [])
-        .map((t) => ({ quantity: Number(t.quantity) || 0, price: Math.max(0, Number(t.price) || 0) }))
-        .filter((t) => t.quantity >= 1)
-        .sort((a, b) => a.quantity - b.quantity);
-      if (!tiers.length) continue;
-
+    if (o.kind === "collection" || o.kind === "alacarte") {
       const pool = [];
       for (const line of o.items) {
         const p = products[line.product] || {};
@@ -126,6 +121,32 @@ function previewOffers(offers, products) {
         pool.push({ productId: line.product, name: p.name || "Product", image: p.image || "", pinnedSize: pinned, sizes });
       }
       if (!pool.length) continue;
+
+      if (o.kind === "alacarte") {
+        const cheapest = Math.min(...pool.map((p) => Math.min(...p.sizes.map((s) => s.price))));
+        out.push({
+          key: o.key,
+          kind: "alacarte",
+          label: o.label || "Untitled offer",
+          description: o.description || "",
+          badge: o.badge || "",
+          image: o.image || pool[0]?.image || "",
+          isDefault: !!o.isDefault,
+          pool,
+          minQty: Math.max(1, Number(o.minQty) || 1),
+          maxQty: Number(o.maxQty) || 0,
+          pricing: { mode: o.pricingMode || "auto", value: Number(o.priceValue) || 0 },
+          manualCompareAt: Number(o.compareAtPrice) || 0,
+          price: applyOfferPricing(o, cheapest),
+        });
+        continue;
+      }
+
+      const tiers = (o.tiers || [])
+        .map((t) => ({ quantity: Number(t.quantity) || 0, price: Math.max(0, Number(t.price) || 0) }))
+        .filter((t) => t.quantity >= 1)
+        .sort((a, b) => a.quantity - b.quantity);
+      if (!tiers.length) continue;
 
       out.push({
         key: o.key,
@@ -579,6 +600,8 @@ export default function LandingPageEditor() {
                   })}
                 </div>
               </Card>
+
+              <PromotionsEditor value={page.promotions} onChange={(promotions) => update({ promotions })} />
 
               <Card className="space-y-3.5">
                 <SectionTitle>Order form</SectionTitle>

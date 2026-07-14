@@ -16,13 +16,38 @@ const str = (v, max = 500) => String(v ?? "").trim().slice(0, max);
 const num = (v, min = 0) => Math.max(min, Number(v) || 0);
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
 
+// Rebuild the page-wide promotions from scratch. Drops rules with no threshold
+// or no reward so a half-filled row can never accidentally trigger.
+function sanitizePromotions(p = {}) {
+  const fs = p.freeShipping || {};
+  const rules = (Array.isArray(p.discountRules) ? p.discountRules : [])
+    .map((r) => ({
+      basis: r.basis === "quantity" ? "quantity" : "amount",
+      threshold: Math.max(0, Math.round(num(r.threshold))),
+      rewardType: r.rewardType === "percent" ? "percent" : "amount",
+      value: num(r.value),
+      maxDiscount: num(r.maxDiscount),
+      label: str(r.label, 80),
+    }))
+    .filter((r) => r.threshold > 0 && r.value > 0);
+
+  return {
+    freeShipping: {
+      enabled: !!fs.enabled,
+      minSubtotal: Math.max(0, Math.round(num(fs.minSubtotal))),
+      minQuantity: Math.max(0, Math.round(num(fs.minQuantity))),
+    },
+    discountRules: rules,
+  };
+}
+
 // Normalize an incoming payload into the LandingPage schema shape. Every field
 // is rebuilt from scratch — nothing the client sends reaches the DB unchecked,
 // and `code` is handled by the callers (create generates it, update validates).
 export function sanitize(data = {}) {
   const offers = (Array.isArray(data.offers) ? data.offers : [])
     .map((o) => {
-      const kind = o.kind === "collection" ? "collection" : "fixed";
+      const kind = ["collection", "alacarte"].includes(o.kind) ? o.kind : "fixed";
       // Dedup + sort the price ladder by quantity so tierPriceFor's floor lookup
       // is well-defined; keep the last price entered for a duplicate quantity.
       const tierMap = new Map();
@@ -49,12 +74,14 @@ export function sanitize(data = {}) {
         pricingMode: PRICING_MODES.includes(o.pricingMode) ? o.pricingMode : "auto",
         priceValue: num(o.priceValue),
         tiers,
+        minQty: Math.max(0, Math.round(num(o.minQty))),
+        maxQty: Math.max(0, Math.round(num(o.maxQty))),
         compareAtPrice: num(o.compareAtPrice),
         isDefault: !!o.isDefault,
         isActive: o.isActive !== false,
       };
     })
-    // A fixed offer needs products; a collection needs both a pool AND a ladder.
+    // fixed/à la carte need products; a collection needs a pool AND a ladder.
     .filter((o) => o.label && o.items.length && (o.kind !== "collection" || o.tiers.length));
 
   // Exactly one default offer, so the page always has something pre-selected.
@@ -89,6 +116,7 @@ export function sanitize(data = {}) {
       outsideDhaka: num(sh.outsideDhaka ?? 130),
       askZone: sh.askZone !== false,
     },
+    promotions: sanitizePromotions(data.promotions),
     form: {
       title: str(f.title, 120) || "Order now — cash on delivery",
       subtitle: str(f.subtitle, 300),

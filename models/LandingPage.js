@@ -57,18 +57,21 @@ const offerSchema = new mongoose.Schema(
     badge: { type: String, default: "" }, // "Most popular", "Save 25%"
     image: { type: String, default: "" }, // optional override thumbnail
 
-    // Two shapes of offer:
+    // Three shapes of offer:
     //   fixed      → `items` is the exact set sold together; price via pricingMode.
     //   collection → `items` is a POOL the customer mixes & matches from; they
     //                pick any total quantity and pay `tiers[thatQuantity]`.
-    kind: { type: String, enum: ["fixed", "collection"], default: "fixed" },
+    //   alacarte   → `items` is a POOL the customer freely picks from, each at its
+    //                OWN price; the cart total is the sum (then pricingMode may
+    //                apply a flat discount, and page promotions on top).
+    kind: { type: String, enum: ["fixed", "collection", "alacarte"], default: "fixed" },
 
     items: { type: [offerItemSchema], default: [] },
 
-    // ── fixed pricing ────────────────────────────────────────────────────────
+    // ── fixed / à la carte pricing ───────────────────────────────────────────
     // How the offer's total is derived from the live variant prices ("regular"):
     //   auto    → regular total, no discount
-    //   fixed   → `priceValue` is the total for the whole offer
+    //   fixed   → `priceValue` is the total for the whole offer (fixed kind only)
     //   percent → regular total minus `priceValue`%
     //   amount  → regular total minus ৳`priceValue`
     pricingMode: { type: String, enum: ["auto", "fixed", "percent", "amount"], default: "auto" },
@@ -77,6 +80,10 @@ const offerSchema = new mongoose.Schema(
     // ── collection pricing ───────────────────────────────────────────────────
     // The manual quantity→price ladder. Sorted ascending by quantity when saved.
     tiers: { type: [tierSchema], default: [] },
+
+    // Optional order-quantity limits for collection / à la carte (0 = no limit).
+    minQty: { type: Number, default: 0, min: 0 },
+    maxQty: { type: Number, default: 0, min: 0 },
 
     // Strike-through price. 0 → fall back to the computed regular total.
     compareAtPrice: { type: Number, default: 0, min: 0 },
@@ -100,6 +107,36 @@ const shippingSchema = new mongoose.Schema(
     outsideDhaka: { type: Number, default: 130, min: 0 },
     // Show the inside/outside-Dhaka picker. Off → everyone billed insideDhaka.
     askZone: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
+
+// A single "spend/buy this much → get this off" rule. Applies to the whole page
+// (every offer). See lib/landing-promotions.js for evaluation. No field named
+// `type` — safe as an inline shape.
+const discountRuleSchema = new mongoose.Schema(
+  {
+    basis: { type: String, enum: ["amount", "quantity"], default: "amount" }, // threshold on ৳ or pieces
+    threshold: { type: Number, default: 0, min: 0 },
+    rewardType: { type: String, enum: ["amount", "percent"], default: "amount" },
+    value: { type: Number, default: 0, min: 0 }, // ৳ off, or % off
+    maxDiscount: { type: Number, default: 0, min: 0 }, // cap for percent (0 = uncapped)
+    label: { type: String, default: "" }, // optional customer-facing name
+  },
+  { _id: false }
+);
+
+// Page-wide promotions layered on top of whatever offer the customer chose.
+const promotionsSchema = new mongoose.Schema(
+  {
+    // Delivery becomes free once an amount OR quantity threshold is met.
+    freeShipping: {
+      enabled: { type: Boolean, default: false },
+      minSubtotal: { type: Number, default: 0, min: 0 }, // 0 = ignore this condition
+      minQuantity: { type: Number, default: 0, min: 0 }, // 0 = ignore this condition
+    },
+    // Spend-and-save ladder; the single best-for-customer matching rule applies.
+    discountRules: { type: [discountRuleSchema], default: [] },
   },
   { _id: false }
 );
@@ -152,6 +189,7 @@ const landingPageSchema = new mongoose.Schema(
     blocks: { type: [blockSchema], default: [] },
     offers: { type: [offerSchema], default: [] },
     shipping: { type: shippingSchema, default: () => ({}) },
+    promotions: { type: promotionsSchema, default: () => ({}) },
     form: { type: formSchema, default: () => ({}) },
 
     isActive: { type: Boolean, default: false }, // start as a draft

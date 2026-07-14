@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import {
-  Package, Plus, Trash2, ChevronDown, ChevronRight, Star, Minus, Tag, Layers, Boxes,
+  Package, Plus, Trash2, ChevronDown, ChevronRight, Star, Minus, Tag, Layers, Boxes, ShoppingBag,
 } from "lucide-react";
 import {
   Card, Button, Field, TextInput, Select, Toggle, Pill, inputClass, EmptyState,
@@ -34,6 +34,8 @@ const blankOffer = () => ({
   pricingMode: "auto",
   priceValue: 0,
   tiers: [],
+  minQty: 0,
+  maxQty: 0,
   compareAtPrice: 0,
   isDefault: false,
   isActive: true,
@@ -166,6 +168,8 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
   const [open, setOpen] = useState(!offer.label);
   const [picking, setPicking] = useState(false);
   const isCollection = offer.kind === "collection";
+  const isAlacarte = offer.kind === "alacarte";
+  const isPool = isCollection || isAlacarte; // customer chooses quantity
 
   const regular = useMemo(() => regularTotal(offer, products), [offer, products]);
   const price = applyOfferPricing(offer, regular);
@@ -206,6 +210,14 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
                 {" · "}{(offer.items || []).length} in pool
                 {tierQtys.length > 0 && Number.isFinite(fromPrice) && (
                   <> · from <span className="font-semibold text-brand-brown">{formatPrice(fromPrice)}</span></>
+                )}
+              </>
+            ) : isAlacarte ? (
+              <>
+                <span className="inline-flex items-center gap-1 text-brand-brown/70"><ShoppingBag size={11} /> Pick any</span>
+                {" · "}{(offer.items || []).length} product{(offer.items || []).length === 1 ? "" : "s"}
+                {offer.pricingMode && offer.pricingMode !== "auto" && offer.priceValue > 0 && (
+                  <> · {offer.pricingMode === "percent" ? `${offer.priceValue}% off` : `৳${offer.priceValue} off`}</>
                 )}
               </>
             ) : (
@@ -253,10 +265,11 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
           {/* ── Offer kind ───────────────────────────────────────────── */}
           <div>
             <span className="block text-[12px] font-medium text-brand-brown mb-1.5">Offer type</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { k: "fixed", icon: Layers, title: "Fixed set", desc: "A preset product (or bundle) at one price." },
-                { k: "collection", icon: Boxes, title: "Collection", desc: "A pool the customer mixes & matches; price by quantity." },
+                { k: "fixed", icon: Layers, title: "Bundle", desc: "A preset product or set at one price." },
+                { k: "collection", icon: Boxes, title: "Collection", desc: "Mix & match; price by total quantity." },
+                { k: "alacarte", icon: ShoppingBag, title: "Pick any", desc: "Choose any items, each at its own price." },
               ].map(({ k, icon: Icon, title, desc }) => {
                 const active = (offer.kind || "fixed") === k;
                 return (
@@ -282,7 +295,7 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-medium text-brand-brown">
-                {isCollection ? "Products in the pool" : "Products in this offer"}
+                {isPool ? "Products in the pool" : "Products in this offer"}
               </span>
               <Button type="button" variant="outline" size="sm" onClick={() => setPicking((v) => !v)}>
                 <Plus size={13} /> {picking ? "Done adding" : "Add products"}
@@ -295,6 +308,8 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
                 <p className="text-[12px] text-brand-tan">
                   {isCollection
                     ? "Add the products the customer can mix & match between."
+                    : isAlacarte
+                    ? "Add the products the customer can freely pick from."
                     : "Add one product to sell it alone, or several to sell a bundle."}
                 </p>
               </div>
@@ -305,7 +320,7 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
                     key={`${line.product}-${i}`}
                     line={line}
                     product={products[line.product]}
-                    hideQuantity={isCollection}
+                    hideQuantity={isPool}
                     onChange={(next) => set({ items: offer.items.map((it, idx) => (idx === i ? next : it)) })}
                     onRemove={() => set({ items: offer.items.filter((_, idx) => idx !== i) })}
                   />
@@ -329,13 +344,45 @@ function OfferCard({ offer, products, categories, onChange, onRemove, onMakeDefa
           {/* ── Pricing ──────────────────────────────────────────────── */}
           <div className="rounded-lg bg-brand-cream/40 border border-brand-tan/15 p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan mb-3">
-              <Tag size={12} /> {isCollection ? "Quantity price ladder" : "Landing page price"}
+              <Tag size={12} /> {isCollection ? "Quantity price ladder" : isAlacarte ? "Cart pricing" : "Landing page price"}
             </div>
 
             {isCollection ? (
               <>
                 <TierLadder tiers={offer.tiers} onChange={(tiers) => set({ tiers })} />
                 <div className="grid gap-3 sm:grid-cols-2 mt-3 pt-3 border-t border-brand-tan/15">
+                  <Field label="Strike-through price (৳)" hint="Optional — shown crossed out.">
+                    <TextInput type="number" min="0" value={offer.compareAtPrice ?? 0} onChange={(e) => set({ compareAtPrice: Number(e.target.value) || 0 })} />
+                  </Field>
+                  <Field label="Offer thumbnail" hint="Defaults to the first product's photo.">
+                    <ImagePicker value={offer.image} onChange={(v) => set({ image: v })} />
+                  </Field>
+                </div>
+              </>
+            ) : isAlacarte ? (
+              <>
+                <p className="text-[11px] text-brand-tan mb-3">
+                  Each item is charged at its own price; the customer pays the sum. Optionally take a flat discount off the whole cart, and page-wide promotions still apply.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Flat cart discount">
+                    <Select value={offer.pricingMode === "fixed" ? "auto" : offer.pricingMode} onChange={(e) => set({ pricingMode: e.target.value })}>
+                      <option value="auto">No flat discount</option>
+                      <option value="percent">Percentage off the cart</option>
+                      <option value="amount">Amount off the cart (৳)</option>
+                    </Select>
+                  </Field>
+                  {offer.pricingMode !== "auto" && offer.pricingMode !== "fixed" && (
+                    <Field label={offer.pricingMode === "percent" ? "Percent off (%)" : "Amount off (৳)"}>
+                      <TextInput type="number" min="0" value={offer.priceValue ?? 0} onChange={(e) => set({ priceValue: Number(e.target.value) || 0 })} />
+                    </Field>
+                  )}
+                  <Field label="Minimum items" hint="0 = no minimum.">
+                    <TextInput type="number" min="0" value={offer.minQty ?? 0} onChange={(e) => set({ minQty: Math.max(0, Number(e.target.value) || 0) })} />
+                  </Field>
+                  <Field label="Maximum items" hint="0 = no limit.">
+                    <TextInput type="number" min="0" value={offer.maxQty ?? 0} onChange={(e) => set({ maxQty: Math.max(0, Number(e.target.value) || 0) })} />
+                  </Field>
                   <Field label="Strike-through price (৳)" hint="Optional — shown crossed out.">
                     <TextInput type="number" min="0" value={offer.compareAtPrice ?? 0} onChange={(e) => set({ compareAtPrice: Number(e.target.value) || 0 })} />
                   </Field>
