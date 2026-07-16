@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Check, Loader2, ShieldCheck, Truck, PartyPopper, Plus, Minus, Tag, Gift } from "lucide-react";
 import { shouldUnoptimizeImage, formatPrice, normalizeBdPhone } from "@/lib/utils";
 import { applyOfferPricing, tierPriceFor } from "@/lib/landing-pricing";
 import { applyPromotions, promotionHints } from "@/lib/landing-promotions";
+import { trackEvent } from "@/lib/tracking/client";
+import { offerContents, landingCustomData } from "@/lib/landing-tracking";
 
 // The order form block. Three offer shapes:
 //   fixed      → preset set; pick sizes.
@@ -110,13 +112,54 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
 
   const needsSize = !isPool && (offer?.items || []).some((line, i) => !line.pinnedSize && !sizes[i]);
 
-  const setPickSize = (productId, size) => setPicks((prev) => ({ ...prev, [productId]: { ...prev[productId], size } }));
-  const bump = (productId, delta) =>
+  // ── Funnel tracking ────────────────────────────────────────────────────────
+  // The page fires PageView + ViewContent (LandingTracking); the form owns the
+  // rest, because it's the only thing that knows what the customer chose.
+  // `preview` is the admin's live editor — never report that as traffic.
+  const cart = useMemo(() => offerContents(offer, { sizes, picks }), [offer, sizes, picks]);
+  const [engaged, setEngaged] = useState(false); // has the customer picked anything?
+  const icFired = useRef(false);
+  const lastAtc = useRef("");
+
+  const selectOffer = (key) => { setEngaged(true); setOfferKey(key); };
+  const chooseSize = (i, size) => { setEngaged(true); setSizes((prev) => ({ ...prev, [i]: size })); };
+  const setPickSize = (productId, size) => {
+    setEngaged(true);
+    setPicks((prev) => ({ ...prev, [productId]: { ...prev[productId], size } }));
+  };
+  const bump = (productId, delta) => {
+    setEngaged(true);
     setPicks((prev) => {
       const cur = prev[productId] || { size: "", qty: 0 };
       if (delta > 0 && offer.maxQty && totalQty >= offer.maxQty) return prev;
       return { ...prev, [productId]: { ...cur, qty: Math.max(0, (cur.qty || 0) + delta) } };
     });
+  };
+
+  // AddToCart once the selection settles. Picking a package, a size or a
+  // quantity is this funnel's equivalent of filling a cart — but only after a
+  // real interaction, since the default offer is preselected and ViewContent
+  // already covers arriving on the page. Debounced so tapping a stepper 1→5
+  // reports the cart the customer settled on, not five carts.
+  useEffect(() => {
+    if (preview || !engaged || !offer || !goods.priced || !cart.length) return;
+    const signature = `${offer.key}|${cart.map((c) => `${c.id}:${c.quantity}:${c.item_price}`).join(",")}`;
+    if (signature === lastAtc.current) return;
+    const timer = setTimeout(() => {
+      lastAtc.current = signature;
+      trackEvent("AddToCart", { customData: landingCustomData(offer, { value: goods.price, contents: cart }) });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [preview, engaged, offer, cart, goods.priced, goods.price]);
+
+  // InitiateCheckout the moment they start entering delivery details — on a
+  // one-page COD funnel that *is* the "started checkout" moment.
+  const setField = (field, value) => {
+    setValues((prev) => ({ ...prev, [field]: value }));
+    if (preview || icFired.current || !String(value).trim()) return;
+    icFired.current = true;
+    trackEvent("InitiateCheckout", { customData: landingCustomData(offer, { value: total, contents: cart }) });
+  };
 
   async function submit(e) {
     e.preventDefault();
@@ -151,6 +194,30 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not place the order.");
+
+      // Browser-side Purchase, sharing the deterministic `purchase_<orderId>`
+      // the server already fired with — Meta keeps exactly one of the pair. The
+      // form itself is the best advanced-matching source we'll ever have, so
+      // send it: hashing happens server-side in /api/events, never here.
+      if (!preview) {
+        const [firstName, ...rest] = values.name.trim().split(/\s+/);
+        await trackEvent("Purchase", {
+          eventId: `purchase_${data.orderId}`,
+          customData: {
+            ...landingCustomData(offer, { value: data.totalAmount, contents: cart }),
+            order_id: data.orderNumber,
+          },
+          userData: {
+            email: values.email || undefined,
+            phone: normalizeBdPhone(values.phone),
+            firstName,
+            lastName: rest.join(" ") || undefined,
+            city: values.city,
+            country: "BD",
+          },
+        });
+      }
+
       if (data.redirectUrl) { window.location.href = data.redirectUrl; return; }
       setDone(data);
       window.scrollTo({ top: document.getElementById("order")?.offsetTop ?? 0, behavior: "smooth" });
@@ -209,7 +276,7 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
                   const fromPrice = o.kind === "collection" || o.kind === "alacarte";
                   return (
                     <button
-                      type="button" key={o.key} onClick={() => setOfferKey(o.key)}
+                      type="button" key={o.key} onClick={() => selectOffer(o.key)}
                       className="relative flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-colors"
                       style={{ borderColor: active ? "var(--lp-accent)" : "rgba(0,0,0,0.08)", background: active ? "color-mix(in srgb, var(--lp-accent) 6%, white)" : "white" }}
                     >
@@ -266,7 +333,7 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
                           const active = sizes[i] === s.size;
                           return (
                             <button
-                              type="button" key={s.size} onClick={() => setSizes((prev) => ({ ...prev, [i]: s.size }))}
+                              type="button" key={s.size} onClick={() => chooseSize(i, s.size)}
                               className="min-w-[38px] px-2.5 py-1 rounded-lg border text-[12px] font-medium transition-colors"
                               style={{ borderColor: active ? "var(--lp-accent)" : "rgba(0,0,0,0.12)", background: active ? "var(--lp-accent)" : "white", color: active ? "#fff" : "inherit" }}
                             >
@@ -287,30 +354,30 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass} htmlFor="lp-name">Full name *</label>
-                <input id="lp-name" className={fieldClass} autoComplete="name" required value={values.name} onChange={(e) => setValues({ ...values, name: e.target.value })} />
+                <input id="lp-name" className={fieldClass} autoComplete="name" required value={values.name} onChange={(e) => setField("name", e.target.value)} />
               </div>
               <div>
                 <label className={labelClass} htmlFor="lp-phone">Mobile number *</label>
-                <input id="lp-phone" className={fieldClass} inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" required value={values.phone} onChange={(e) => setValues({ ...values, phone: e.target.value })} />
+                <input id="lp-phone" className={fieldClass} inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" required value={values.phone} onChange={(e) => setField("phone", e.target.value)} />
               </div>
             </div>
 
             {form.askEmail && (
               <div>
                 <label className={labelClass} htmlFor="lp-email">Email (optional)</label>
-                <input id="lp-email" type="email" className={fieldClass} autoComplete="email" value={values.email} onChange={(e) => setValues({ ...values, email: e.target.value })} />
+                <input id="lp-email" type="email" className={fieldClass} autoComplete="email" value={values.email} onChange={(e) => setField("email", e.target.value)} />
               </div>
             )}
 
             <div>
               <label className={labelClass} htmlFor="lp-street">Full delivery address *</label>
-              <textarea id="lp-street" rows={2} className={`${fieldClass} resize-none`} autoComplete="street-address" required placeholder="House, road, area" value={values.street} onChange={(e) => setValues({ ...values, street: e.target.value })} />
+              <textarea id="lp-street" rows={2} className={`${fieldClass} resize-none`} autoComplete="street-address" required placeholder="House, road, area" value={values.street} onChange={(e) => setField("street", e.target.value)} />
             </div>
 
             <div className={shipping?.askZone ? "grid gap-4 sm:grid-cols-2" : ""}>
               <div>
                 <label className={labelClass} htmlFor="lp-city">City / District *</label>
-                <input id="lp-city" className={fieldClass} autoComplete="address-level2" required value={values.city} onChange={(e) => setValues({ ...values, city: e.target.value })} />
+                <input id="lp-city" className={fieldClass} autoComplete="address-level2" required value={values.city} onChange={(e) => setField("city", e.target.value)} />
               </div>
               {shipping?.askZone && (
                 <div>
@@ -337,7 +404,7 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
             {form.askNote && (
               <div>
                 <label className={labelClass} htmlFor="lp-note">{form.noteLabel}</label>
-                <textarea id="lp-note" rows={2} className={`${fieldClass} resize-none`} value={values.note} onChange={(e) => setValues({ ...values, note: e.target.value })} />
+                <textarea id="lp-note" rows={2} className={`${fieldClass} resize-none`} value={values.note} onChange={(e) => setField("note", e.target.value)} />
               </div>
             )}
           </div>

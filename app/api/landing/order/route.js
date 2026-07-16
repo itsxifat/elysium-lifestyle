@@ -186,8 +186,23 @@ export async function POST(request) {
     // "processing" per the thresholds in Settings.
     runFraudCheckForOrder(order._id, phone).catch(() => {});
 
-    // Server-side Purchase signal with the real customer IP/UA.
-    trackPurchaseFromOrder(order, { request }).catch(() => {});
+    // Server-side Purchase: the unblockable half of the pair. It reuses the
+    // deterministic `purchase_<orderId>` id the browser also fires with, so Meta
+    // keeps one of the two.
+    //
+    // The Meta browser ids ride along in first-party cookies — lib/tracking/client
+    // writes _fbp/_fbc itself so they exist even when the pixel is blocked, which
+    // on ad traffic is common. Without _fbc this event would reach CAPI with no
+    // click id at all: the campaign that paid for the order couldn't be credited.
+    trackPurchaseFromOrder(order, {
+      request,
+      // Same-origin fetch, so the referer is the real /lp URL with its fbclid/utm.
+      eventSourceUrl: request.headers.get("referer") || "",
+      userData: {
+        fbp: request.cookies.get("_fbp")?.value || undefined,
+        fbc: request.cookies.get("_fbc")?.value || undefined,
+      },
+    }).catch(() => {});
 
     return NextResponse.json(
       { orderId: order._id.toString(), orderNumber, totalAmount, redirectUrl: page.form?.redirectUrl || "" },

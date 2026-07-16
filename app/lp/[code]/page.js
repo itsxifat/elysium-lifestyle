@@ -9,6 +9,7 @@ import { publicOffers, publicShipping } from "@/lib/landing";
 import { isStaff } from "@/lib/permissions";
 import { serializeDoc } from "@/lib/utils";
 import LandingPageView from "@/components/landing/LandingPageView";
+import LandingTracking from "@/components/landing/LandingTracking";
 
 // A landing page lives OUTSIDE the (store) layout on purpose: no navbar, no
 // footer, no cart — nothing to click but the order form. That's the whole point
@@ -57,6 +58,7 @@ export default async function PublicLandingPage({ params }) {
   if (!data) notFound();
 
   const { page, offers, shipping } = data;
+  const safeOffers = serializeDoc(offers);
 
   // Campaign view counter. Fire-and-forget: never let it delay or fail the page.
   LandingPage.updateOne({ _id: page._id }, { $inc: { views: 1 } }).catch(() => {});
@@ -68,7 +70,9 @@ export default async function PublicLandingPage({ params }) {
           Draft preview — this page is not published. Only staff can see it.
         </div>
       )}
-      <LandingPageView page={serializeDoc(page)} offers={serializeDoc(offers)} shipping={shipping} />
+      {/* Published pages only — a staff draft preview must not report as traffic. */}
+      {page.isActive && <LandingTracking page={{ code: page.code, name: page.name }} offers={safeOffers} />}
+      <LandingPageView page={serializeDoc(page)} offers={safeOffers} shipping={shipping} />
     </>
   );
 }
