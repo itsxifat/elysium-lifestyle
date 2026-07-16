@@ -136,6 +136,19 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
     });
   };
 
+  // Tapping the product row picks it. The + icon used to be the only way in —
+  // a 28px target on a phone, for the one action the whole page exists for.
+  // The stepper still tunes the quantity; tapping a picked row clears it.
+  const toggle = (productId) => {
+    setEngaged(true);
+    setPicks((prev) => {
+      const cur = prev[productId] || { size: "", qty: 0 };
+      if (cur.qty > 0) return { ...prev, [productId]: { ...cur, qty: 0 } };
+      if (offer.maxQty && totalQty >= offer.maxQty) return prev; // respect the cap
+      return { ...prev, [productId]: { ...cur, qty: 1 } };
+    });
+  };
+
   // AddToCart once the selection settles. Picking a package, a size or a
   // quantity is this funnel's equivalent of filling a cart — but only after a
   // real interaction, since the default offer is preselected and ViewContent
@@ -273,7 +286,13 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {offers.map((o) => {
                   const active = o.key === offer.key;
-                  const fromPrice = o.kind === "collection" || o.kind === "alacarte";
+                  // Only a fixed offer has one price to name. A pool offer's total
+                  // depends on what the customer picks, and the "from ৳X" this card
+                  // used to show was worse than vague: it quoted one item with the
+                  // whole cart's discount already taken off, so a 3-piece combo could
+                  // advertise less than a 2-piece. The real price is right below —
+                  // the tier ladder, the per-item prices, and the running total.
+                  const exactPrice = o.kind !== "collection" && o.kind !== "alacarte";
                   return (
                     <button
                       type="button" key={o.key} onClick={() => selectOffer(o.key)}
@@ -288,13 +307,14 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-semibold text-[color:var(--lp-text)] truncate">{o.label}</p>
                         {o.description && <p className="text-[11px] text-[color:var(--lp-text)]/55 truncate">{o.description}</p>}
-                        <p className="text-[13px] font-bold mt-0.5" style={{ color: "var(--lp-accent)" }}>
-                          {fromPrice && <span className="font-normal text-[color:var(--lp-text)]/50">from </span>}
-                          {formatPrice(o.price)}
-                          {!fromPrice && o.savings > 0 && (
-                            <span className="ml-1.5 text-[11px] font-normal text-[color:var(--lp-text)]/40 line-through">{formatPrice(o.compareAtPrice)}</span>
-                          )}
-                        </p>
+                        {exactPrice && (
+                          <p className="text-[13px] font-bold mt-0.5" style={{ color: "var(--lp-accent)" }}>
+                            {formatPrice(o.price)}
+                            {o.savings > 0 && (
+                              <span className="ml-1.5 text-[11px] font-normal text-[color:var(--lp-text)]/40 line-through">{formatPrice(o.compareAtPrice)}</span>
+                            )}
+                          </p>
+                        )}
                       </div>
                       {o.badge && (
                         <span className="absolute -top-2 right-3 text-[9px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--lp-accent)" }}>{o.badge}</span>
@@ -313,7 +333,7 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
 
           {/* Item selection */}
           {isPool ? (
-            <PoolPicker offer={offer} picks={picks} totalQty={totalQty} isCollection={isCollection} onSize={setPickSize} onBump={bump} />
+            <PoolPicker offer={offer} picks={picks} totalQty={totalQty} isCollection={isCollection} onSize={setPickSize} onBump={bump} onToggle={toggle} />
           ) : (
             <div className="p-5 sm:p-6 border-b border-black/[0.06] space-y-4">
               {(offer.items || []).map((line, i) => (
@@ -487,7 +507,13 @@ export default function LandingOrderForm({ code, offers = [], form = {}, shippin
 
 // Pool picker for collection + à la carte: a size selector + quantity stepper per
 // product. Collection shows the price ladder; à la carte shows each unit price.
-function PoolPicker({ offer, picks, totalQty, isCollection, onSize, onBump }) {
+//
+// The whole row is the pick target, styled like the package cards above it so a
+// picked product reads the same way a picked package does. The size chips and
+// the stepper are real controls sitting inside that target, so each swallows its
+// own click rather than toggling the row out from under the customer. They also
+// remain the keyboard path — the row click is a pointer convenience on top.
+function PoolPicker({ offer, picks, totalQty, isCollection, onSize, onBump, onToggle }) {
   const atMax = offer.maxQty && totalQty >= offer.maxQty;
   const activeTierQty = isCollection ? [...(offer.tiers || [])].reverse().find((t) => t.quantity <= totalQty)?.quantity ?? 0 : 0;
   const rangeLabel = offer.minQty === offer.maxQty && offer.maxQty ? `${offer.maxQty}` : `${offer.minQty || 1}${offer.maxQty ? `–${offer.maxQty}` : "+"}`;
@@ -518,8 +544,17 @@ function PoolPicker({ offer, picks, totalQty, isCollection, onSize, onBump }) {
       <div className="p-5 sm:p-6 space-y-3">
         {(offer.pool || []).map((p) => {
           const pk = picks[p.productId] || { size: "", qty: 0 };
+          const picked = pk.qty > 0;
           return (
-            <div key={p.productId} className="flex items-center gap-3">
+            <div
+              key={p.productId}
+              onClick={() => onToggle(p.productId)}
+              className="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer select-none transition-colors"
+              style={{
+                borderColor: picked ? "var(--lp-accent)" : "rgba(0,0,0,0.08)",
+                background: picked ? "color-mix(in srgb, var(--lp-accent) 6%, white)" : "white",
+              }}
+            >
               <div className="relative w-12 h-14 rounded-lg overflow-hidden bg-black/5 flex-shrink-0">
                 {p.image && <Image src={p.image} alt="" fill className="object-cover" sizes="48px" unoptimized={shouldUnoptimizeImage(p.image)} />}
               </div>
@@ -531,7 +566,7 @@ function PoolPicker({ offer, picks, totalQty, isCollection, onSize, onBump }) {
                 {p.pinnedSize ? (
                   <p className="text-[11px] text-[color:var(--lp-text)]/50 mt-0.5">Size {p.pinnedSize}</p>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <div className="flex flex-wrap gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
                     {p.sizes.map((s) => {
                       const active = pk.size === s.size;
                       return (
@@ -547,7 +582,8 @@ function PoolPicker({ offer, picks, totalQty, isCollection, onSize, onBump }) {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              {/* Covers the buttons, the count and the gaps between them. */}
+              <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button type="button" onClick={() => onBump(p.productId, -1)} disabled={!pk.qty} className="w-7 h-7 rounded-full border border-black/15 flex items-center justify-center text-[color:var(--lp-text)]/70 disabled:opacity-30">
                   <Minus size={13} />
                 </button>
