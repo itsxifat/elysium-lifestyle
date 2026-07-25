@@ -9,6 +9,7 @@ import { runFraudCheckForOrder } from "@/lib/fraud";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
+import { findOrCreateCustomer } from "@/lib/customer-link";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 const PAYMENT_METHODS = ["cod", "bkash", "nagad", "bank", "cash"];
@@ -90,8 +91,24 @@ export async function POST(request) {
     const totalAmount = Math.max(0, subtotal + shippingFee - discount);
     const paymentStatus = data.markPaid ? "paid" : "pending";
 
+    // Attach the sale to a customer record (matched on phone/email, guest stub
+    // on a miss) so walk-in and social-channel buyers build the same history as
+    // storefront ones. Never blocks the sale — see /api/orders for the rationale.
+    let customerId = null;
+    try {
+      const { user } = await findOrCreateCustomer({
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        source,
+      });
+      customerId = user._id;
+    } catch (e) {
+      console.error("customer link error:", e.message);
+    }
+
     const order = await Order.create({
-      user: null,
+      user: customerId,
       guestEmail: c.email?.trim() || undefined,
       items: orderItems,
       shippingAddress: {

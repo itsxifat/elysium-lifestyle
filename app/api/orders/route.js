@@ -8,6 +8,7 @@ import Settings from "@/models/Settings";
 import "@/models/User"; // ensure User schema is registered for .populate("user")
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { escapeRegExp, normalizeBdPhone } from "@/lib/utils";
+import { findOrCreateCustomer } from "@/lib/customer-link";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
@@ -160,12 +161,33 @@ export async function POST(request) {
 
     const totalAmount = Math.max(0, subtotal + shippingFee - discount);
 
+    // ── Who is this? ─────────────────────────────────────────────────────────
+    // A signed-in shopper is themselves. A guest checkout is matched on
+    // phone/email and, on a miss, gets a guest stub — so EVERY storefront order
+    // shows up in the customer list and is claimed automatically if the person
+    // later registers. Never let this block the sale: on failure the order is
+    // still created, just unattached (the backfill script can repair it).
+    let customerId = session?.user?.id || null;
+    if (!customerId) {
+      try {
+        const { user } = await findOrCreateCustomer({
+          name: data.shippingAddress?.name,
+          phone: data.shippingAddress?.phone,
+          email: data.guestEmail || data.shippingAddress?.email,
+          source: "website",
+        });
+        customerId = user._id;
+      } catch (e) {
+        console.error("customer link error:", e.message);
+      }
+    }
+
     const count = await Order.countDocuments();
     const orderNumber = `ELY-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 
     const order = await Order.create({
       orderNumber,
-      user: session?.user?.id || null,
+      user: customerId,
       guestEmail: !session ? data.guestEmail : undefined,
       items: orderItems,
       shippingAddress: data.shippingAddress,

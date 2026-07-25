@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
     const session = await getServerSession(authOptions);
 
     const order = await Order.findById(params.id)
-      .populate("user", "name email")
+      .populate("user", "name email isGuest")
       .populate("items.product", "variants")
       .lean();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -36,9 +36,16 @@ export async function GET(request, { params }) {
 
     const isAdmin = isStaff(session?.user?.role);
     const isOwner = session?.user?.id && order.user?._id?.toString() === session.user.id;
-    const isGuest = !order.user;
+    // Guest checkouts are now attached to a GUEST STUB rather than left
+    // unattached, so "has a user" no longer means "has an owner who can sign
+    // in". A stub has no password and can never authenticate, so the order id
+    // stays the only key to the order — exactly as before the stubs existed.
+    // Miss this and every guest's order-confirmation page 403s.
+    const isGuestOrder = !order.user || order.user.isGuest === true;
 
-    if (!isAdmin && !isOwner && !isGuest) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    if (!isAdmin && !isOwner && !isGuestOrder) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    if (order.user) delete order.user.isGuest; // internal flag, not for the client
 
     // Campaign attribution and the staff audit trail are internal. A customer
     // must see a landing-page order as a perfectly ordinary order.

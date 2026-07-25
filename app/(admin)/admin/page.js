@@ -5,13 +5,19 @@ import Order from "@/models/Order";
 import Product from "@/models/Product";
 import User from "@/models/User";
 import { serializeDoc, formatPrice } from "@/lib/utils";
-import { TrendingUp, Package, ShoppingCart, Users, ArrowRight, Clock } from "lucide-react";
+import { TrendingUp, Package, ShoppingCart, Users, ArrowRight, Clock, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader, Card, StatCard, TableWrap, Pill, EmptyState } from "@/components/admin/ui";
+import { resolveRange } from "@/lib/order-date-range";
+import { getTotals } from "@/lib/analytics";
 
 async function getDashboardData() {
   await connectDB();
-  const [revenueResult, totalOrders, totalProducts, totalCustomers, recentOrders, pendingOrders] =
+  // Store-local (Asia/Dhaka) windows, so "today" is the shop's day.
+  const today = resolveRange({ range: "today" });
+  const month = resolveRange({ range: "this_month" });
+
+  const [revenueResult, totalOrders, totalProducts, totalCustomers, recentOrders, pendingOrders, todayTotals, monthTotals] =
     await Promise.all([
       Order.aggregate([{ $match: { paymentStatus: "paid" } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
       Order.countDocuments(),
@@ -19,12 +25,16 @@ async function getDashboardData() {
       User.countDocuments({ role: "customer" }),
       Order.find().sort({ createdAt: -1 }).limit(7).populate("user", "name email").lean(),
       Order.countDocuments({ orderStatus: "pending" }),
+      getTotals(today.start, today.end),
+      getTotals(month.start, month.end),
     ]);
   return {
     totalRevenue: revenueResult[0]?.total || 0,
     totalOrders, totalProducts, totalCustomers,
     recentOrders: serializeDoc(recentOrders),
     pendingOrders,
+    todayTotals,
+    monthTotals,
   };
 }
 
@@ -34,7 +44,7 @@ const STATUS_TONE = {
 const PAYMENT_TONE = { paid: "green", failed: "red", pending: "amber" };
 
 export default async function AdminDashboard() {
-  const { totalRevenue, totalOrders, totalProducts, totalCustomers, recentOrders, pendingOrders } =
+  const { totalRevenue, totalOrders, totalProducts, totalCustomers, recentOrders, pendingOrders, todayTotals, monthTotals } =
     await getDashboardData();
 
   const stats = [
@@ -44,15 +54,53 @@ export default async function AdminDashboard() {
     { label: "Customers", value: totalCustomers.toLocaleString(), icon: Users, hint: "Registered" },
   ];
 
+  // Today / this month at a glance — the full breakdown lives in Analytics.
+  const periods = [
+    { label: "Today", t: todayTotals },
+    { label: "This month", t: monthTotals },
+  ];
+
   return (
     <div>
       <PageHeader title="Dashboard" subtitle="Overview of your store's performance" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
         {stats.map((s) => (
           <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} hint={s.hint} />
         ))}
       </div>
+
+      <Card padded={false} className="mb-6">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-brand-tan/12">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={14} className="text-brand-tan" />
+            <h2 className="text-[13px] font-semibold text-brand-brown">Sales snapshot</h2>
+          </div>
+          <Link href="/admin/analytics" className="flex items-center gap-1 text-[11px] text-brand-terracotta hover:text-brand-terracotta-dark font-medium transition-colors">
+            Full analytics <ArrowRight size={12} />
+          </Link>
+        </div>
+        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-brand-tan/12">
+          {periods.map(({ label, t }) => (
+            <div key={label} className="p-4 sm:p-5">
+              <p className="text-[10px] uppercase tracking-widest text-brand-tan mb-3">{label}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { k: "Net sales", v: formatPrice(t.netSales) },
+                  { k: "Orders", v: t.orders.toLocaleString() },
+                  { k: "Delivered", v: formatPrice(t.collected) },
+                  { k: "Avg order", v: formatPrice(t.aov) },
+                ].map((cell) => (
+                  <div key={cell.k} className="min-w-0">
+                    <p className="text-[10px] text-brand-tan truncate">{cell.k}</p>
+                    <p className="text-[15px] font-bold text-brand-brown tabular-nums truncate">{cell.v}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card padded={false}>
         <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-brand-tan/12">
