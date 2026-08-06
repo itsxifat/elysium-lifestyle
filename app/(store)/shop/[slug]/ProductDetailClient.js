@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ChevronRight, ChevronDown, X,
-  Truck, RotateCcw, ShieldCheck, MessageCircle,
+  MessageCircle,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import ImageGallery from "@/components/product/ImageGallery";
@@ -226,26 +226,6 @@ export default function ProductDetailClient({ product, related = [], categoryPat
               <MessageCircle size={13} strokeWidth={1.5} />
               Enquire on WhatsApp
             </a>
-
-            {/* Trust strip */}
-            <div className="grid grid-cols-3 border border-brand-tan/15">
-              {[
-                { Icon: Truck,        title: "Free shipping", sub: "Over Tk 1500"   },
-                { Icon: RotateCcw,    title: "7-day returns", sub: "Easy returns"  },
-                { Icon: ShieldCheck,  title: "COD available", sub: "Pay on arrival" },
-              ].map(({ Icon, title, sub }) => (
-                <div
-                  key={title}
-                  className="flex flex-col items-center text-center px-2 py-4 border-r border-brand-tan/15 last:border-r-0 gap-1.5"
-                >
-                  <Icon size={15} strokeWidth={1.5} className="text-brand-tan" />
-                  <p className="text-[9px] font-semibold uppercase tracking-[1.5px] text-brand-brown leading-tight">
-                    {title}
-                  </p>
-                  <p className="text-[9px] text-brand-tan/70">{sub}</p>
-                </div>
-              ))}
-            </div>
 
             {/* Accordion details */}
             <div className="border-b border-brand-tan/15">
