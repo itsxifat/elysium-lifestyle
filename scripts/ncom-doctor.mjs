@@ -162,7 +162,21 @@ if (!conn.ok) {
     for (const w of hooks) {
       row("endpoint", `${w.url} ${w.isActive === false ? "\x1b[31m(paused)\x1b[0m" : "\x1b[32m(active)\x1b[0m"}`);
       row("  topics", (w.topics || []).join(", ") || "none");
-      row("  deliveries", `${w.deliveries ?? "?"}${w.lastSuccessAt ? `, last ok ${w.lastSuccessAt}` : ""}${w.lastFailureAt ? `, last fail ${w.lastFailureAt}` : ""}`);
+      // `deliveries` is a breakdown, not a count — printing it raw gave
+      // "[object Object]", which is worse than useless on a health check.
+      const d = w.deliveries || {};
+      const counts =
+        typeof w.deliveries === "object"
+          ? `${d.succeeded ?? 0} ok / ${d.failed ?? 0} failed / ${d.pending ?? 0} pending`
+          : `${w.deliveries ?? "?"}`;
+      row("  deliveries", `${counts}${w.lastSuccessAt ? `, last ok ${w.lastSuccessAt}` : ""}${w.lastFailureAt ? `, last fail ${w.lastFailureAt}` : ""}`);
+      if (d.pending) {
+        flag(
+          `${d.pending} webhook delivery(ies) are queued but never retried — ncom only retries when ` +
+          `something calls its /api/cron/webhook-retries route, and nothing does. Clear the backlog ` +
+          `before wiring that cron up, or stale stock values will be replayed over correct ones.`
+        );
+      }
     }
   }
 }
