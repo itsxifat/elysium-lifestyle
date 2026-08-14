@@ -4,7 +4,7 @@ export const maxDuration = 300; // a full catalogue import can take a while
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { requireAdmin } from "@/lib/auth";
-import { backfillSkus, migrateCatalogue, reconcileStock } from "@/lib/ncom-sync";
+import { backfillSkus, migrateCatalogue, reconcileStock, auditImages } from "@/lib/ncom-sync";
 
 // Runs one of the three operations and returns its log verbatim, so the panel
 // shows exactly what the CLI would print.
@@ -30,6 +30,11 @@ export async function POST(request) {
 
       case "reconcile":
         return NextResponse.json(await reconcileStock({ dryRun }));
+
+      // Read-only: fetches image URLs and reports what breaks. Never writes,
+      // so the dry-run flag doesn't apply.
+      case "audit-images":
+        return NextResponse.json(await auditImages());
 
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });

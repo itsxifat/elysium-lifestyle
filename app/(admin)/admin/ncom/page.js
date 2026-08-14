@@ -51,29 +51,58 @@ function relativeTime(value) {
 }
 
 // Console-style output, coloured by level — the same lines the CLI prints.
+// A failed catalogue push can run to hundreds of lines, so this stays tall,
+// counts what it is showing, filters to problems, and can be copied out whole.
 function LogPanel({ title, lines, onClear }) {
+  const [onlyProblems, setOnlyProblems] = useState(false);
+  const [copied, setCopied] = useState(false);
   if (!lines?.length) return null;
+
   const tone = {
     error: "text-red-300",
     warn: "text-amber-300",
     success: "text-emerald-300",
     info: "text-brand-cream/80",
   };
+
+  const problems = lines.filter((l) => l.level === "error" || l.level === "warn");
+  const shown = onlyProblems ? problems : lines;
+
+  const copyAll = () => {
+    navigator.clipboard?.writeText(lines.map((l) => l.text).join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div className="rounded-lg border border-brand-brown/20 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 bg-brand-brown px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-brand-brown px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-brand-cream/90 flex items-center gap-1.5">
           <Terminal size={12} /> {title}
+          <span className="font-normal normal-case tracking-normal text-brand-cream/50">
+            {shown.length} of {lines.length} lines
+            {problems.length > 0 && ` · ${problems.length} need attention`}
+          </span>
         </span>
-        <button
-          onClick={onClear}
-          className="text-[11px] text-brand-cream/60 hover:text-brand-cream transition-colors"
-        >
-          Clear
-        </button>
+        <div className="flex items-center gap-3">
+          {problems.length > 0 && (
+            <button
+              onClick={() => setOnlyProblems((v) => !v)}
+              className="text-[11px] text-brand-cream/60 hover:text-brand-cream transition-colors"
+            >
+              {onlyProblems ? "Show all" : "Only problems"}
+            </button>
+          )}
+          <button onClick={copyAll} className="text-[11px] text-brand-cream/60 hover:text-brand-cream transition-colors">
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <button onClick={onClear} className="text-[11px] text-brand-cream/60 hover:text-brand-cream transition-colors">
+            Clear
+          </button>
+        </div>
       </div>
-      <pre className="bg-[#2b211c] text-[11.5px] leading-relaxed p-3 max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono">
-        {lines.map((l, i) => (
+      <pre className="bg-[#2b211c] text-[11.5px] leading-relaxed p-3 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words font-mono">
+        {shown.map((l, i) => (
           <div key={i} className={tone[l.level] || tone.info}>{l.text}</div>
         ))}
       </pre>
@@ -580,10 +609,32 @@ export default function NcomPage() {
 
       {/* ── Operations ────────────────────────────────────────────────── */}
       <Card className="mt-5 space-y-4">
-        <div>
-          <SectionTitle className="flex items-center gap-2"><RefreshCw size={13} /> Operations</SectionTitle>
-          <p className="text-[12px] text-brand-tan mt-1">
-            Run these in order the first time. Everything previews before it writes.
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <SectionTitle className="flex items-center gap-2"><RefreshCw size={13} /> Operations</SectionTitle>
+            <p className="text-[12px] text-brand-tan mt-1">
+              Run these in order the first time. Everything previews before it writes.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => run("audit-images", true)}
+            title="Downloads every product image the way ncom would, and lists any that fail"
+          >
+            <ImageIcon size={14} />
+            {busy === "audit-images:dry" ? "Checking images…" : "Check images"}
+          </Button>
+        </div>
+
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
+          <AlertTriangle size={13} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[11.5px] text-amber-900 leading-snug">
+            A product with even one image ncom cannot download is rejected <b>entirely</b> — not
+            imported without the picture. Run <b>Check images</b> first to find those, or push anyway:
+            blocked products are automatically re-sent without artwork so you never lose the product,
+            and the log names each one to fix.
           </p>
         </div>
 
