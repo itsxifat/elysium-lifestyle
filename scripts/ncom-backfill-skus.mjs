@@ -14,9 +14,11 @@
 // The same thing with a button: /admin/ncom
 //
 import { connect, finish } from "./_ncom-cli.mjs";
-import { backfillSkus } from "../lib/ncom-sync.js";
 
 await connect();
+
+// Dynamic: env must be loaded before lib/cdn.js evaluates. See _ncom-cli.mjs.
+const { backfillSkus } = await import("../lib/ncom-sync.js");
 
 const dryRun = !process.argv.includes("--live");
 const enableScheme = process.argv.includes("--enable-scheme");

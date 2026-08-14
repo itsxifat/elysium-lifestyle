@@ -16,9 +16,12 @@
 // The same thing with a button: /admin/ncom
 //
 import { connect, finish } from "./_ncom-cli.mjs";
-import { migrateCatalogue } from "../lib/ncom-sync.js";
 
 await connect();
+
+// Dynamic: env must be loaded before lib/cdn.js evaluates, or every image is
+// dropped unsigned. See _ncom-cli.mjs.
+const { migrateCatalogue } = await import("../lib/ncom-sync.js");
 
 const dryRun = !process.argv.includes("--live");
 

@@ -3,6 +3,14 @@
 // Everything these scripts do is also available at /admin/ncom, which needs no
 // shell access and no env plumbing — prefer that. These remain for cron
 // (the nightly reconcile) and for a headless first run.
+//
+// IMPORTANT — why the scripts `await import()` the sync module instead of
+// importing it at the top: ESM evaluates every static import before any
+// top-level await, and lib/cdn.js captures CDN_API_SECRET at module scope. A
+// plain `import` therefore runs it before loadEnv() has populated process.env,
+// leaving the secret undefined and every product image silently unsigned and
+// dropped. Loading env first, then importing dynamically, is what makes the
+// CLI behave the same as the app.
 
 import mongoose from "mongoose";
 import fs from "node:fs";

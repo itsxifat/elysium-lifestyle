@@ -11,9 +11,11 @@
 // DRY RUN BY DEFAULT — pass --live to write.
 //
 import { connect, finish } from "./_ncom-cli.mjs";
-import { reconcileStock } from "../lib/ncom-sync.js";
 
 await connect();
+
+// Dynamic: env must be loaded before lib/cdn.js evaluates. See _ncom-cli.mjs.
+const { reconcileStock } = await import("../lib/ncom-sync.js");
 
 const dryRun = !process.argv.includes("--live");
 
