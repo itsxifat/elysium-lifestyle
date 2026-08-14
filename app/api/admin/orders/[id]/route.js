@@ -8,6 +8,7 @@ import { requirePin } from "@/lib/pin";
 import { isElevated } from "@/lib/permissions";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
+import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 
 const PAYMENT_METHODS = ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"];
 const SOURCES = ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -74,6 +75,9 @@ export async function PATCH(request, { params }) {
         }, {});
       const oldQty = tally(order.items);
       const newQty = tally(newItems);
+      // Each entry carries its own signed movement, so it is passed through
+      // with sign 1 rather than negated a second time.
+      const ncomLines = [];
       for (const k of new Set([...Object.keys(oldQty), ...Object.keys(newQty)])) {
         const delta = (newQty[k] || 0) - (oldQty[k] || 0);
         if (delta === 0) continue;
@@ -82,6 +86,14 @@ export async function PATCH(request, { params }) {
           { _id: productId, "variants.size": size },
           { $inc: { "variants.$.stock": -delta } }
         );
+        ncomLines.push({ product: productId, size, quantity: -delta });
+      }
+
+      // Mirror the net edit to ncom.bd (fire-and-forget).
+      if (ncomLines.length) {
+        stockLinesForOrderItems(Product, ncomLines, 1)
+          .then((l) => reportStockDelta(l, { reason: "MANUAL", note: `Order ${order.orderNumber} edited` }))
+          .catch(() => {});
       }
 
       const oldCount = order.items.reduce((s, i) => s + i.quantity, 0);

@@ -8,6 +8,10 @@ const categorySchema = new mongoose.Schema(
     // is "category" (e.g. Dresses → "DRS" → DRS-0042-M).
     code: { type: String, default: "", uppercase: true, trim: true },
     parent: { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: null },
+    // Their id for this category once pushed to ncom.bd. Stored rather than
+    // re-derived by name so a rename here doesn't create a duplicate there.
+    // (Products need no equivalent — they're addressed as externalId:<our _id>.)
+    ncomId: { type: String, default: "" },
     gender: { type: String, enum: ["men", "women", "kids", "all"], default: "all" },
     image: { type: String },
     description: { type: String },

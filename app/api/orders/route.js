@@ -14,6 +14,7 @@ import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
 import { getActiveFlashSale, getFlashPriceMap, recordFlashSold } from "@/lib/flashSale";
 import { notifyEvent } from "@/lib/notifications";
+import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 
 export async function GET(request) {
   const { error } = await requireAdmin("orders.view");
@@ -227,6 +228,12 @@ export async function POST(request) {
           { $inc: { "variants.$.stock": -item.quantity } }
         );
       }
+
+      // Mirror the movement to ncom.bd as a signed delta. Fire-and-forget: a
+      // stock sync must never be able to fail a customer's checkout.
+      stockLinesForOrderItems(Product, orderItems, -1)
+        .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Sold on main site — order ${orderNumber}` }))
+        .catch(() => {});
       // Order intentionally stays "pending". The Steadfast fraud check below
       // may auto-advance it to "processing" once the customer's courier history
       // clears the thresholds configured in Settings.

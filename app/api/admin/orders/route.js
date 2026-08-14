@@ -10,6 +10,7 @@ import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 import { findOrCreateCustomer } from "@/lib/customer-link";
+import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 const PAYMENT_METHODS = ["cod", "bkash", "nagad", "bank", "cash"];
@@ -140,6 +141,11 @@ export async function POST(request) {
         { $inc: { "variants.$.stock": -item.quantity } }
       );
     }
+
+    // Mirror to ncom.bd as a signed delta (fire-and-forget).
+    stockLinesForOrderItems(Product, orderItems, -1)
+      .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Manual/POS order ${order.orderNumber}` }))
+      .catch(() => {});
 
     // Optional confirmation email if the customer gave one.
     if (c.email?.trim()) {
