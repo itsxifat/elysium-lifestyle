@@ -3,7 +3,6 @@ export const maxDuration = 300; // a full catalogue import can take a while
 
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
-import Settings from "@/models/Settings";
 import { requireAdmin } from "@/lib/auth";
 import { backfillSkus, migrateCatalogue, reconcileStock } from "@/lib/ncom-sync";
 
@@ -26,16 +25,8 @@ export async function POST(request) {
       case "backfill-skus":
         return NextResponse.json(await backfillSkus({ dryRun, enableScheme: !!body.enableScheme }));
 
-      case "migrate": {
-        const settings = await Settings.findOne({}).select("ncom").lean();
-        return NextResponse.json(
-          await migrateCatalogue({
-            dryRun,
-            includeImages: settings?.ncom?.includeImages !== false,
-            skipStock: !!body.skipStock,
-          })
-        );
-      }
+      case "migrate":
+        return NextResponse.json(await migrateCatalogue({ dryRun, skipStock: !!body.skipStock }));
 
       case "reconcile":
         return NextResponse.json(await reconcileStock({ dryRun }));

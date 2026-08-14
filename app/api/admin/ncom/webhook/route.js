@@ -27,7 +27,7 @@ export async function POST(request) {
   const { error } = await requireAdmin("settings.manage");
   if (error) return error;
 
-  const { url } = await request.json().catch(() => ({}));
+  const { url, replace } = await request.json().catch(() => ({}));
   if (!url || !/^https?:\/\//i.test(url)) {
     return NextResponse.json({ ok: false, error: "A valid absolute URL is required" }, { status: 400 });
   }
@@ -35,7 +35,7 @@ export async function POST(request) {
   await connectDB();
 
   try {
-    const result = await registerWebhook(url);
+    const result = await registerWebhook(url, { replace: !!replace });
 
     let secretStored = false;
     if (result.secret) {

@@ -25,7 +25,6 @@ export async function GET() {
     hasWebhookSecret: !!cfg.webhookSecret,
     baseUrl: cfg.baseUrl || NCOM_DEFAULT_API,
     autoPushStock: cfg.autoPushStock !== false,
-    includeImages: cfg.includeImages !== false,
     lastMigrateAt: cfg.lastMigrateAt || null,
     lastReconcileAt: cfg.lastReconcileAt || null,
     lastWebhookAt: cfg.lastWebhookAt || null,
@@ -57,7 +56,6 @@ export async function PUT(request) {
     webhookSecret: keep(data.webhookSecret, cur.webhookSecret),
     baseUrl: (data.baseUrl || cur.baseUrl || NCOM_DEFAULT_API).trim(),
     autoPushStock: data.autoPushStock !== false,
-    includeImages: data.includeImages !== false,
   };
 
   await settings.save();

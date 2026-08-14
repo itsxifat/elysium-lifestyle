@@ -8,7 +8,6 @@
 //
 //   node scripts/ncom-migrate.mjs                 # print what would be sent
 //   node scripts/ncom-migrate.mjs --live
-//   node scripts/ncom-migrate.mjs --live --no-images
 //   node scripts/ncom-migrate.mjs --live --skip-stock
 //
 // Run the SKU backfill first: stock sync keys on SKU, and products without one
@@ -28,7 +27,6 @@ console.log(`\n=== ncom migrate (${dryRun ? "DRY RUN" : "LIVE"}) ===\n`);
 await finish(
   await migrateCatalogue({
     dryRun,
-    includeImages: !process.argv.includes("--no-images"),
     skipStock: process.argv.includes("--skip-stock"),
   })
 );

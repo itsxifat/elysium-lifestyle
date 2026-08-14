@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {
   Share2, Plug, Copy, Check, Webhook, KeyRound, RefreshCw, Barcode, UploadCloud,
   Scale, ShieldCheck, AlertTriangle, Terminal, CircleCheck, CircleDashed, Building2,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   PageHeader, Card, Field, TextInput, Toggle, Button, SectionTitle, StatCard, Pill,
@@ -232,21 +233,22 @@ export default function NcomPage() {
     }
   };
 
-  const registerHook = async () => {
+  const registerHook = async (replace = false) => {
     setHooks("loading");
     try {
       const d = await (await fetch("/api/admin/ncom/webhook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webhookUrl }),
+        body: JSON.stringify({ url: webhookUrl, replace }),
       })).json();
 
       if (d.ok) {
-        toast.success(
-          d.secretStored
-            ? "Registered — signing secret saved automatically"
-            : "Registered. Copy the signing secret from ncom into the field below."
-        );
+        if (d.secretStored) toast.success("Registered — signing secret saved automatically");
+        // ncom issues the secret only when an endpoint is created, so updating
+        // an existing one can't produce it. Say that instead of implying a
+        // secret arrived.
+        else if (d.secretUnavailable) toast("Endpoint already registered. Its secret is only shown at creation — use Replace to issue a new one.", { icon: "ℹ️" });
+        else toast.success("Registered. Paste the signing secret from ncom below.");
         setCfg(await (await fetch("/api/admin/ncom")).json());
       } else {
         toast.error(d.error || "Could not register");
@@ -382,12 +384,12 @@ export default function NcomPage() {
             <Toggle checked={cfg.autoPushStock} onChange={(v) => set("autoPushStock", v)} disabled={!cfg.enabled} />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg bg-brand-cream/50 px-3 py-2.5">
-            <div>
-              <p className="text-[13px] font-medium text-brand-brown">Send product images</p>
-              <p className="text-[11px] text-brand-tan">Turn off if an import rejects the images field</p>
-            </div>
-            <Toggle checked={cfg.includeImages} onChange={(v) => set("includeImages", v)} />
+          <div className="flex items-start gap-2 rounded-lg bg-brand-cream/40 px-3 py-2.5">
+            <ImageIcon size={13} className="text-brand-tan flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-brand-tan leading-snug">
+              Product images sync as URLs — ncom fetches them from your CDN and remembers each one,
+              so re-running a push costs nothing for artwork that has not changed.
+            </p>
           </div>
         </Card>
 
@@ -526,9 +528,20 @@ export default function NcomPage() {
               <Button variant="outline" size="sm" onClick={loadHooks} disabled={hooks === "loading"}>
                 {hooks === "loading" ? "Loading…" : "View registered"}
               </Button>
-              <Button size="sm" onClick={registerHook} disabled={hooks === "loading" || !cfg.hasApiKey}>
+              <Button size="sm" onClick={() => registerHook(false)} disabled={hooks === "loading" || !cfg.hasApiKey}>
                 Register this URL
               </Button>
+              {!cfg.hasWebhookSecret && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => registerHook(true)}
+                  disabled={hooks === "loading" || !cfg.hasApiKey}
+                  title="Deletes and re-creates the endpoint so ncom issues a fresh signing secret"
+                >
+                  Replace &amp; issue secret
+                </Button>
+              )}
             </div>
             <p className="text-[11px] text-brand-tan">
               Last event received: <b className="text-brand-brown">{relativeTime(cfg.lastWebhookAt)}</b>
@@ -547,10 +560,13 @@ export default function NcomPage() {
                           <p className="text-[12px] text-brand-brown break-all">{w.url}</p>
                           <p className="text-[10.5px] text-brand-tan mt-0.5">
                             {(w.topics || []).join(", ") || "no topics"}
+                            {typeof w.deliveries === "number" && ` · ${w.deliveries} deliveries`}
+                            {w.lastSuccessAt && ` · last ok ${relativeTime(w.lastSuccessAt)}`}
+                            {w.lastFailureAt && ` · last fail ${relativeTime(w.lastFailureAt)}`}
                           </p>
                         </div>
-                        <Pill tone={w.active === false ? "red" : "green"}>
-                          {w.active === false ? "Paused" : "Active"}
+                        <Pill tone={w.isActive === false ? "red" : w.lastFailureAt && !w.lastSuccessAt ? "amber" : "green"}>
+                          {w.isActive === false ? "Paused" : "Active"}
                         </Pill>
                       </div>
                     ))}

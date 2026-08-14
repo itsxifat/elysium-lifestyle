@@ -113,9 +113,6 @@ const settingsSchema = new mongoose.Schema(
       baseUrl: { type: String, default: "https://ncom.bd/api/v1" },
       // Mirror every stock movement (sales, returns, order edits) as a delta.
       autoPushStock: { type: Boolean, default: true },
-      // Attach product images on import. Off is the escape hatch if their
-      // validator rejects the images field.
-      includeImages: { type: Boolean, default: true },
       lastMigrateAt: { type: Date, default: null },
       lastReconcileAt: { type: Date, default: null },
       lastWebhookAt: { type: Date, default: null },
