@@ -42,6 +42,11 @@ productSchema.index({ tags: 1 });
 productSchema.index({ name: 1 });
 productSchema.index({ previousSlugs: 1 }); // old-slug → product, for 301 redirects
 productSchema.index({ skuBase: 1 });
+// SKU → product, the lookup every inbound ncom inventory.updated webhook makes.
+// Without it that is a full collection scan per event, which is survivable one
+// sale at a time and not survivable during a catalogue push: the deliveries
+// overran ncom's 10s timeout and it parked the endpoint after 20 in a row.
+productSchema.index({ "variants.sku": 1 });
 
 productSchema.virtual("totalStock").get(function () {
   return this.variants.reduce((sum, v) => sum + v.stock, 0);

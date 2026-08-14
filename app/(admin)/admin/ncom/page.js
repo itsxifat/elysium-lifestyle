@@ -307,6 +307,7 @@ export default function NcomPage() {
     { done: conn?.ok, label: "Connection verified", hint: conn?.ok ? null : "Run “Test connection”" },
     { done: conn?.ok ? !currencyWrong : false, label: "Workspace currency is BDT", hint: currencyWrong ? "Change it in the ncom dashboard" : null },
     { done: local ? local.missingSku === 0 : false, label: "Every variant has a SKU", hint: local?.missingSku ? `${local.missingSku} missing` : null },
+    { done: local ? !local.duplicateSkus : false, label: "Every SKU is unique", hint: local?.duplicateSkus ? `${local.duplicateSkus} shared by two variants — stock can't sync for those` : null },
     { done: !!cfg.lastMigrateAt, label: "Catalogue pushed" },
     { done: cfg.hasWebhookSecret, label: "Webhook secret stored" },
     { done: !!cfg.lastWebhookAt, label: "Webhook delivering", hint: cfg.lastWebhookAt ? relativeTime(cfg.lastWebhookAt) : "No event received yet" },
@@ -350,8 +351,18 @@ export default function NcomPage() {
           label="SKUs ready"
           value={local ? `${skusReady}/${local.variants}` : "—"}
           icon={Barcode}
-          accent={local && local.missingSku === 0 ? "text-emerald-600" : "text-amber-600"}
-          hint={local?.missingSku ? `${local.missingSku} still missing` : "Required for stock sync"}
+          accent={
+            local && local.missingSku === 0 && !local.duplicateSkus
+              ? "text-emerald-600"
+              : "text-amber-600"
+          }
+          hint={
+            local?.missingSku
+              ? `${local.missingSku} still missing`
+              : local?.duplicateSkus
+                ? `${local.duplicateSkus} SKU(s) used twice`
+                : "Required for stock sync"
+          }
         />
         <StatCard
           label="Setup"
