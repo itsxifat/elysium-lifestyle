@@ -99,6 +99,27 @@ const settingsSchema = new mongoose.Schema(
       // the apiKey; set a custom token here to verify against that instead.
       webhookToken: { type: String, default: "" },
     },
+    // ncom.bd — catalogue push + two-way stock sync, managed at /admin/ncom.
+    // Credentials live here rather than in env so the VPS needs no redeploy to
+    // change them (same pattern as steadfast above). Env vars NCOM_API_KEY /
+    // NCOM_WEBHOOK_SECRET still win if set, so an existing deployment keeps
+    // working unchanged.
+    ncom: {
+      enabled: { type: Boolean, default: false },
+      apiKey: { type: String, default: "" },
+      // Signing secret for inbound webhooks. Without it the receiver at
+      // /api/ncom-webhook fails closed and rejects every request.
+      webhookSecret: { type: String, default: "" },
+      baseUrl: { type: String, default: "https://ncom.bd/api/v1" },
+      // Mirror every stock movement (sales, returns, order edits) as a delta.
+      autoPushStock: { type: Boolean, default: true },
+      // Attach product images on import. Off is the escape hatch if their
+      // validator rejects the images field.
+      includeImages: { type: Boolean, default: true },
+      lastMigrateAt: { type: Date, default: null },
+      lastReconcileAt: { type: Date, default: null },
+      lastWebhookAt: { type: Date, default: null },
+    },
     // Desktop: 1920×750 px (16:6.25 ≈ 2.56:1) — Mobile: 750×1000 px (3:4)
     heroSlides: [
       {

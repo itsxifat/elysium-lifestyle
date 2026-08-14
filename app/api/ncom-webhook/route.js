@@ -5,8 +5,10 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
+import Settings from "@/models/Settings";
 import NcomEvent from "@/models/NcomEvent";
 import { notifyEvent } from "@/lib/notifications";
+import { getNcomConfig } from "@/lib/ncom";
 
 // Inbound ncom.bd webhooks. Register this URL under Developers → Webhooks:
 //   https://<your-domain>/api/ncom-webhook
@@ -66,14 +68,19 @@ function verify(rawBody, header, secret) {
 }
 
 export async function POST(request) {
-  const secret = (process.env.NCOM_WEBHOOK_SECRET || "").trim();
+  // Raw text, not request.json() — re-serializing changes the bytes and the
+  // signature would never match. Read it before anything can consume the body.
+  const rawBody = await request.text();
+
+  // The secret lives in Settings (managed at /admin/ncom), with the env var
+  // winning if set — so connect first, then authenticate.
+  await connectDB();
+  const cfg = await getNcomConfig();
+  const secret = cfg.webhookSecret;
+
   // Fail closed. Without a secret we cannot tell ncom from anyone who learned
   // the URL, and this endpoint writes stock.
   if (!secret) return bad(401, "Webhook secret not configured");
-
-  // Raw text, not request.json() — re-serializing changes the bytes and the
-  // signature would never match.
-  const rawBody = await request.text();
 
   const result = verify(rawBody, request.headers.get("x-ncom-signature"), secret);
   if (!result.ok) return bad(401, result.reason);
@@ -88,7 +95,6 @@ export async function POST(request) {
   const eventId = event.id || request.headers.get("x-ncom-event-id");
   if (!eventId) return bad(400, "Missing event id");
 
-  await connectDB();
   await ensureIndexes();
 
   // Claim the event id with an atomic upsert: the claim succeeds only for
@@ -124,6 +130,9 @@ export async function POST(request) {
     await NcomEvent.deleteOne({ eventId }).catch(() => {});
     return bad(500, "Handler failed");
   }
+
+  // Last-delivery timestamp, so /admin/ncom can show the webhook is alive.
+  Settings.updateOne({}, { $set: { "ncom.lastWebhookAt": new Date() } }).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }

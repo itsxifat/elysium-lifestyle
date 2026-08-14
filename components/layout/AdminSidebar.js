@@ -9,7 +9,7 @@ import {
   Users, Settings, LogOut, Store, ChevronRight, Menu, X,
   Layers, FolderTree, Navigation, Truck, Ruler, TableProperties, Radio, ShieldAlert,
   Tag, PackageCheck, Printer, ScanLine, Bell, BellRing, ShieldCheck, Link2, Zap, Rocket,
-  BarChart3,
+  BarChart3, Share2,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import NotificationBell from "@/components/admin/NotificationBell";
@@ -61,6 +61,7 @@ const navGroups = [
     items: [
       { href: "/admin/shipping",  label: "Shipping",   icon: Truck,        perm: "settings.manage" },
       { href: "/admin/steadfast", label: "Courier",    icon: PackageCheck, perm: "settings.manage" },
+      { href: "/admin/ncom",      label: "ncom.bd",    icon: Share2,       perm: "settings.manage" },
       { href: "/admin/notifications/settings", label: "Notification Rules", icon: BellRing, perm: "settings.manage" },
       { href: "/admin/settings",  label: "Settings",   icon: Settings,     perm: "settings.manage" },
     ],
