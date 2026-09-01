@@ -9,6 +9,7 @@ import { isElevated } from "@/lib/permissions";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
+import { adjustReservation } from "@/lib/stock";
 
 const PAYMENT_METHODS = ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"];
 const SOURCES = ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -51,7 +52,7 @@ export async function PATCH(request, { params }) {
         if (!product) return NextResponse.json({ error: `Product not found: ${item.productId}` }, { status: 400 });
         const variant = product.variants?.find((v) => v.size === item.size);
         if (!variant) return NextResponse.json({ error: `Size "${item.size}" not found for ${product.name}` }, { status: 400 });
-        const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+        const quantity = Math.min(200, Math.max(1, parseInt(item.quantity, 10) || 1));
         newItems.push({
           product: product._id,
           name: product.name,
@@ -64,28 +65,46 @@ export async function PATCH(request, { params }) {
         });
       }
 
-      // Stock diff: net change per (product, size). Taking more reduces stock;
-      // removing/reducing restores it.
-      const tally = (items, keyFn) =>
+      // Move the reservation to match the new basket. Only the difference
+      // moves, and taking more is checked against real stock — the old code
+      // applied the delta with a bare $inc, so editing an order up to 50 units
+      // of something with 2 in stock silently drove it to -48.
+      //
+      // An order that is already cancelled is holding nothing, so there is no
+      // reservation to move; editing it must not take stock back out.
+      if (order.stockReserved) {
+        const moved = await adjustReservation(Product, order.items, newItems);
+        if (!moved.ok) {
+          const first = moved.unavailable[0];
+          return NextResponse.json(
+            {
+              error:
+                first.available > 0
+                  ? `Only ${first.available} left of ${first.name} (${first.size}).`
+                  : `${first.name} (${first.size}) is out of stock.`,
+              unavailable: moved.unavailable,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
+      // Mirror the net movement to ncom.bd. Each entry carries its own signed
+      // movement, so it is passed through with sign 1 rather than negated again.
+      const tally = (items) =>
         items.reduce((m, it) => {
           if (!it.product) return m;
           const k = `${String(it.product)}|${it.size}`;
-          m[k] = (m[k] || 0) + (keyFn ? keyFn(it) : it.quantity);
+          m[k] = (m[k] || 0) + it.quantity;
           return m;
         }, {});
       const oldQty = tally(order.items);
       const newQty = tally(newItems);
-      // Each entry carries its own signed movement, so it is passed through
-      // with sign 1 rather than negated a second time.
       const ncomLines = [];
       for (const k of new Set([...Object.keys(oldQty), ...Object.keys(newQty)])) {
         const delta = (newQty[k] || 0) - (oldQty[k] || 0);
         if (delta === 0) continue;
         const [productId, size] = k.split("|");
-        await Product.updateOne(
-          { _id: productId, "variants.size": size },
-          { $inc: { "variants.$.stock": -delta } }
-        );
         ncomLines.push({ product: productId, size, quantity: -delta });
       }
 

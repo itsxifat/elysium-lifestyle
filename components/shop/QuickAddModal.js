@@ -40,7 +40,8 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
     addItem(
       { id: product._id, slug: product.slug, name: product.name, image: product.images?.[0], price: unitPrice },
       selectedSize,
-      quantity
+      quantity,
+      selectedVariant.stock   // caps the cart line, not just this one add
     );
     toast.success(`${product.name} added to bag!`);
     onClose();

@@ -11,6 +11,7 @@ import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 import { findOrCreateCustomer } from "@/lib/customer-link";
 import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
+import { reserveStock, releaseStock } from "@/lib/stock";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
 const PAYMENT_METHODS = ["cod", "bkash", "nagad", "bank", "cash"];
@@ -108,7 +109,27 @@ export async function POST(request) {
       console.error("customer link error:", e.message);
     }
 
-    const order = await Order.create({
+    // Take the stock before the order exists, atomically — a counter sale and a
+    // website sale race for the same unit exactly like two website sales do.
+    // Staff get the same refusal a customer would, naming the size that ran out.
+    const reservation = await reserveStock(Product, orderItems);
+    if (!reservation.ok) {
+      const first = reservation.unavailable[0];
+      return NextResponse.json(
+        {
+          error:
+            first.available > 0
+              ? `Only ${first.available} left of ${first.name} (${first.size}).`
+              : `${first.name} (${first.size}) is out of stock.`,
+          unavailable: reservation.unavailable,
+        },
+        { status: 409 }
+      );
+    }
+
+    let order;
+    try {
+      order = await Order.create({
       user: customerId,
       guestEmail: c.email?.trim() || undefined,
       items: orderItems,
@@ -132,15 +153,15 @@ export async function POST(request) {
       discount,
       totalAmount,
       notes: data.notes?.trim() || undefined,
-    });
-
-    // Decrement stock for each line.
-    for (const item of orderItems) {
-      await Product.updateOne(
-        { _id: item.product, "variants.size": item.size },
-        { $inc: { "variants.$.stock": -item.quantity } }
-      );
+      stockReserved: true,
+      });
+    } catch (err) {
+      // Order never landed — put the units back rather than lose them.
+      await releaseStock(Product, orderItems);
+      throw err;
     }
+
+    // Stock already moved with the reservation above.
 
     // Mirror to ncom.bd as a signed delta (fire-and-forget).
     stockLinesForOrderItems(Product, orderItems, -1)

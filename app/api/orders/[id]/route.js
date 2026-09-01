@@ -14,6 +14,8 @@ import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { requirePin } from "@/lib/pin";
 import { applyCodAutoPaid } from "@/lib/orders";
 import { notifyEvent } from "@/lib/notifications";
+import Product from "@/models/Product";
+import { releaseIfHeld, reserveIfNotHeld } from "@/lib/stock";
 
 export async function GET(request, { params }) {
   try {
@@ -90,6 +92,30 @@ export async function PUT(request, { params }) {
     if (needsPin) {
       const pinError = await requirePin(session, data.pin, request);
       if (pinError) return pinError;
+    }
+
+    // ── Stock follows the status ─────────────────────────────────────────────
+    // Cancelling used to change the status and nothing else, so the units the
+    // order was holding stayed out of inventory permanently — the shop showed
+    // as sold out while the goods sat on the shelf. Cancel now hands them back,
+    // and reviving a cancelled order takes them again (refusing if they have
+    // since gone to someone else, rather than reviving into negative stock).
+    if (statusChanged && nextStatus === "cancelled") {
+      await releaseIfHeld(Product, order);
+    } else if (statusChanged && prevStatus === "cancelled") {
+      const res = await reserveIfNotHeld(Product, order);
+      if (!res.ok) {
+        const first = res.unavailable[0];
+        return NextResponse.json(
+          {
+            error:
+              first.available > 0
+                ? `Can't reopen this order — only ${first.available} left of ${first.name} (${first.size}).`
+                : `Can't reopen this order — ${first.name} (${first.size}) is out of stock.`,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Apply the allowed field changes.

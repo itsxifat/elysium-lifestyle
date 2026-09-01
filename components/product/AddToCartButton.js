@@ -31,7 +31,10 @@ export default function AddToCartButton({ product, selectedSize, selectedVariant
         sku: selectedVariant.sku || "",
       },
       selectedSize,
-      quantity
+      quantity,
+      // The stepper above caps a single add; this caps the LINE. Without it,
+      // adding 10 twice put 20 in the bag against a stock of 5.
+      selectedVariant.stock
     );
     toast.success(`${product.name} added to cart!`);
   };
