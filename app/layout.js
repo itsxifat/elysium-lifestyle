@@ -1,6 +1,7 @@
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { DemoBanner } from "@enfinito/demo-kit/ui";
 
 // Single clean, premium-neutral sans for the whole site (body + headings).
 // Variable font → full weight range available for hierarchy.
@@ -36,6 +37,10 @@ export default function RootLayout({ children }) {
         className={`${manrope.variable} font-sans antialiased bg-brand-cream text-brand-brown`}
       >
         <Providers>{children}</Providers>
+        {/* Renders nothing outside demo mode. Fixed to the bottom so the
+            countdown is always visible — a visitor who does not know their work
+            is temporary will be genuinely upset when it disappears. */}
+        <DemoBanner />
       </body>
     </html>
   );

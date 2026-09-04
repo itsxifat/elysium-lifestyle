@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // A "Custom URL" is a marketing campaign attached to an existing storefront link.
 //
@@ -61,6 +62,7 @@ const customUrlSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const CustomUrl =
-  mongoose.models.CustomUrl || mongoose.model("CustomUrl", customUrlSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const CustomUrl = tenantModel("CustomUrl", customUrlSchema);
 export default CustomUrl;

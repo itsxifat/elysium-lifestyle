@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // Rule-based discount / coupon.
 //
@@ -73,5 +74,7 @@ discountSchema.index(
   { unique: true, partialFilterExpression: { code: { $type: "string" } } }
 );
 
-const Discount = mongoose.models.Discount || mongoose.model("Discount", discountSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const Discount = tenantModel("Discount", discountSchema);
 export default Discount;

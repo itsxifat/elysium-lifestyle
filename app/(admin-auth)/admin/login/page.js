@@ -6,6 +6,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import { Eye, EyeOff, Lock, AlertTriangle } from "lucide-react";
 import { isStaff } from "@/lib/permissions";
+import { DemoCredentials } from "@enfinito/demo-kit/ui";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -155,6 +156,13 @@ function AdminLoginForm() {
               </div>
             </div>
           )}
+
+          {/* Renders only in demo mode; null in production. Admin account only —
+              offering the customer account here would just fail the role check. */}
+          <DemoCredentials
+            only={["Admin"]}
+            onFill={({ email: e, password: pw }) => { setEmail(e); setPassword(pw); }}
+          />
 
           {/* Google */}
           <button

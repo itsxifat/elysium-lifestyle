@@ -10,7 +10,6 @@ import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 import { findOrCreateCustomer } from "@/lib/customer-link";
-import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 import { reserveStock, releaseStock } from "@/lib/stock";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -162,11 +161,6 @@ export async function POST(request) {
     }
 
     // Stock already moved with the reservation above.
-
-    // Mirror to ncom.bd as a signed delta (fire-and-forget).
-    stockLinesForOrderItems(Product, orderItems, -1)
-      .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Manual/POS order ${order.orderNumber}` }))
-      .catch(() => {});
 
     // Optional confirmation email if the customer gave one.
     if (c.email?.trim()) {

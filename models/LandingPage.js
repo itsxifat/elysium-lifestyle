@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // A standalone marketing LANDING PAGE served at /lp/<code>.
 //
@@ -203,5 +204,7 @@ const landingPageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const LandingPage = mongoose.models.LandingPage || mongoose.model("LandingPage", landingPageSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const LandingPage = tenantModel("LandingPage", landingPageSchema);
 export default LandingPage;

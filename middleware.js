@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveDemo } from "@enfinito/demo-kit/middleware";
 
 // Per-request Content-Security-Policy with a fresh nonce.
 //
@@ -49,7 +50,16 @@ function buildCsp(nonce) {
   ].join("; ");
 }
 
-export function middleware(request) {
+export async function middleware(request) {
+  // ── Demo layer (no-op unless DEMO_MODE=1) ───────────────────────────────
+  // Resolves which sandbox this request belongs to and enforces its expiry, on
+  // the Edge, from a signed cookie alone. It runs first because an expired or
+  // absent sandbox must never reach a handler.
+  const demo = await resolveDemo(request);
+  if (demo.response) return demo.response;
+
+  const isApi = request.nextUrl.pathname.startsWith("/api");
+
   // Edge-safe random nonce (no Node Buffer/crypto).
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -59,24 +69,34 @@ export function middleware(request) {
 
   // Next reads the nonce from the request-side CSP header; pass it through.
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
+  if (!isApi) {
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", csp);
+  }
+  // Hand the resolved sandbox to the Node side; connectDB() reads these.
+  for (const [key, value] of Object.entries(demo.headers)) requestHeaders.set(key, value);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   // The browser enforces (or, while REPORT_ONLY, only reports) this header.
-  response.headers.set(
-    REPORT_ONLY ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
-    csp
-  );
+  // API responses are JSON with no scripts, and skipping them keeps their long
+  // immutable caching untouched.
+  if (!isApi) {
+    response.headers.set(
+      REPORT_ONLY ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
+      csp
+    );
+  }
 
   return response;
 }
 
 export const config = {
-  // Apply to documents only — skip API routes (JSON, no scripts) and static
-  // assets so their long immutable caching is untouched.
+  // API routes are included so the demo layer can see them — /api/demo/claim
+  // needs to run, and an expired sandbox must get a 410 rather than a query
+  // against the wrong database. CSP is still skipped for them, inside the
+  // handler above.
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|logo-black.png|logo-white.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|logo-black.png|logo-white.png).*)",
   ],
 };

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 const orderItemSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
@@ -188,9 +189,14 @@ orderSchema.pre("save", async function () {
     // Relative, not "@/lib/...": this model is also imported by the plain-node
     // scripts in scripts/, which have no path-alias resolution.
     const { nextOrderNumber } = await import("../lib/order-number.js");
-    this.orderNumber = await nextOrderNumber(mongoose.model("Order"), "ELY");
+    // `this.constructor`, not mongoose.model("Order"): the latter always
+    // resolves against the DEFAULT connection, so under a demo sandbox this
+    // hook would draw the order number from the wrong database's counter.
+    this.orderNumber = await nextOrderNumber(this.constructor, "ELY");
   }
 });
 
-const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const Order = tenantModel("Order", orderSchema);
 export default Order;

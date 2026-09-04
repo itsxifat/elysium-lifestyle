@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // A homepage flash sale: a scheduled, limited-stock promotion.
 //
@@ -30,6 +31,7 @@ const flashSaleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const FlashSale =
-  mongoose.models.FlashSale || mongoose.model("FlashSale", flashSaleSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const FlashSale = tenantModel("FlashSale", flashSaleSchema);
 export default FlashSale;

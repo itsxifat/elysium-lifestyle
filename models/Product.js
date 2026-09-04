@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 const variantSchema = new mongoose.Schema({
   size: { type: String, required: true },
@@ -42,11 +43,18 @@ productSchema.index({ tags: 1 });
 productSchema.index({ name: 1 });
 productSchema.index({ previousSlugs: 1 }); // old-slug → product, for 301 redirects
 productSchema.index({ skuBase: 1 });
-// SKU → product, the lookup every inbound ncom inventory.updated webhook makes.
-// Without it that is a full collection scan per event, which is survivable one
-// sale at a time and not survivable during a catalogue push: the deliveries
-// overran ncom's 10s timeout and it parked the endpoint after 20 in a row.
 productSchema.index({ "variants.sku": 1 });
+// Variant subdocument id → product. This is THE lookup of the ncom connector:
+// their offers, carts and order lines all address a variant by this id, and
+// /stock is called on every cart render and again inside every checkout.
+// Subdocument _ids get no index for free — only the top-level one does — so
+// without this every stock reading is a full collection scan, against a 4-second
+// timeout, while a shopper waits.
+productSchema.index({ "variants._id": 1 });
+// The connector's catalogue page: filter on isPublished, sort/cursor on _id.
+// Sorting by the same field the filter leaves open is what keeps deep paging an
+// indexed range scan rather than a re-walk of everything skipped.
+productSchema.index({ isPublished: 1, _id: 1 });
 
 productSchema.virtual("totalStock").get(function () {
   return this.variants.reduce((sum, v) => sum + v.stock, 0);
@@ -69,6 +77,7 @@ export function normalizeProductInput(data) {
   return out;
 }
 
-const Product =
-  mongoose.models.Product || mongoose.model("Product", productSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const Product = tenantModel("Product", productSchema);
 export default Product;

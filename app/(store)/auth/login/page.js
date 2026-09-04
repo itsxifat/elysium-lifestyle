@@ -8,6 +8,7 @@ import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
+import { DemoCredentials } from "@enfinito/demo-kit/ui";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -28,7 +29,7 @@ function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -157,6 +158,16 @@ function LoginForm() {
               <span className="text-[10px] uppercase tracking-[3px] text-brand-tan">or</span>
               <div className="flex-1 h-px bg-brand-tan/20" />
             </div>
+
+            {/* Renders only in demo mode; null in production. Both accounts are
+                offered here — a visitor may want to shop or to try the panel. */}
+            <DemoCredentials
+              theme="light"
+              onFill={({ email, password }) => {
+                setValue("email", email, { shouldValidate: true });
+                setValue("password", password, { shouldValidate: true });
+              }}
+            />
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>

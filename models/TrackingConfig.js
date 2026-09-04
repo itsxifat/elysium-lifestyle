@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 import { STANDARD_EVENTS, DEFAULT_META_API_VERSION } from "@/lib/tracking/constants";
 
 // Per-event routing/enable settings. Lets the admin, for example, turn off
@@ -62,6 +63,7 @@ function defaultEvents() {
   }));
 }
 
-const TrackingConfig =
-  mongoose.models.TrackingConfig || mongoose.model("TrackingConfig", trackingConfigSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const TrackingConfig = tenantModel("TrackingConfig", trackingConfigSchema);
 export default TrackingConfig;

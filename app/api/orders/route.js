@@ -14,7 +14,6 @@ import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
 import { getActiveFlashSale, getFlashPriceMap, claimFlashUnits, releaseFlashUnits } from "@/lib/flashSale";
 import { notifyEvent } from "@/lib/notifications";
-import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 import { reserveStock, releaseStock } from "@/lib/stock";
 import { createOrderWithNumber } from "@/lib/order-number";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -313,12 +312,11 @@ export async function POST(request) {
       order: order._id,
     }).catch(() => {});
 
-    // Mirror the movement to ncom.bd as a signed delta. Fire-and-forget: a
-    // stock sync must never be able to fail a customer's checkout. The local
-    // stock itself was already taken by the reservation above.
-    stockLinesForOrderItems(Product, orderItems, -1)
-      .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Sold on main site — order ${orderNumber}` }))
-      .catch(() => {});
+    // No stock is mirrored to ncom.bd any more. Under their contract 1 there is
+    // no copy of this inventory to keep in step: ncom reads the count from
+    // /api/ncom/v1/stock when it needs one, and takes units through
+    // /api/ncom/v1/reserve when it sells one. The reservation above is the only
+    // movement there is.
 
     if (data.paymentMethod === "cod") {
       // Order intentionally stays "pending". The Steadfast fraud check below

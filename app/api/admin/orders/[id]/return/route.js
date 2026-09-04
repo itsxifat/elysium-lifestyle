@@ -5,7 +5,6 @@ import Order from "@/models/Order";
 import Product from "@/models/Product";
 import { requirePin } from "@/lib/pin";
 import { notifyEvent } from "@/lib/notifications";
-import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -32,7 +31,6 @@ export async function POST(request, { params }) {
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     const returnedLines = [];
-    const restockedLines = []; // {product, size, quantity} — mirrored to ncom below
     for (const ln of lines) {
       const idx = ln.index;
       const qty = Math.max(0, parseInt(ln.returnQuantity, 10) || 0);
@@ -48,19 +46,11 @@ export async function POST(request, { params }) {
           { _id: item.product, "variants.size": item.size },
           { $inc: { "variants.$.stock": addable } }
         );
-        restockedLines.push({ product: item.product, size: item.size, quantity: addable });
       }
     }
 
     if (returnedLines.length === 0) {
       return NextResponse.json({ error: "Nothing to return" }, { status: 400 });
-    }
-
-    // Mirror the restock to ncom.bd as a positive delta (fire-and-forget).
-    if (restockedLines.length) {
-      stockLinesForOrderItems(Product, restockedLines, 1)
-        .then((l) => reportStockDelta(l, { reason: "RECEIVED", note: `Return on order ${order.orderNumber}` }))
-        .catch(() => {});
     }
 
     // Recompute totals. Subtotal is the original; kept = not-returned value.

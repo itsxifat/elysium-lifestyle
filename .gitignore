@@ -44,3 +44,4 @@ public/tsconfig.json
 !.vscode/tasks.json
 public/uploads/*
 /.claude
+.env.demo.local

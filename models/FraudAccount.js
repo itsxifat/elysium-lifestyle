@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // Metadata mirror of the Steadfast (Packzy) merchant accounts used for fraud
 // checks. The actual credentials are stored encrypted by the `steadfast-fraud`
@@ -15,6 +16,7 @@ const fraudAccountSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const FraudAccount =
-  mongoose.models.FraudAccount || mongoose.model("FraudAccount", fraudAccountSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const FraudAccount = tenantModel("FraudAccount", fraudAccountSchema);
 export default FraudAccount;

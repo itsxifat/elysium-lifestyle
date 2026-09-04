@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 const sizeChartSchema = new mongoose.Schema(
   {
@@ -9,5 +10,7 @@ const sizeChartSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const SizeChart = mongoose.models.SizeChart || mongoose.model("SizeChart", sizeChartSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const SizeChart = tenantModel("SizeChart", sizeChartSchema);
 export default SizeChart;

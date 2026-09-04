@@ -1,18 +1,17 @@
-// Shared bootstrap for the ncom CLI scripts.
+// Shared bootstrap for the maintenance CLI scripts.
 //
-// Everything these scripts do is also available at /admin/ncom, which needs no
-// shell access and no env plumbing — prefer that. These remain for cron
-// (the nightly reconcile) and for a headless first run.
+// Everything these scripts do is also available in the admin panel, which needs
+// no shell access and no env plumbing — prefer that. These remain for cron and
+// for a headless first run.
 //
-// IMPORTANT — why the scripts `await import()` the sync module instead of
-// importing it at the top: ESM evaluates every static import before any
+// IMPORTANT — why the scripts `await import()` their libraries instead of
+// importing them at the top: ESM evaluates every static import before any
 // top-level await, and lib/cdn.js captures CDN_API_SECRET at module scope. A
 // plain `import` therefore runs it before loadEnv() has populated process.env,
-// leaving the secret undefined and every product image silently unsigned and
-// dropped. Loading env first, then importing dynamically, is what makes the
-// CLI behave the same as the app.
+// leaving the secret undefined and every signed image URL silently dropped.
+// Loading env first, then importing dynamically, is what makes the CLI behave
+// the same as the app.
 
-import mongoose from "mongoose";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -61,6 +60,24 @@ export async function loadEnv() {
   return loaded;
 }
 
+// Connect the SAME mongoose instance the models are compiled against.
+//
+// `import mongoose from "mongoose"` here does not necessarily reach it. Models
+// go through @enfinito/demo-kit/model, and the kit is a file: dependency, so
+// Node resolves its `mongoose` peer from the kit's real path rather than this
+// project's node_modules. When those are two different copies, connecting ours
+// leaves every model buffering against a connection that never opens, and the
+// script dies with "Operation `x.findOne()` buffering timed out after 10000ms"
+// — an error that reads like the database is down when it is simply a second
+// mongoose. `Model.base` is the instance a model actually belongs to, so ask a
+// model rather than assuming.
+async function modelMongoose() {
+  const { default: Settings } = await import("../models/Settings.js");
+  if (Settings?.base) return Settings.base;
+  const mod = await import("mongoose");
+  return mod.default ?? mod;
+}
+
 export async function connect() {
   const loaded = await loadEnv();
 
@@ -74,11 +91,12 @@ export async function connect() {
     ENV_FILE=/path/to/your/env node scripts/<script>.mjs ...
     MONGODB_URI='mongodb+srv://…' node scripts/<script>.mjs ...
 
-  Or skip the shell entirely and use the admin panel: /admin/ncom
+  Or skip the shell entirely and use the admin panel.
 `);
     process.exit(1);
   }
 
+  const mongoose = await modelMongoose();
   await mongoose.connect(process.env.MONGODB_URI);
   return loaded;
 }
@@ -98,6 +116,6 @@ export function printLog(lines) {
 
 export async function finish(result) {
   printLog(result?.log);
-  await mongoose.disconnect();
+  await (await modelMongoose()).disconnect();
   process.exit(result?.ok === false ? 1 : 0);
 }
