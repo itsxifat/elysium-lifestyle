@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // One log row per tracked event. Stores the inbound payload, exactly what was
 // sent to each platform, both responses, status and latency — everything the
@@ -77,6 +78,7 @@ trackingEventSchema.index({ source: 1, createdAt: -1 });
 // TTL — Mongo purges docs once expireAt passes (expireAfterSeconds: 0).
 trackingEventSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
-const TrackingEvent =
-  mongoose.models.TrackingEvent || mongoose.model("TrackingEvent", trackingEventSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const TrackingEvent = tenantModel("TrackingEvent", trackingEventSchema);
 export default TrackingEvent;

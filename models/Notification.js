@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // In-panel notifications.
 //
@@ -48,6 +49,7 @@ notificationSchema.index({ roles: 1, createdAt: -1 });
 notificationSchema.index({ audience: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 
-const Notification =
-  mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const Notification = tenantModel("Notification", notificationSchema);
 export default Notification;

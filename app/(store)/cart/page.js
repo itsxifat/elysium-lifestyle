@@ -1,14 +1,34 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import toast from "react-hot-toast";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal } = useCart();
+  const { items, removeItem, updateQuantity, subtotal, syncWithServer, mounted } = useCart();
+
+  // Check the basket against the shop the moment it is opened. A cart can sit
+  // in localStorage for weeks, so this is where sold-out sizes get clamped and
+  // withdrawn products drop out — rather than at checkout, where the customer
+  // could only watch it fail.
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    syncWithServer().then(({ changed }) => {
+      if (cancelled || !changed.length) return;
+      const gone = changed.filter((c) => c.status === "gone" || c.available === 0);
+      const trimmed = changed.filter((c) => c.status === "limited");
+      if (gone.length) toast(`${gone.length === 1 ? gone[0].name || "An item" : `${gone.length} items`} sold out and left your bag.`);
+      for (const t of trimmed) toast(t.reason);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
   const { settings } = useSettings();
 
   const freeShippingThreshold = settings?.siteInfo?.freeShippingThreshold || 1500;
@@ -71,7 +91,7 @@ export default function CartPage() {
                           <Minus size={11} />
                         </button>
                         <span className="w-8 text-center text-[12px]">{item.quantity}</span>
-                        <button className="w-8 h-8 flex items-center justify-center text-brand-brown hover:text-brand-terracotta" onClick={() => updateQuantity(item.productId, item.size, item.quantity + 1)}>
+                        <button className="w-8 h-8 flex items-center justify-center text-brand-brown hover:text-brand-terracotta disabled:opacity-40 disabled:hover:text-brand-brown" disabled={typeof item.maxStock === "number" && item.quantity >= item.maxStock} onClick={() => updateQuantity(item.productId, item.size, item.quantity + 1)}>
                           <Plus size={11} />
                         </button>
                       </div>

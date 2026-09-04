@@ -16,7 +16,16 @@ import { track } from "@/lib/tracking/client";
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, syncWithServer, mounted: cartMounted } = useCart();
+
+  // Validate the basket against the shop before the customer fills anything in.
+  useEffect(() => {
+    if (!cartMounted) return;
+    syncWithServer().then(({ changed }) => {
+      for (const c of changed) if (c.reason) toast(c.reason);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartMounted]);
   const { settings } = useSettings();
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [shippingZone, setShippingZone] = useState("inside_dhaka");
@@ -180,6 +189,11 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         toast.error(result.error || "Failed to place order");
+        // 409 means the shop moved under us — a size sold out mid-checkout, or
+        // the cart was pointing at something that no longer exists. Re-sync so
+        // the offending line is clamped or dropped and the next attempt can
+        // actually succeed, instead of failing identically for ever.
+        if (res.status === 409) await syncWithServer();
         return;
       }
 

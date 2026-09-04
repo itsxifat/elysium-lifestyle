@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // Delivery is at-least-once and retries reuse the event id, so every inbound
 // ncom webhook is recorded here and a repeat is answered 200 without being
@@ -15,5 +16,7 @@ const ncomEventSchema = new mongoose.Schema(
 
 ncomEventSchema.index({ receivedAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 7 });
 
-const NcomEvent = mongoose.models.NcomEvent || mongoose.model("NcomEvent", ncomEventSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const NcomEvent = tenantModel("NcomEvent", ncomEventSchema);
 export default NcomEvent;

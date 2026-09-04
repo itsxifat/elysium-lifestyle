@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import {
-  Share2, Plug, Copy, Check, Webhook, KeyRound, RefreshCw, Barcode, UploadCloud,
-  Scale, ShieldCheck, AlertTriangle, Terminal, CircleCheck, CircleDashed, Building2,
-  Image as ImageIcon,
+  Share2, Plug, Copy, Check, Webhook, KeyRound, RefreshCw, Barcode, Radio,
+  ShieldCheck, AlertTriangle, Terminal, CircleCheck, CircleDashed, Building2,
+  Antenna, Lock, PackageCheck, SlidersHorizontal, Activity,
 } from "lucide-react";
 import {
   PageHeader, Card, Field, TextInput, Toggle, Button, SectionTitle, StatCard, Pill,
@@ -13,31 +13,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const MASK = "••••••••";
-
-// The three operations, in the order they must be run the first time.
-const OPERATIONS = [
-  {
-    key: "backfill-skus",
-    icon: Barcode,
-    title: "Generate SKUs",
-    blurb: "Stock sync addresses variants by SKU. Fills in any that are missing, using your existing SKU scheme. Never touches product URLs.",
-    liveLabel: "Generate",
-  },
-  {
-    key: "migrate",
-    icon: UploadCloud,
-    title: "Push catalogue",
-    blurb: "Sends categories, then products, then opening stock. Safe to re-run — products match on their existing ID, so a second run updates instead of duplicating.",
-    liveLabel: "Push now",
-  },
-  {
-    key: "reconcile",
-    icon: Scale,
-    title: "Reconcile stock",
-    blurb: "Overwrites their counts with yours. Day-to-day sync uses deltas, which drift over months; this is the correction. Best run when nothing is selling.",
-    liveLabel: "Reconcile",
-  },
-];
 
 function relativeTime(value) {
   if (!value) return "Never";
@@ -51,8 +26,6 @@ function relativeTime(value) {
 }
 
 // Console-style output, coloured by level — the same lines the CLI prints.
-// A failed catalogue push can run to hundreds of lines, so this stays tall,
-// counts what it is showing, filters to problems, and can be copied out whole.
 function LogPanel({ title, lines, onClear }) {
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -110,56 +83,40 @@ function LogPanel({ title, lines, onClear }) {
   );
 }
 
-// A single operation: preview (dry run) is one click, running live takes two.
-function OperationRow({ op, busy, onRun, extra }) {
-  const [confirming, setConfirming] = useState(false);
-  const Icon = op.icon;
+const CHECK_TONE = {
+  pass: { icon: CircleCheck, className: "text-emerald-600" },
+  fail: { icon: AlertTriangle, className: "text-red-600" },
+  warn: { icon: AlertTriangle, className: "text-amber-600" },
+  skip: { icon: CircleDashed, className: "text-brand-tan/60" },
+};
 
+function CheckList({ checks }) {
+  if (!checks?.length) return null;
   return (
-    <div className="rounded-lg border border-brand-tan/20 bg-brand-cream/30 p-3.5">
-      <div className="flex items-start gap-3">
-        <span className="w-8 h-8 rounded-lg bg-brand-terracotta/10 text-brand-terracotta flex items-center justify-center flex-shrink-0">
-          <Icon size={15} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-brand-brown leading-tight">{op.title}</p>
-          <p className="text-[11.5px] text-brand-tan mt-1 leading-snug">{op.blurb}</p>
-          {extra}
-        </div>
-      </div>
+    <ul className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
+      {checks.map((c) => {
+        const { icon: Icon, className } = CHECK_TONE[c.status] || CHECK_TONE.skip;
+        return (
+          <li key={c.id} className="flex gap-2 items-start">
+            <Icon size={14} className={cn("flex-shrink-0 mt-0.5", className)} />
+            <div className="min-w-0">
+              <p className="text-[12px] text-brand-brown leading-tight">{c.label}</p>
+              {c.detail && <p className="text-[10.5px] text-brand-tan mt-0.5 break-words">{c.detail}</p>}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
-      <div className="flex flex-wrap items-center gap-2 mt-3 sm:pl-11">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => { setConfirming(false); onRun(op.key, true); }}
-        >
-          {busy === `${op.key}:dry` ? "Checking…" : "Preview"}
-        </Button>
-
-        {confirming ? (
-          <>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={busy}
-              onClick={() => { setConfirming(false); onRun(op.key, false); }}
-            >
-              {busy === `${op.key}:live` ? "Running…" : "Yes, write for real"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
-          </>
-        ) : (
-          <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>
-            {op.liveLabel}
-          </Button>
-        )}
-
-        <span className="text-[11px] text-brand-tan">
-          {confirming ? "This writes to your ncom workspace." : "Preview changes nothing."}
-        </span>
-      </div>
+// A labelled row of counters — what ncom has actually asked us for.
+function Meter({ label, value, hint }) {
+  return (
+    <div className="rounded-lg bg-brand-cream/50 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-tan">{label}</p>
+      <p className="text-[16px] font-semibold text-brand-brown leading-tight mt-0.5">{value}</p>
+      {hint && <p className="text-[10.5px] text-brand-tan mt-0.5">{hint}</p>}
     </div>
   );
 }
@@ -169,31 +126,41 @@ export default function NcomPage() {
   const [status, setStatus] = useState(null);
   const [conn, setConn] = useState(null);
   const [hooks, setHooks] = useState(null);
+  const [selftest, setSelftest] = useState(null);
+  const [log, setLog] = useState(null);
+
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [log, setLog] = useState(null);
-  const [enableScheme, setEnableScheme] = useState(true);
+  const [enableScheme, setEnableScheme] = useState(false);
+  const [copied, setCopied] = useState("");
 
-  const set = (k, v) => setCfg((c) => ({ ...c, [k]: v }));
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
-  const loadStatus = useCallback(() => {
-    fetch("/api/admin/ncom/status")
-      .then((r) => r.json())
-      .then(setStatus)
-      .catch(() => {});
+  const load = useCallback(async () => {
+    try {
+      setCfg(await (await fetch("/api/admin/ncom")).json());
+    } catch {
+      toast.error("Could not load settings");
+    }
+  }, []);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      setStatus(await (await fetch("/api/admin/ncom/status")).json());
+    } catch {
+      /* the panel still works without the counters */
+    }
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/ncom")
-      .then((r) => r.json())
-      .then(setCfg)
-      .catch(() => toast.error("Failed to load config"));
+    load();
     loadStatus();
-    if (typeof window !== "undefined") setWebhookUrl(`${window.location.origin}/api/ncom-webhook`);
-  }, [loadStatus]);
+  }, [load, loadStatus]);
+
+  const set = (key, value) => setCfg((c) => ({ ...c, [key]: value }));
 
   const save = async () => {
     setSaving(true);
@@ -205,8 +172,7 @@ export default function NcomPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Saved");
-      // Re-read so masked fields reflect what is actually stored.
-      setCfg(await (await fetch("/api/admin/ncom")).json());
+      await load(); // re-read so masked fields reflect what is actually stored
       loadStatus();
     } catch {
       toast.error("Failed to save");
@@ -215,14 +181,13 @@ export default function NcomPage() {
     }
   };
 
-  const test = async () => {
+  const testRest = async () => {
     setTesting(true);
     try {
       const d = await (await fetch("/api/admin/ncom/test")).json();
       setConn(d);
       if (d.ok) toast.success(`Connected to ${d.organization?.name || "ncom"}`);
       else toast.error(d.error || "Connection failed");
-      loadStatus();
     } catch {
       setConn({ ok: false, error: "Connection failed" });
       toast.error("Connection failed");
@@ -231,20 +196,40 @@ export default function NcomPage() {
     }
   };
 
-  const run = async (action, dryRun) => {
-    setBusy(`${action}:${dryRun ? "dry" : "live"}`);
+  const runSelfTest = async () => {
+    setChecking(true);
+    setSelftest(null);
     setLog(null);
     try {
-      const res = await fetch("/api/admin/ncom/sync", {
+      const d = await (await fetch("/api/admin/ncom/selftest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, dryRun, enableScheme }),
-      });
-      const d = await res.json();
-      setLog({ title: `${action}${dryRun ? " — preview" : ""}`, lines: d.log || [] });
+        body: JSON.stringify({ origin: cfg?.publicBaseUrl || origin }),
+      })).json();
+      setSelftest(d);
+      setLog({ title: "connector self-test", lines: d.log || [] });
+      if (d.ok) toast.success("Connector passed every check");
+      else toast.error("Some checks failed — see below");
+      load();
+    } catch {
+      toast.error("Self-test could not run");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const runSkus = async (dryRun) => {
+    setBusy(dryRun ? "dry" : "live");
+    setLog(null);
+    try {
+      const d = await (await fetch("/api/admin/ncom/skus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun, enableScheme }),
+      })).json();
+      setLog({ title: `generate SKUs${dryRun ? " — preview" : ""}`, lines: d.log || [] });
       if (d.ok === false) toast.error("Finished with errors — see the log");
-      else if (dryRun) toast.success("Preview ready");
-      else toast.success("Done");
+      else toast.success(dryRun ? "Preview ready" : "Done");
       loadStatus();
     } catch {
       toast.error("Request failed");
@@ -274,11 +259,11 @@ export default function NcomPage() {
       if (d.ok) {
         if (d.secretStored) toast.success("Registered — signing secret saved automatically");
         // ncom issues the secret only when an endpoint is created, so updating
-        // an existing one can't produce it. Say that instead of implying a
+        // an existing one cannot produce it. Say that rather than implying a
         // secret arrived.
         else if (d.secretUnavailable) toast("Endpoint already registered. Its secret is only shown at creation — use Replace to issue a new one.", { icon: "ℹ️" });
         else toast.success("Registered. Paste the signing secret from ncom below.");
-        setCfg(await (await fetch("/api/admin/ncom")).json());
+        load();
       } else {
         toast.error(d.error || "Could not register");
       }
@@ -289,28 +274,33 @@ export default function NcomPage() {
     }
   };
 
-  const copyWebhook = () => {
-    navigator.clipboard?.writeText(webhookUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copy = (value, key) => {
+    navigator.clipboard?.writeText(value);
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1500);
   };
 
   if (!cfg) return <div className="text-brand-tan py-10 text-center">Loading…</div>;
 
-  const local = status?.local;
-  const skusReady = local ? local.variants - local.missingSku : 0;
+  const base = (cfg.publicBaseUrl || cfg.resolvedOrigin || origin || "").replace(/\/+$/, "");
+  const connectorUrl = base + cfg.connectorPath;
+  const webhookUrl = `${base}/api/ncom-webhook`;
+  const cat = status?.catalogue;
+  const stats = status?.stats || {};
+  const reads = (stats.products || 0) + (stats.stock || 0) + (stats.categories || 0);
   const currencyWrong = conn?.ok && conn.organization?.currencyCode !== "BDT";
+  const serving = cfg.enabled && cfg.hasConnectorSecret;
 
-  // The first-run checklist, derived from live state rather than guessed at.
   const steps = [
-    { done: cfg.hasApiKey, label: "API key saved" },
-    { done: conn?.ok, label: "Connection verified", hint: conn?.ok ? null : "Run “Test connection”" },
-    { done: conn?.ok ? !currencyWrong : false, label: "Workspace currency is BDT", hint: currencyWrong ? "Change it in the ncom dashboard" : null },
-    { done: local ? local.missingSku === 0 : false, label: "Every variant has a SKU", hint: local?.missingSku ? `${local.missingSku} missing` : null },
-    { done: !!cfg.lastMigrateAt, label: "Catalogue pushed" },
+    { done: !!base && /^https:\/\//i.test(base), label: "Public HTTPS address known", hint: base || "Set NEXT_PUBLIC_SITE_URL, or fill in the base URL below" },
+    { done: cfg.hasConnectorSecret, label: "Connector secret stored", hint: cfg.hasConnectorSecret ? null : "Press Connect on ncom's Settings → Product source" },
+    { done: !!cfg.connectorKeyId, label: "Connector key id stored" },
+    { done: cfg.enabled, label: "Serving switched on", hint: cfg.enabled ? null : "Every endpoint answers 503 until this is on" },
+    { done: !!cfg.lastSelfTestOk, label: "Self-test passed", hint: cfg.lastSelfTestAt ? relativeTime(cfg.lastSelfTestAt) : "Not run yet" },
+    { done: !!cfg.lastRequestAt, label: "ncom has read the catalogue", hint: cfg.lastRequestAt ? relativeTime(cfg.lastRequestAt) : "No request received yet" },
+    { done: cfg.hasApiKey, label: "REST API key saved (orders & webhooks)" },
     { done: cfg.hasWebhookSecret, label: "Webhook secret stored" },
     { done: !!cfg.lastWebhookAt, label: "Webhook delivering", hint: cfg.lastWebhookAt ? relativeTime(cfg.lastWebhookAt) : "No event received yet" },
-    { done: cfg.enabled, label: "Stock sync switched on" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
 
@@ -318,12 +308,12 @@ export default function NcomPage() {
     <div>
       <PageHeader
         title="ncom.bd"
-        subtitle="Catalogue import & two-way stock sync"
+        subtitle="Live product source — ncom reads this shop, nothing is imported"
         icon={Share2}
         actions={
           <>
-            <Button variant="outline" onClick={test} disabled={testing}>
-              <Plug size={14} /> {testing ? "Testing…" : "Test connection"}
+            <Button variant="outline" onClick={runSelfTest} disabled={checking}>
+              <ShieldCheck size={14} /> {checking ? "Checking…" : "Run self-test"}
             </Button>
             <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
           </>
@@ -333,65 +323,297 @@ export default function NcomPage() {
       {/* Status row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard
-          label="Connection"
-          value={conn ? (conn.ok ? "Connected" : "Failed") : cfg.hasApiKey ? "Not tested" : "No key"}
-          icon={Plug}
-          accent={conn?.ok ? "text-emerald-600" : conn ? "text-red-600" : ""}
-          hint={conn?.ok ? conn.organization?.name : "Run a test"}
+          label="Product source"
+          value={serving ? "Serving" : cfg.hasConnectorSecret ? "Paused" : "Not connected"}
+          icon={Antenna}
+          accent={serving ? "text-emerald-600" : cfg.hasConnectorSecret ? "text-amber-600" : "text-brand-tan"}
+          hint={cfg.lastRequestAt ? `Last read ${relativeTime(cfg.lastRequestAt)}` : "No read yet"}
         />
         <StatCard
-          label="Stock sync"
-          value={cfg.enabled ? (cfg.autoPushStock ? "On" : "Paused") : "Off"}
-          icon={RefreshCw}
-          accent={cfg.enabled && cfg.autoPushStock ? "text-emerald-600" : "text-brand-tan"}
-          hint={cfg.enabled ? "Mirroring every sale" : "Turn on when ready"}
+          label="Self-test"
+          value={cfg.lastSelfTestAt ? (cfg.lastSelfTestOk ? "Passing" : "Failing") : "Not run"}
+          icon={ShieldCheck}
+          accent={cfg.lastSelfTestOk ? "text-emerald-600" : cfg.lastSelfTestAt ? "text-red-600" : ""}
+          hint={cfg.lastSelfTestAt ? relativeTime(cfg.lastSelfTestAt) : "Run it before connecting"}
         />
         <StatCard
-          label="SKUs ready"
-          value={local ? `${skusReady}/${local.variants}` : "—"}
-          icon={Barcode}
-          accent={local && local.missingSku === 0 ? "text-emerald-600" : "text-amber-600"}
-          hint={local?.missingSku ? `${local.missingSku} still missing` : "Required for stock sync"}
+          label="Exposed live"
+          value={cat ? `${cat.published}/${cat.products}` : "—"}
+          icon={PackageCheck}
+          hint={cat ? `${cat.variants} variants${cfg.includeDrafts && cat.drafts ? ` · ${cat.drafts} drafts visible` : ""}` : "products sellable"}
         />
         <StatCard
           label="Setup"
           value={`${doneCount}/${steps.length}`}
-          icon={ShieldCheck}
+          icon={CircleCheck}
           accent={doneCount === steps.length ? "text-emerald-600" : "text-brand-tan"}
           hint={doneCount === steps.length ? "Fully live" : "Steps remaining"}
         />
       </div>
 
-      {currencyWrong && (
+      {/* How this works now — the model changed entirely, so say so once. */}
+      <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-brand-tan/25 bg-brand-cream/50 px-3.5 py-3">
+        <Radio size={15} className="text-brand-terracotta flex-shrink-0 mt-0.5" />
+        <p className="text-[12px] text-brand-brown/90 leading-snug">
+          <b>ncom no longer stores a copy of this catalogue.</b> It reads this shop live — on every
+          landing-page view, every cart and every checkout — so a price you change here is the price
+          on their pages immediately, and there is no import to run and no stock to reconcile. When
+          something sells there, ncom asks this server to hold the units before it writes the order,
+          so two shoppers can never buy the same last one.
+        </p>
+      </div>
+
+      {!cfg.hasConnectorSecret && (
         <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-3">
           <AlertTriangle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-[12px] text-amber-900 leading-snug">
-            <b>Workspace currency is {conn.organization.currencyCode}, not BDT.</b> Prices are sent as
-            taka × 100, so a ৳1,290 product will read as {conn.organization.currencyCode} 1,290.00 over
-            there. Change the workspace currency in the ncom dashboard before pushing — there is no API
-            for it.
+            <b>Not connected yet.</b> In ncom, open <b>Settings → Product source</b>, paste the
+            connector URL below and press <b>Connect</b>. It shows a key id and a secret exactly
+            once — copy both into this page straight away, because they cannot be shown again.
+          </p>
+        </div>
+      )}
+
+      {currencyWrong && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-red-300 bg-red-50 px-3.5 py-3">
+          <AlertTriangle size={15} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-red-900 leading-snug">
+            <b>Workspace currency is {conn.organization.currencyCode}, not BDT.</b> ncom reads the
+            prices it fetches from here as workspace currency and nothing downstream can detect the
+            mismatch — a ৳1,290 product would be sold as {conn.organization.currencyCode} 1,290.00.
+            Change it in the ncom dashboard before connecting.
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* ── Credentials ─────────────────────────────────────────────── */}
-        <Card className="space-y-4">
-          <SectionTitle className="flex items-center gap-2"><KeyRound size={13} /> Credentials</SectionTitle>
+        {/* ── Product source ─────────────────────────────────────────────── */}
+        <Card className="space-y-4 xl:col-span-2">
+          <SectionTitle className="flex items-center gap-2"><Antenna size={13} /> Product source</SectionTitle>
+
+          <Field label="Connector URL" hint="Paste this into ncom → Settings → Product source. It must be reachable over HTTPS from the internet.">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[12px] bg-brand-cream/70 border border-brand-tan/20 rounded-lg px-3 py-2 text-brand-brown break-all">
+                {connectorUrl}
+              </code>
+              <Button variant="outline" size="icon" onClick={() => copy(connectorUrl, "connector")} title="Copy">
+                {copied === "connector" ? <Check size={15} /> : <Copy size={15} />}
+              </Button>
+            </div>
+          </Field>
 
           <div className="flex items-center justify-between rounded-lg bg-brand-cream/50 px-3 py-2.5">
             <div>
-              <p className="text-[13px] font-medium text-brand-brown">Enable stock sync</p>
-              <p className="text-[11px] text-brand-tan">Mirror sales, returns and edits to ncom</p>
+              <p className="text-[13px] font-medium text-brand-brown">Serve the catalogue</p>
+              <p className="text-[11px] text-brand-tan">Off answers every request 503 — ncom stops selling rather than guessing</p>
             </div>
             <Toggle checked={cfg.enabled} onChange={(v) => set("enabled", v)} />
           </div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Field
+              label="Key id"
+              hint={cfg.envConnectorKey ? "An NCOM_CONNECTOR_KEY env var is set and takes precedence." : "Sent as X-NCOM-Key on every read. Not secret, but checked."}
+            >
+              <TextInput
+                value={cfg.connectorKeyId}
+                onChange={(e) => set("connectorKeyId", e.target.value)}
+                placeholder="ncomcat_…"
+              />
+            </Field>
+            <Field
+              label="Signing secret"
+              hint={cfg.envConnectorSecret ? "An NCOM_CONNECTOR_SECRET env var is set and takes precedence." : "Shown once by ncom. Without it every request is refused."}
+            >
+              <TextInput
+                type="password"
+                value={cfg.connectorSecret}
+                onChange={(e) => set("connectorSecret", e.target.value)}
+                placeholder={cfg.hasConnectorSecret ? MASK : "ncomsec_…"}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="Public base URL"
+            hint={cfg.envSiteUrl
+              ? "NEXT_PUBLIC_SITE_URL is set on the server and is used unless you override it here."
+              : "Where this shop answers on the internet. Product links and image URLs are built from it."}
+          >
+            <TextInput
+              value={cfg.publicBaseUrl}
+              onChange={(e) => set("publicBaseUrl", e.target.value)}
+              placeholder={cfg.resolvedOrigin || "https://your-domain.com"}
+            />
+          </Field>
+
+          <div className="rounded-lg border border-brand-tan/20 p-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] font-medium text-brand-brown flex items-center gap-1.5">
+                <ShieldCheck size={13} /> Self-test
+                <span className="font-normal text-brand-tan">
+                  — the same checks ncom runs, from outside this server
+                </span>
+              </p>
+              <Button size="sm" variant="outline" onClick={runSelfTest} disabled={checking}>
+                {checking ? "Checking…" : "Run now"}
+              </Button>
+            </div>
+            {selftest ? (
+              <CheckList checks={selftest.checks} />
+            ) : (
+              <p className="text-[11.5px] text-brand-tan leading-snug">
+                Signs real requests against the connector URL above and reports what came back:
+                whether the handshake works, whether a forged or replayed signature is refused,
+                whether <code>?ids=</code> is honoured, whether a missing product answers 404, and
+                whether <code>/reserve</code> refuses an impossible quantity. Run it before you press
+                Test in ncom.
+              </p>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Setup checklist ─────────────────────────────────────────────── */}
+        <Card>
+          <SectionTitle className="flex items-center gap-2"><CircleCheck size={13} /> Setup</SectionTitle>
+          <ol className="space-y-2 mt-2">
+            {steps.map((s) => (
+              <li key={s.label} className="flex gap-2.5 items-start">
+                {s.done
+                  ? <CircleCheck size={15} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  : <CircleDashed size={15} className="text-brand-tan/50 flex-shrink-0 mt-0.5" />}
+                <div className="min-w-0">
+                  <p className={cn("text-[12px] leading-tight", s.done ? "text-brand-brown font-medium" : "text-brand-tan")}>
+                    {s.label}
+                  </p>
+                  {s.hint && <p className="text-[10.5px] text-brand-tan/80 mt-0.5 break-all">{s.hint}</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      </div>
+
+      <LogPanel title={log?.title} lines={log?.lines} onClear={() => setLog(null)} />
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
+        {/* ── Capabilities ───────────────────────────────────────────────── */}
+        <Card className="space-y-4">
+          <SectionTitle className="flex items-center gap-2"><SlidersHorizontal size={13} /> What ncom may do</SectionTitle>
+          <p className="text-[11.5px] text-brand-tan leading-snug">
+            Declared truthfully on the handshake, so ncom shows the merchant exactly what this shop
+            supports. Claiming something that is switched off turns a clear warning in their panel
+            into a mysterious checkout failure.
+          </p>
+
+          {[
+            {
+              key: "allowReserve",
+              title: "Hold stock during checkout",
+              blurb: "On, this database decides who gets the last unit. Off, ncom checks stock moments before writing the order and no more — two shoppers can both get one.",
+            },
+            {
+              key: "allowCategories",
+              title: "Expose the category tree",
+              blurb: "Lets their browse blocks mirror your categories.",
+            },
+            {
+              key: "allowSearch",
+              title: "Allow product search",
+              blurb: "Their product picker can search this catalogue by name, SKU or tag.",
+            },
+            {
+              key: "includeDrafts",
+              title: "Show unpublished drafts",
+              blurb: "Drafts appear in their dashboard so a page can be built before you publish. They are never sellable.",
+            },
+          ].map((row) => (
+            <div key={row.key} className="flex items-start justify-between gap-3 rounded-lg bg-brand-cream/50 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium text-brand-brown">{row.title}</p>
+                <p className="text-[11px] text-brand-tan leading-snug">{row.blurb}</p>
+              </div>
+              <Toggle checked={cfg[row.key]} onChange={(v) => set(row.key, v)} />
+            </div>
+          ))}
+
+          <Field
+            label="Parcel weight (grams)"
+            hint="Sent with every variant for courier labels. This catalogue carries no per-product weight, so 0 sends none at all rather than a wrong one."
+          >
+            <TextInput
+              type="number"
+              min={0}
+              value={cfg.defaultWeightGrams}
+              onChange={(e) => set("defaultWeightGrams", e.target.value)}
+            />
+          </Field>
+        </Card>
+
+        {/* ── Live activity ──────────────────────────────────────────────── */}
+        <Card className="space-y-4">
+          <SectionTitle className="flex items-center gap-2"><Activity size={13} /> Live activity</SectionTitle>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <Meter label="Catalogue reads" value={stats.products || 0} hint="products" />
+            <Meter label="Stock readings" value={stats.stock || 0} hint="carts & checkouts" />
+            <Meter label="Handshakes" value={stats.ping || 0} hint="ping" />
+            <Meter label="Holds taken" value={stats.reserve || 0} hint="reserve" />
+            <Meter label="Holds returned" value={stats.release || 0} hint="release" />
+            <Meter
+              label="Refused"
+              value={stats.refused || 0}
+              hint={stats.refused ? "bad signatures" : "none"}
+            />
+          </div>
+
+          <dl className="space-y-2 pt-1">
+            {[
+              ["Last request", cfg.lastRequestAt ? `${relativeTime(cfg.lastRequestAt)} (${cfg.lastRequestKind || "—"})` : "Never"],
+              ["Total reads served", reads.toLocaleString()],
+              ["Units currently held", status?.reservations?.held ?? "—"],
+              ["Holds returned today", status?.reservations?.releasedToday ?? "—"],
+              ["Last refusal", cfg.lastRefusalAt ? `${relativeTime(cfg.lastRefusalAt)} — ${cfg.lastRefusalReason}` : "None"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-brand-tan">{k}</dt>
+                <dd className="text-[12px] font-medium text-brand-brown text-right break-words">{v}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {stats.refused > 0 && (
+            <p className="text-[11px] text-amber-800 leading-snug flex gap-1.5">
+              <Lock size={12} className="flex-shrink-0 mt-0.5 text-amber-600" />
+              Refusals are requests whose signature did not check out. A handful around a
+              credential change is normal; a steady stream means someone has found the URL and is
+              trying it — they are getting nothing, but it is worth knowing.
+            </p>
+          )}
+        </Card>
+      </div>
+
+      {/* ── REST API ────────────────────────────────────────────────────── */}
+      <Card className="mt-5 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <SectionTitle className="flex items-center gap-2"><KeyRound size={13} /> REST API</SectionTitle>
+            <p className="text-[12px] text-brand-tan mt-1">
+              Separate from the product source above, and used for the other direction: reading
+              orders back and registering webhooks. Nothing here writes a catalogue any more.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={testRest} disabled={testing || !cfg.hasApiKey}>
+            <Plug size={14} /> {testing ? "Testing…" : "Test connection"}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Field
             label="API key"
             hint={cfg.envApiKey
               ? "An NCOM_API_KEY env var is set and takes precedence over this."
-              : "From Developers → API keys. Needs the three write permissions."}
+              : "From Developers → API keys. ORDERS_READ and the two WEBHOOKS scopes are enough."}
           >
             <TextInput
               type="password"
@@ -405,135 +627,66 @@ export default function NcomPage() {
             <TextInput value={cfg.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} />
           </Field>
 
-          <div className={cn("flex items-center justify-between rounded-lg bg-brand-cream/50 px-3 py-2.5 transition-opacity", !cfg.enabled && "opacity-50")}>
-            <div>
-              <p className="text-[13px] font-medium text-brand-brown">Auto-push movements</p>
-              <p className="text-[11px] text-brand-tan">Off pauses pushing without losing the key</p>
-            </div>
-            <Toggle checked={cfg.autoPushStock} onChange={(v) => set("autoPushStock", v)} disabled={!cfg.enabled} />
-          </div>
-
-          <div className="flex items-start gap-2 rounded-lg bg-brand-cream/40 px-3 py-2.5">
-            <ImageIcon size={13} className="text-brand-tan flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-brand-tan leading-snug">
-              Product images sync as URLs — ncom fetches them from your CDN and remembers each one,
-              so re-running a push costs nothing for artwork that has not changed.
-            </p>
-          </div>
-        </Card>
-
-        {/* ── Connection detail ───────────────────────────────────────── */}
-        <Card className="space-y-3">
-          <SectionTitle className="flex items-center gap-2"><Building2 size={13} /> Workspace</SectionTitle>
-
-          {!conn && (
-            <p className="text-[12px] text-brand-tan">
-              Run <b className="text-brand-brown">Test connection</b> to confirm the key reaches the right
-              workspace and carries the permissions this needs.
-            </p>
-          )}
-
-          {conn && !conn.ok && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-              <p className="text-[12px] text-red-800 leading-snug">
-                <b>{conn.code || "Failed"}</b> — {conn.error}
-              </p>
-            </div>
-          )}
-
-          {conn?.ok && (
-            <>
-              <dl className="space-y-2">
+          <div className="lg:col-span-1">
+            {conn?.ok ? (
+              <dl className="space-y-1.5">
                 {[
                   ["Organisation", conn.organization?.name],
-                  ["Slug", conn.organization?.slug],
                   ["Currency", conn.organization?.currencyCode],
                   ["Key", conn.key?.name],
-                  ["Config source", conn.source === "env" ? "Environment variable" : "Admin panel"],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-baseline justify-between gap-3">
                     <dt className="text-[11px] text-brand-tan">{k}</dt>
                     <dd className="text-[12px] font-medium text-brand-brown text-right break-all">{v || "—"}</dd>
                   </div>
                 ))}
-              </dl>
-
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-tan mb-1.5">Permissions</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {(conn.scopes || []).map((s) => (
                     <Pill key={s} tone={s.endsWith("WRITE") ? "terracotta" : "gray"}>{s.replace(/_/g, " ")}</Pill>
                   ))}
                 </div>
+              </dl>
+            ) : conn ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+                <p className="text-[12px] text-red-800 leading-snug"><b>{conn.code || "Failed"}</b> — {conn.error}</p>
               </div>
+            ) : (
+              <p className="text-[11.5px] text-brand-tan leading-snug flex gap-1.5">
+                <Building2 size={13} className="flex-shrink-0 mt-0.5" />
+                Run the test to confirm the key reaches the right workspace, in the right currency,
+                with the permissions this panel needs.
+              </p>
+            )}
+          </div>
+        </div>
 
-              {conn.warnings?.length > 0 && (
-                <ul className="space-y-1.5 pt-1">
-                  {conn.warnings.map((w, i) => (
-                    <li key={i} className="flex gap-2 text-[11.5px] text-amber-800 leading-snug">
-                      <AlertTriangle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                      {w}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-
-          {status?.remote && (
-            <div className="pt-2 border-t border-brand-tan/15">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-tan mb-2">Over there vs here</p>
-              {[
-                ["Products", status.remote.products, local?.products],
-                ["Categories", status.remote.categories, local?.categories],
-                ["Variants", status.remote.variants, local?.variants],
-              ].map(([k, remote, mine]) => (
-                <div key={k} className="flex items-baseline justify-between gap-3 py-0.5">
-                  <span className="text-[11px] text-brand-tan">{k}</span>
-                  <span className="text-[12px] font-medium text-brand-brown">
-                    {remote} <span className="text-brand-tan font-normal">/ {mine ?? "—"} here</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* ── Setup checklist ─────────────────────────────────────────── */}
-        <Card>
-          <SectionTitle className="flex items-center gap-2"><ShieldCheck size={13} /> Setup</SectionTitle>
-          <ol className="space-y-2 mt-2">
-            {steps.map((s) => (
-              <li key={s.label} className="flex gap-2.5 items-start">
-                {s.done
-                  ? <CircleCheck size={15} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                  : <CircleDashed size={15} className="text-brand-tan/50 flex-shrink-0 mt-0.5" />}
-                <div className="min-w-0">
-                  <p className={cn("text-[12px] leading-tight", s.done ? "text-brand-brown font-medium" : "text-brand-tan")}>
-                    {s.label}
-                  </p>
-                  {s.hint && <p className="text-[10.5px] text-brand-tan/80 mt-0.5">{s.hint}</p>}
-                </div>
+        {conn?.warnings?.length > 0 && (
+          <ul className="space-y-1.5">
+            {conn.warnings.map((w, i) => (
+              <li key={i} className="flex gap-2 text-[11.5px] text-amber-800 leading-snug">
+                <AlertTriangle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                {w}
               </li>
             ))}
-          </ol>
-        </Card>
-      </div>
+          </ul>
+        )}
+      </Card>
 
-      {/* ── Webhook ───────────────────────────────────────────────────── */}
+      {/* ── Webhooks ────────────────────────────────────────────────────── */}
       <Card className="mt-5 space-y-4">
-        <SectionTitle className="flex items-center gap-2"><Webhook size={13} /> Webhook</SectionTitle>
+        <SectionTitle className="flex items-center gap-2"><Webhook size={13} /> Webhooks</SectionTitle>
         <p className="text-[12px] text-brand-tan">
-          This is how a sale on ncom reaches your stock. Register the URL, then store the signing secret
-          they issue — the receiver rejects everything until it has one.
+          How an ncom order, a fraud hold or a delivered parcel reaches your notifications. Stock is
+          <b> not</b> among them — it moves through the product source above, before the order is
+          even written.
         </p>
 
         <div className="flex items-center gap-2">
           <code className="flex-1 text-[12px] bg-brand-cream/70 border border-brand-tan/20 rounded-lg px-3 py-2 text-brand-brown break-all">
             {webhookUrl}
           </code>
-          <Button variant="outline" size="icon" onClick={copyWebhook} title="Copy">
-            {copied ? <Check size={15} /> : <Copy size={15} />}
+          <Button variant="outline" size="icon" onClick={() => copy(webhookUrl, "hook")} title="Copy">
+            {copied === "hook" ? <Check size={15} /> : <Copy size={15} />}
           </Button>
         </div>
 
@@ -589,9 +742,10 @@ export default function NcomPage() {
                           <p className="text-[12px] text-brand-brown break-all">{w.url}</p>
                           <p className="text-[10.5px] text-brand-tan mt-0.5">
                             {(w.topics || []).join(", ") || "no topics"}
-                            {typeof w.deliveries === "number" && ` · ${w.deliveries} deliveries`}
+                            {w.deliveries && typeof w.deliveries === "object"
+                              ? ` · ${w.deliveries.succeeded ?? 0} ok / ${w.deliveries.failed ?? 0} failed`
+                              : typeof w.deliveries === "number" ? ` · ${w.deliveries} deliveries` : ""}
                             {w.lastSuccessAt && ` · last ok ${relativeTime(w.lastSuccessAt)}`}
-                            {w.lastFailureAt && ` · last fail ${relativeTime(w.lastFailureAt)}`}
                           </p>
                         </div>
                         <Pill tone={w.isActive === false ? "red" : w.lastFailureAt && !w.lastSuccessAt ? "amber" : "green"}>
@@ -607,66 +761,30 @@ export default function NcomPage() {
         )}
       </Card>
 
-      {/* ── Operations ────────────────────────────────────────────────── */}
-      <Card className="mt-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <SectionTitle className="flex items-center gap-2"><RefreshCw size={13} /> Operations</SectionTitle>
-            <p className="text-[12px] text-brand-tan mt-1">
-              Run these in order the first time. Everything previews before it writes.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => run("audit-images", true)}
-            title="Downloads every product image the way ncom would, and lists any that fail"
-          >
-            <ImageIcon size={14} />
-            {busy === "audit-images:dry" ? "Checking images…" : "Check images"}
+      {/* ── Catalogue housekeeping ──────────────────────────────────────── */}
+      <Card className="mt-5 space-y-3">
+        <SectionTitle className="flex items-center gap-2"><Barcode size={13} /> Generate SKUs</SectionTitle>
+        <p className="text-[12px] text-brand-tan leading-snug">
+          Fills in any missing base codes and variant SKUs from your SKU scheme. Stock no longer
+          depends on these — ncom addresses a variant by its own id, which cannot be edited or
+          duplicated — but SKUs travel with every product and are copied onto ncom&apos;s order lines,
+          so they are worth having. Never touches product URLs.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => runSkus(true)} disabled={!!busy}>
+            {busy === "dry" ? "Previewing…" : "Preview"}
           </Button>
+          <Button size="sm" onClick={() => runSkus(false)} disabled={!!busy}>
+            <RefreshCw size={14} /> {busy === "live" ? "Generating…" : "Generate"}
+          </Button>
+          <label className="flex items-center gap-2 cursor-pointer ml-1">
+            <Toggle checked={enableScheme} onChange={setEnableScheme} />
+            <span className="text-[11px] text-brand-tan leading-tight">
+              Also enable the scheme so new products get SKUs
+            </span>
+          </label>
         </div>
-
-        <div className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
-          <AlertTriangle size={13} className="text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-[11.5px] text-amber-900 leading-snug">
-            A product with even one image ncom cannot download is rejected <b>entirely</b> — not
-            imported without the picture. Run <b>Check images</b> first to find those, or push anyway:
-            blocked products are automatically re-sent without artwork so you never lose the product,
-            and the log names each one to fix.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {OPERATIONS.map((op) => (
-            <OperationRow
-              key={op.key}
-              op={op}
-              busy={busy}
-              onRun={run}
-              extra={
-                op.key === "backfill-skus" && status && !status.schemeEnabled ? (
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <Toggle checked={enableScheme} onChange={setEnableScheme} />
-                    <span className="text-[11px] text-brand-tan leading-tight">
-                      Also enable the scheme so new products get SKUs
-                    </span>
-                  </label>
-                ) : null
-              }
-            />
-          ))}
-        </div>
-
-        <LogPanel title={log?.title} lines={log?.lines} onClear={() => setLog(null)} />
-
-        {status?.local && (
-          <p className="text-[11px] text-brand-tan">
-            Last catalogue push <b className="text-brand-brown">{relativeTime(cfg.lastMigrateAt)}</b> ·
-            {" "}last reconcile <b className="text-brand-brown">{relativeTime(cfg.lastReconcileAt)}</b>
-          </p>
-        )}
       </Card>
     </div>
   );

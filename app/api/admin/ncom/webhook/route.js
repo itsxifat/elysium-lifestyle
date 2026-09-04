@@ -4,8 +4,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Settings from "@/models/Settings";
 import { requireAdmin } from "@/lib/auth";
-import { listWebhooks, registerWebhook, WEBHOOK_TOPICS } from "@/lib/ncom-sync";
-import { invalidateNcomConfig } from "@/lib/ncom";
+import { listWebhooks, registerWebhook, WEBHOOK_TOPICS, invalidateNcomConfig } from "@/lib/ncom";
 
 // GET — what ncom currently has registered, plus their delivery health.
 export async function GET() {

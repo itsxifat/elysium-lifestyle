@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 // Content-hash -> stored image value map, used to dedup uploads: if the exact
 // same image bytes are uploaded again, we reuse the existing CDN file instead
@@ -11,5 +12,7 @@ const imageHashSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const ImageHash = mongoose.models.ImageHash || mongoose.model("ImageHash", imageHashSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const ImageHash = tenantModel("ImageHash", imageHashSchema);
 export default ImageHash;

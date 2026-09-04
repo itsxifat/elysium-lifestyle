@@ -17,6 +17,25 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // @enfinito/demo-kit ships as source, so it must be transpiled with the app.
+  transpilePackages: ["@enfinito/demo-kit"],
+
+  webpack: (config) => {
+    // LOCAL DEVELOPMENT ONLY (a symlinked demo-kit).
+    //
+    // With symlinks resolved, webpack looks for the kit's `mongoose` starting
+    // from its REAL path — ~/projects/endb/packages/demo-kit — and finds
+    // endb's own copy first, never reaching Elysium's. That duplicate breaks
+    // the build outright ("Default condition should be last one").
+    //
+    // Turning symlink resolution off makes webpack treat the package as if it
+    // sat in this project's node_modules, so peer deps resolve here. Once the
+    // kit is installed from a registry rather than a file: link, the symlink
+    // is gone and this is a no-op.
+    config.resolve.symlinks = false;
+    return config;
+  },
+
   // Don't advertise the framework/version to attackers.
   poweredByHeader: false,
   experimental: {

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { tenantModel } from "@enfinito/demo-kit/model";
 
 const settingsSchema = new mongoose.Schema(
   {
@@ -99,23 +100,69 @@ const settingsSchema = new mongoose.Schema(
       // the apiKey; set a custom token here to verify against that instead.
       webhookToken: { type: String, default: "" },
     },
-    // ncom.bd — catalogue push + two-way stock sync, managed at /admin/ncom.
+    // ncom.bd — CONTRACT 1 (live product source).
+    //
+    // ncom no longer stores a copy of this catalogue. It reads app/api/ncom/v1/*
+    // on every landing-page render, cart and checkout, so what lives here is
+    // the credentials for that connection plus what we are willing to expose.
+    //
     // Credentials live here rather than in env so the VPS needs no redeploy to
-    // change them (same pattern as steadfast above). Env vars NCOM_API_KEY /
-    // NCOM_WEBHOOK_SECRET still win if set, so an existing deployment keeps
-    // working unchanged.
+    // change them (same pattern as steadfast above). The env vars
+    // NCOM_API_KEY / NCOM_WEBHOOK_SECRET / NCOM_CONNECTOR_KEY /
+    // NCOM_CONNECTOR_SECRET still win if set.
     ncom: {
+      // Master switch for SERVING the catalogue. Off and every connector
+      // endpoint answers 503 — ncom stops selling rather than guessing.
       enabled: { type: Boolean, default: false },
+
+      // ── Inbound: what ncom uses to read this shop ────────────────────────
+      // Both are issued by ncom when you press Connect on Settings → Product
+      // source, and shown there exactly once.
+      connectorKeyId: { type: String, default: "" },
+      connectorSecret: { type: String, default: "" },
+
+      // What /ping declares this connector can do. Told truthfully: claiming a
+      // capability we have not built turns a clear warning in their panel into
+      // a mysterious checkout failure.
+      allowReserve: { type: Boolean, default: true },
+      allowCategories: { type: Boolean, default: true },
+      allowSearch: { type: Boolean, default: true },
+      // Drafts are visible in their dashboard (so a page can be built before
+      // publishing) but are never sellable. Off hides them entirely.
+      includeDrafts: { type: Boolean, default: true },
+      // We carry no per-product weight; one workspace-wide parcel weight is
+      // offered for courier labels. 0 omits weightGrams rather than lying.
+      defaultWeightGrams: { type: Number, default: 0, min: 0 },
+      // Public origin for product links and image URLs, when
+      // NEXT_PUBLIC_SITE_URL is not set on the host.
+      publicBaseUrl: { type: String, default: "" },
+
+      // ── Outbound: the REST API, for orders and webhook management ────────
       apiKey: { type: String, default: "" },
       // Signing secret for inbound webhooks. Without it the receiver at
       // /api/ncom-webhook fails closed and rejects every request.
       webhookSecret: { type: String, default: "" },
       baseUrl: { type: String, default: "https://ncom.bd/api/v1" },
-      // Mirror every stock movement (sales, returns, order edits) as a delta.
-      autoPushStock: { type: Boolean, default: true },
-      lastMigrateAt: { type: Date, default: null },
-      lastReconcileAt: { type: Date, default: null },
+
+      // ── Observability ────────────────────────────────────────────────────
+      // Counters are flushed from memory at most once a minute; a write per
+      // /stock call would mean a database write on every cart render.
+      stats: {
+        ping: { type: Number, default: 0 },
+        products: { type: Number, default: 0 },
+        stock: { type: Number, default: 0 },
+        categories: { type: Number, default: 0 },
+        reserve: { type: Number, default: 0 },
+        release: { type: Number, default: 0 },
+        refused: { type: Number, default: 0 },
+      },
+      lastRequestAt: { type: Date, default: null },
+      lastRequestKind: { type: String, default: "" },
+      lastRefusalAt: { type: Date, default: null },
+      lastRefusalReason: { type: String, default: "" },
       lastWebhookAt: { type: Date, default: null },
+      lastSelfTestAt: { type: Date, default: null },
+      lastSelfTestOk: { type: Boolean, default: false },
     },
     // Desktop: 1920×750 px (16:6.25 ≈ 2.56:1) — Mobile: 750×1000 px (3:4)
     heroSlides: [
@@ -171,5 +218,7 @@ const settingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Settings = mongoose.models.Settings || mongoose.model("Settings", settingsSchema);
+// Tenant-aware: resolves to the current request's sandbox database in
+// demo mode, and to the default connection otherwise. Import sites unchanged.
+const Settings = tenantModel("Settings", settingsSchema);
 export default Settings;

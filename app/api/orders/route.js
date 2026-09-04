@@ -12,9 +12,16 @@ import { findOrCreateCustomer } from "@/lib/customer-link";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
-import { getActiveFlashSale, getFlashPriceMap, recordFlashSold } from "@/lib/flashSale";
+import { getActiveFlashSale, getFlashPriceMap, claimFlashUnits, releaseFlashUnits } from "@/lib/flashSale";
 import { notifyEvent } from "@/lib/notifications";
-import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
+import { reserveStock, releaseStock } from "@/lib/stock";
+import { createOrderWithNumber } from "@/lib/order-number";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// A basket bigger than this is not a customer, and a line quantity bigger than
+// this is not a wardrobe. Both are cheap guards against a scripted client.
+const MAX_LINES = 50;
+const MAX_QTY_PER_LINE = 20;
 
 export async function GET(request) {
   const { error } = await requireAdmin("orders.view");
@@ -63,19 +70,47 @@ export async function POST(request) {
     const session = await getServerSession(authOptions);
     const data = await request.json();
 
+    // Placing an order is expensive (courier lookup, email, pixels) and creates
+    // real records, so it cannot be an unmetered endpoint.
+    //
+    // The ceiling is deliberately loose. Mobile customers here sit behind
+    // carrier-grade NAT, so one public IP can legitimately be a whole street of
+    // shoppers — a tight limit would turn a busy flash sale into a wall of
+    // refusals. This is sized to stop a script, not to ration real buyers.
+    const limited = checkRateLimit(request, "create-order", { limit: 30, windowMs: 10 * 60 * 1000 });
+    if (limited) return limited;
+
     if (!data.items?.length) return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
+    if (!Array.isArray(data.items) || data.items.length > MAX_LINES)
+      return NextResponse.json({ error: "Too many items in one order" }, { status: 400 });
     if (!data.shippingAddress || !data.paymentMethod) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    // Quantities decide what we charge and what we take out of stock, so they
+    // are parsed here rather than trusted. A non-integer or out-of-range value
+    // is a malformed request, not a quantity to guess at.
+    for (const item of data.items) {
+      const q = Number(item.quantity);
+      if (!Number.isInteger(q) || q < 1 || q > MAX_QTY_PER_LINE)
+        return NextResponse.json(
+          { error: `Invalid quantity for one of the items (1–${MAX_QTY_PER_LINE} per size).` },
+          { status: 400 }
+        );
+      item.quantity = q;
+    }
 
     // Normalise the phone (Bangla→English digits, strip country code) so it's
     // stored, screened for fraud, and sent to the courier in ASCII 01XXXXXXXXX.
     if (data.shippingAddress.phone) data.shippingAddress.phone = normalizeBdPhone(data.shippingAddress.phone);
 
+    // isPublished matters here: without it a draft or withdrawn product stays
+    // orderable by anyone who kept its id in a stale cart.
     const productIds = data.items.map((i) => i.productId);
-    const products = await Product.find({ _id: { $in: productIds } }).lean();
+    const products = await Product.find({ _id: { $in: productIds }, isPublished: true }).lean();
     const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
 
     // Active flash sale → special price + limited stock, enforced here (never
-    // trust the client's price). soldByProduct tracks units to claim afterwards.
+    // trust the client's price). soldByProduct records what each line actually
+    // managed to claim, so a failed order can hand it back.
     const flashSale = await getActiveFlashSale();
     const flashMap = getFlashPriceMap(flashSale);
     const soldByProduct = {};
@@ -83,19 +118,45 @@ export async function POST(request) {
     const orderItems = [];
     for (const item of data.items) {
       const product = productMap[item.productId];
-      if (!product) return NextResponse.json({ error: `Product not found: ${item.productId}` }, { status: 400 });
+      // Report these as structured lines rather than a bare message: the cart
+      // lives in localStorage and can outlive the product it points at, and the
+      // client needs to know WHICH line to drop. A flat "Product not found"
+      // left the customer with a basket they could never check out.
+      if (!product) {
+        return NextResponse.json(
+          {
+            error: "Some items are no longer available.",
+            unavailable: [{ product: item.productId, size: item.size, reason: "gone" }],
+          },
+          { status: 409 }
+        );
+      }
 
       // Find variant by size to get the real price
       const variant = product.variants?.find((v) => v.size === item.size);
-      if (!variant) return NextResponse.json({ error: `Size ${item.size} not found for ${product.name}` }, { status: 400 });
+      if (!variant) {
+        return NextResponse.json(
+          {
+            error: `${product.name} is no longer available in size ${item.size}.`,
+            unavailable: [{ product: item.productId, name: product.name, size: item.size, reason: "gone" }],
+          },
+          { status: 409 }
+        );
+      }
 
-      // Apply the flash price while the allocation lasts and it actually undercuts
-      // the regular price.
+      // Claim the flash allocation here rather than after the order is written.
+      // The claim is atomic and covers the full quantity, so the sale price is
+      // only charged for units the allocation actually still has. If it cannot
+      // cover them the customer simply pays the shelf price — an exhausted
+      // promotion is not a reason to refuse the sale.
       let unitPrice = variant.price;
       const flash = flashMap.get(String(product._id));
-      if (flash && flash.remaining > 0 && flash.salePrice < variant.price) {
-        unitPrice = flash.salePrice;
-        soldByProduct[String(product._id)] = (soldByProduct[String(product._id)] || 0) + item.quantity;
+      if (flash && flash.salePrice < variant.price) {
+        const claimed = await claimFlashUnits(flashSale?._id, product._id, item.quantity, flash.stockLimit);
+        if (claimed) {
+          unitPrice = flash.salePrice;
+          soldByProduct[String(product._id)] = (soldByProduct[String(product._id)] || 0) + item.quantity;
+        }
       }
 
       orderItems.push({
@@ -183,34 +244,64 @@ export async function POST(request) {
       }
     }
 
-    const count = await Order.countDocuments();
-    const orderNumber = `ELY-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+    // ── Take the stock ───────────────────────────────────────────────────────
+    // Before the order exists, and atomically. This is the only thing standing
+    // between two people and the same last item: whoever loses the race matches
+    // no document and is told the size has gone, rather than both being sold it.
+    //
+    // Every order reserves, not just COD. The old code decremented for COD here
+    // and left online payments to the gateway callback, which meant an unpaid
+    // online order held nothing and a customer could be sold stock that was
+    // already spoken for.
+    const reservation = await reserveStock(Product, orderItems);
+    if (!reservation.ok) {
+      const first = reservation.unavailable[0];
+      return NextResponse.json(
+        {
+          error:
+            first.available > 0
+              ? `Only ${first.available} left of ${first.name} (${first.size}).`
+              : `${first.name} (${first.size}) has just sold out.`,
+          unavailable: reservation.unavailable.map((u) => ({ ...u, reason: "stock" })),
+        },
+        { status: 409 }
+      );
+    }
 
-    const order = await Order.create({
-      orderNumber,
-      user: customerId,
-      guestEmail: !session ? data.guestEmail : undefined,
-      items: orderItems,
-      shippingAddress: data.shippingAddress,
-      shippingZone: data.shippingZone || "inside_dhaka",
-      paymentMethod: data.paymentMethod,
-      paymentStatus: "pending",
-      orderStatus: "pending",
-      subtotal,
-      shippingFee,
-      discount,
-      discountCodes,
-      appliedDiscounts,
-      totalAmount,
-    });
+    let order;
+    try {
+      order = await createOrderWithNumber(Order, "ELY", (orderNumber) => ({
+        orderNumber,
+        user: customerId,
+        guestEmail: !session ? data.guestEmail : undefined,
+        items: orderItems,
+        shippingAddress: data.shippingAddress,
+        shippingZone: data.shippingZone || "inside_dhaka",
+        paymentMethod: data.paymentMethod,
+        paymentStatus: "pending",
+        orderStatus: "pending",
+        subtotal,
+        shippingFee,
+        discount,
+        discountCodes,
+        appliedDiscounts,
+        totalAmount,
+        stockReserved: true,
+      }));
+    } catch (err) {
+      // The units are already out of inventory; if the order never made it,
+      // they have to go back or they are lost to a document that got away.
+      await releaseStock(Product, orderItems);
+      for (const [pid, qty] of Object.entries(soldByProduct)) {
+        await releaseFlashUnits(flashSale?._id, pid, qty).catch(() => {});
+      }
+      throw err;
+    }
+    const orderNumber = order.orderNumber;
 
     // Count the usage now that the order exists.
     if (appliedDiscounts.length) recordDiscountUsage(appliedDiscounts).catch(() => {});
 
-    // Claim the flash-sale units so "X left" drops for the next visitor.
-    if (flashSale && Object.keys(soldByProduct).length) {
-      recordFlashSold(flashSale._id, soldByProduct).catch(() => {});
-    }
 
     // Notify the roles subscribed to new storefront orders.
     notifyEvent("order_new", {
@@ -221,19 +312,13 @@ export async function POST(request) {
       order: order._id,
     }).catch(() => {});
 
-    if (data.paymentMethod === "cod") {
-      for (const item of orderItems) {
-        await Product.updateOne(
-          { _id: item.product, "variants.size": item.size },
-          { $inc: { "variants.$.stock": -item.quantity } }
-        );
-      }
+    // No stock is mirrored to ncom.bd any more. Under their contract 1 there is
+    // no copy of this inventory to keep in step: ncom reads the count from
+    // /api/ncom/v1/stock when it needs one, and takes units through
+    // /api/ncom/v1/reserve when it sells one. The reservation above is the only
+    // movement there is.
 
-      // Mirror the movement to ncom.bd as a signed delta. Fire-and-forget: a
-      // stock sync must never be able to fail a customer's checkout.
-      stockLinesForOrderItems(Product, orderItems, -1)
-        .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Sold on main site — order ${orderNumber}` }))
-        .catch(() => {});
+    if (data.paymentMethod === "cod") {
       // Order intentionally stays "pending". The Steadfast fraud check below
       // may auto-advance it to "processing" once the customer's courier history
       // clears the thresholds configured in Settings.

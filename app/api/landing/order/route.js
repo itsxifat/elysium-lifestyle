@@ -17,7 +17,6 @@ import { runFraudCheckForOrder } from "@/lib/fraud";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { notifyEvent } from "@/lib/notifications";
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
-import { reportStockDelta, stockLinesForOrderItems } from "@/lib/ncom";
 
 // The one-page landing checkout. Cash on delivery only: the order is created and
 // confirmed in this single request, so the customer never leaves /lp/<code>.
@@ -163,11 +162,6 @@ export async function POST(request) {
         { $inc: { "variants.$.stock": -item.quantity } }
       );
     }
-
-    // Mirror to ncom.bd as a signed delta (fire-and-forget).
-    stockLinesForOrderItems(Product, items, -1)
-      .then((lines) => reportStockDelta(lines, { reason: "MANUAL", note: `Landing page order ${orderNumber}` }))
-      .catch(() => {});
 
     // Campaign stats for the admin list.
     LandingPage.updateOne({ _id: page._id }, { $inc: { orderCount: 1, revenue: totalAmount } }).catch(() => {});
