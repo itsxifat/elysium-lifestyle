@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket } from "lucide-react";
+import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket, Globe, ChevronDown, AlertTriangle } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
@@ -660,6 +660,8 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
 
+          {order.source === "ncom" && order.ncom && <NcomPanel ncom={order.ncom} />}
+
           {/* Campaign attribution. Staff-only — the customer's own order page
               shows this exactly like any other order. */}
           {order.source === "landing_page" && order.landingPage && (
@@ -783,6 +785,143 @@ export default function AdminOrderDetailPage() {
           onClose={() => setEditOpen(false)}
           onDone={(updated) => { setOrder(updated); setEditOpen(false); }}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Where an ncom.bd order came from.
+ *
+ * Staff-only, like the landing-page panel above it, and it answers the three
+ * questions that cannot be answered from anywhere else on this page: which site
+ * sold it, which offer the customer took, and what ncom actually sent us. Once
+ * those are visible the order is processed exactly like any other — the status
+ * buttons, the courier flow and the scanner all work on it unchanged.
+ *
+ * The full payload is behind a disclosure rather than on the page. It is the
+ * answer to "what did they send us", which is the first question in every
+ * integration conversation and the last thing anyone needs while packing a
+ * parcel.
+ */
+function NcomPanel({ ncom }) {
+  const [open, setOpen] = useState(false);
+  const warnings = ncom.warnings || [];
+  const foreign = ncom.foreignItems || [];
+
+  const Row = ({ label, children }) => (
+    <div className="flex justify-between gap-3">
+      <span className="text-brand-tan">{label}</span>
+      <span className="font-medium text-brand-brown text-right">{children}</span>
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-sky-200 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
+      <h2 className="font-semibold text-brand-brown mb-3 flex items-center gap-2">
+        <Globe size={15} className="text-sky-600" /> ncom.bd Order
+      </h2>
+
+      {/* Anything that needs a human comes first. A line sold from a page whose
+          product we have since deleted, or a size we could not take stock for,
+          is discovered in the stockroom otherwise. */}
+      {warnings.length > 0 && (
+        <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
+          {warnings.map((warning, i) => (
+            <p key={i} className="text-[12px] text-amber-800 flex items-start gap-1.5">
+              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+              {warning}
+            </p>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 text-sm">
+        <Row label="Sold by">
+          {ncom.storeUrl ? (
+            <a href={ncom.storeUrl} target="_blank" rel="noopener" className="text-sky-700 hover:underline">
+              {ncom.storeName || ncom.storeUrl}
+            </a>
+          ) : (
+            ncom.storeName || "—"
+          )}
+        </Row>
+
+        <Row label="Offer taken">{ncom.offerLabel || "—"}</Row>
+
+        {ncom.regularPrice > ncom.offerPrice && ncom.offerPrice > 0 && (
+          <Row label="Offer price">
+            {formatPrice(ncom.offerPrice)}
+            <span className="text-brand-tan line-through font-normal ml-1.5">
+              {formatPrice(ncom.regularPrice)}
+            </span>
+          </Row>
+        )}
+
+        <Row label="Page">
+          {ncom.pageUrl ? (
+            <a href={ncom.pageUrl} target="_blank" rel="noopener" className="text-sky-700 hover:underline">
+              {ncom.pageTitle || "Open the page"}
+            </a>
+          ) : (
+            ncom.pageTitle || "—"
+          )}
+        </Row>
+
+        <Row label="Their order no.">
+          <span className="font-mono text-[12px]">{ncom.orderNumber || "—"}</span>
+        </Row>
+
+        {ncom.discountCode && <Row label="Coupon used">{ncom.discountCode}</Row>}
+
+        {ncom.receivedAt && (
+          <Row label="Received">{new Date(ncom.receivedAt).toLocaleString()}</Row>
+        )}
+      </div>
+
+      {/* Lines that belong to ncom's own catalogue rather than ours. They have
+          no product here and no stock of ours moved for them, so whoever packs
+          this parcel has to be told they exist and what they look like. */}
+      {foreign.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-sky-100">
+          <p className="text-[12px] font-semibold text-brand-brown mb-2">
+            Not from this shop&apos;s catalogue
+          </p>
+          <div className="space-y-2">
+            {foreign.map((item, i) => (
+              <div key={i} className="flex items-center gap-2 text-[12px]">
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.image} alt="" className="w-8 h-8 rounded object-cover border border-brand-tan/20" />
+                ) : (
+                  <span className="w-8 h-8 rounded bg-brand-tan/10 border border-brand-tan/20" />
+                )}
+                <span className="flex-1 text-brand-brown">
+                  {item.title}
+                  {item.variantTitle ? ` (${item.variantTitle})` : ""}
+                </span>
+                <span className="text-brand-tan">
+                  ×{item.quantity} · {formatPrice(item.price)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="mt-4 flex items-center gap-1 text-[12px] text-sky-700 hover:underline"
+      >
+        <ChevronDown size={12} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
+        {open ? "Hide" : "Show"} everything ncom sent
+      </button>
+
+      {open && (
+        <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-brand-cream/40 border border-brand-tan/15 p-3 text-[11px] leading-relaxed">
+          {JSON.stringify(ncom.payload ?? {}, null, 2)}
+        </pre>
       )}
     </div>
   );

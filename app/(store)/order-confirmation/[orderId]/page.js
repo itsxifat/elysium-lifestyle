@@ -8,10 +8,15 @@ import Link from "next/link";
 import { CheckCircle, Package, Truck, Clock } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import PurchaseTracker from "@/components/tracking/PurchaseTracker";
+import { CUSTOMER_HIDDEN } from "@/lib/orders";
 
 async function getOrder(orderId) {
   await connectDB();
+  // Same projection as the account pages. This page had none, so it was
+  // serialising the staff-only blocks — campaign attribution, the edit history,
+  // the fraud verdict — into a page reachable by anyone holding the order id.
   const order = await Order.findById(orderId)
+    .select(CUSTOMER_HIDDEN)
     .populate("user", "name email")
     .lean();
   return order ? serializeDoc(order) : null;
