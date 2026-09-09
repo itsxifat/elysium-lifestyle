@@ -13,6 +13,7 @@ import { isStaff, isElevated } from "@/lib/permissions";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { requirePin } from "@/lib/pin";
 import { applyCodAutoPaid } from "@/lib/orders";
+import { notifyNcom } from "@/lib/ncom-orders";
 import { notifyEvent } from "@/lib/notifications";
 import Product from "@/models/Product";
 import { releaseIfHeld, reserveIfNotHeld } from "@/lib/stock";
@@ -145,6 +146,24 @@ export async function PUT(request, { params }) {
     }
 
     await order.save();
+
+    // An order that came from ncom is a shared record, so their copy follows.
+    //
+    // A cancellation is the one that matters most: without it their side goes
+    // on showing the order as live, offering to dispatch a parcel nobody is
+    // sending, with the units of any product THEY store still off their shelf.
+    // Every other status is sent too, so their copy reads the same as ours.
+    //
+    // Queued after the save and never able to throw: the status has changed
+    // here either way, and a delivery problem must not fail our own staff's
+    // action. What does not land is retried and stays visible until it does.
+    if (order.source === "ncom" && (statusChanged || paymentStatusChanged)) {
+      await notifyNcom(
+        order,
+        nextStatus === "cancelled" ? "order.cancelled" : "order.updated",
+        { reason: statusChanged ? `Status changed to ${nextStatus}` : null }
+      ).catch(() => {});
+    }
 
     // Entering "processing" → auto-create the Steadfast consignment (idempotent;
     // skips if it already has one or auto-send is off).

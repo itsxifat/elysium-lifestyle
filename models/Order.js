@@ -98,6 +98,24 @@ const orderSchema = new mongoose.Schema(
 
       receivedAt: { type: Date, default: null },
 
+      /// How many times this order has changed since it arrived.
+      ///
+      /// The defence against the two order books quietly disagreeing. Every
+      /// message in either direction quotes the revision it was built from, and
+      /// is applied only if that matches what this side holds. Anything else is
+      /// refused with 409 and this number, never merged — two people editing the
+      /// same order in two systems is a real thing that happens, and
+      /// last-writer-wins loses one of their edits without telling anybody.
+      revision: { type: Number, default: 0 },
+
+      /// The idempotency key of the last change accepted FROM ncom.
+      ///
+      /// Tells their retry from a genuinely stale change, which comparing
+      /// revisions cannot: both quote a base lower than we hold. Revisions are
+      /// per-side counters and drift apart the moment each system applies
+      /// something the other has not seen.
+      lastInboundKey: { type: String, default: "" },
+
       // Which of their storefronts sold it, and which page on it.
       storeName: { type: String, default: "" },
       storeUrl: { type: String, default: "" },

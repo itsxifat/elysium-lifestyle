@@ -9,6 +9,7 @@ import { isElevated } from "@/lib/permissions";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
 import { adjustReservation } from "@/lib/stock";
+import { notifyNcom } from "@/lib/ncom-orders";
 
 const PAYMENT_METHODS = ["sslcommerz", "cod", "bkash", "nagad", "bank", "cash"];
 const SOURCES = ["website", "facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -132,10 +133,16 @@ export async function PATCH(request, { params }) {
     if (typeof data.shippingZone === "string" && ZONES.includes(data.shippingZone)) {
       order.shippingZone = data.shippingZone;
     }
-    // A landing-page order's channel is system-assigned and carries the campaign
-    // attribution on order.landingPage — never let an edit reassign it. (It's
-    // also absent from SOURCES, so it can't be assigned to another order.)
-    if (typeof data.source === "string" && SOURCES.includes(data.source) && order.source !== "landing_page") {
+    // A landing-page or ncom order's channel is system-assigned and carries the
+    // attribution that makes the record readable — never let an edit reassign
+    // it. (Both are absent from SOURCES, so neither can be assigned by hand
+    // either.)
+    if (
+      typeof data.source === "string" &&
+      SOURCES.includes(data.source) &&
+      order.source !== "landing_page" &&
+      order.source !== "ncom"
+    ) {
       order.source = data.source;
     }
     if (data.notes !== undefined) order.notes = data.notes?.trim() || undefined;
@@ -168,6 +175,15 @@ export async function PATCH(request, { params }) {
     });
 
     await order.save();
+
+    // An order that came from ncom is a shared record: their copy has to follow
+    // or the two order books quietly stop describing the same sale — and for
+    // any product ncom stores, their stock is still counted against it. Queued
+    // after the save and never able to throw, so a delivery problem cannot fail
+    // an edit our own staff already made.
+    if (order.source === "ncom") {
+      await notifyNcom(order, "order.updated").catch(() => {});
+    }
 
     const populated = await Order.findById(params.id).populate("user", "name email").lean();
 

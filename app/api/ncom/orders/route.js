@@ -12,7 +12,7 @@ import { verifySignature, secretEquals } from "@/lib/ncom-signature";
 import { normalizeBdPhone } from "@/lib/utils";
 import { findOrCreateCustomer } from "@/lib/customer-link";
 import { createOrderWithNumber } from "@/lib/order-number";
-import { reserveStock, releaseStock } from "@/lib/stock";
+import { reserveStock, releaseStock, adjustReservation } from "@/lib/stock";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { notifyEvent } from "@/lib/notifications";
@@ -114,6 +114,14 @@ export async function POST(request) {
 
   const order = envelope?.order;
   if (!order || typeof order !== "object") return bad(400, "Missing order");
+
+  // A change to an order we already have, rather than a new one. Handled before
+  // the placement path below because it is a different question entirely: not
+  // "is this a duplicate?" but "does this build on the version we hold?".
+  if (envelope.topic === "order.updated" || envelope.topic === "order.cancelled") {
+    return applyNcomChange(envelope, order, key);
+  }
+
   if (!Array.isArray(order.lines) || order.lines.length === 0) return bad(400, "Order has no lines");
   if (order.lines.length > MAX_LINES) return bad(400, "Too many lines in one order");
 
@@ -162,23 +170,162 @@ export async function POST(request) {
 }
 
 /**
- * Turns a handoff into an ordinary Elysium order.
+ * Applies a change ncom made to an order it already handed us.
  *
- * The sequence mirrors app/api/orders POST deliberately, because the promise
- * this integration makes is that an ncom order is processed exactly like any
- * other one. The differences are only the two things that are genuinely
- * different: the money is theirs, and some lines may be for products that live
- * in their catalogue rather than ours.
+ * ── The revision check is the whole safety property ─────────────────────────
+ * A message quoting a base we do not hold means somebody changed this order in
+ * both places, and there is no correct automatic answer. Merging silently
+ * discards one of two real people's work, so it is refused with 409 and OUR
+ * revision — which is what lets their side show a human exactly how the two
+ * diverged instead of only that they did.
+ *
+ * A retry is recognised by its key, not by comparing revisions. Both a retry
+ * and a genuinely stale change quote a base lower than we hold, and revisions
+ * are per-side counters that drift apart the moment each system applies
+ * something the other has not seen — so a number comparison cannot tell them
+ * apart, and guessing loses an edit.
+ *
+ * ── Stock ───────────────────────────────────────────────────────────────────
+ * Ours to move, and only ours. ncom stopped calling /reserve for these orders
+ * the moment they were handed over; the order is what holds our units, and
+ * `adjustReservation` moves only the difference. Lines belonging to products
+ * ncom stores are recorded but never move stock here — we do not have them.
+ *
+ * A shortfall does not refuse the change. ncom has already committed it and
+ * told the customer; refusing would leave the two copies permanently apart over
+ * a number we can simply record. Staff see it on the order instead.
  */
-async function placeNcomOrder({ envelope, order, key }) {
+async function applyNcomChange(envelope, incoming, key) {
+  const existing = await Order.findOne({ "ncom.orderId": String(incoming.id || "") });
+  if (!existing) return bad(404, "Unknown order");
+
+  const held = Number(existing.ncom?.revision) || 0;
+  const base = Number(envelope.baseRevision);
+  if (!Number.isInteger(base)) return bad(400, "Missing baseRevision");
+
+  // Their retry of the change we most recently accepted from them.
+  if (key && key === existing.ncom?.lastInboundKey) {
+    return NextResponse.json({ ok: true, deduped: true, revision: held });
+  }
+
+  if (base !== held) {
+    return NextResponse.json(
+      {
+        error: "This shop holds a different version of the order",
+        revision: held,
+      },
+      { status: 409 }
+    );
+  }
+
+  const revision = Number(envelope.revision) || held + 1;
+
+  if (envelope.topic === "order.cancelled") {
+    if (existing.orderStatus !== "cancelled") {
+      // Units first, then the save — the safe order of the two, because the
+      // alternative leaves stock held for an order nobody can see.
+      if (existing.stockReserved) {
+        await releaseStock(Product, existing.items).catch(() => {});
+        existing.stockReserved = false;
+      }
+      existing.orderStatus = "cancelled";
+      existing.notes = [existing.notes, envelope.reason ? `Cancelled on ncom: ${envelope.reason}` : "Cancelled on ncom."]
+        .filter(Boolean)
+        .join(" ");
+    }
+    existing.ncom.revision = revision;
+    existing.ncom.lastInboundKey = key || "";
+    await existing.save();
+
+    notifyEvent("ncom_order", {
+      severity: "warning",
+      title: `ncom order ${existing.orderNumber} cancelled`,
+      body: envelope.reason || "Cancelled on ncom. Units were returned to stock.",
+      link: `/admin/orders/${existing._id}`,
+      order: existing._id,
+    }).catch(() => {});
+
+    return NextResponse.json({ ok: true, revision });
+  }
+
+  // ── An edit ──────────────────────────────────────────────────────────────
+  const rebuilt = await rebuildItems(incoming);
+
+  if (existing.stockReserved && rebuilt.items.length > 0) {
+    const moved = await adjustReservation(Product, existing.items, rebuilt.items);
+    if (!moved.ok) {
+      for (const short of moved.unavailable || []) {
+        rebuilt.warnings.push(
+          `Not enough stock for ${short.name}${short.size ? ` (${short.size})` : ""} — ${short.requested} on the order, ${short.available ?? 0} left.`
+        );
+      }
+    }
+  }
+
+  if (rebuilt.items.length > 0) existing.items = rebuilt.items;
+  existing.ncom.foreignItems = rebuilt.foreignItems;
+  existing.ncom.warnings = rebuilt.warnings;
+
+  // Their numbers, not ours. The customer agreed to them on their page.
+  existing.subtotal = centsToTaka(incoming.subtotalCents);
+  existing.shippingFee = centsToTaka(incoming.shippingTotalCents);
+  existing.discount = centsToTaka(incoming.discountTotalCents);
+  existing.totalAmount = centsToTaka(incoming.totalCents);
+  if (incoming.note !== undefined) existing.notes = incoming.note || "";
+
+  const address = incoming.shippingAddress || {};
+  if (address.name || address.phone) {
+    existing.shippingAddress = {
+      ...existing.shippingAddress.toObject?.() ?? existing.shippingAddress,
+      name: address.name || existing.shippingAddress.name,
+      phone: address.phone ? normalizeBdPhone(address.phone) : existing.shippingAddress.phone,
+      street: [address.address1, address.address2].filter(Boolean).join(", ") || existing.shippingAddress.street,
+      city: address.city || existing.shippingAddress.city,
+      state: address.province || existing.shippingAddress.state,
+      postalCode: address.postalCode || existing.shippingAddress.postalCode,
+    };
+  }
+
+  existing.ncom.revision = revision;
+  existing.ncom.lastInboundKey = key || "";
+  existing.editHistory = existing.editHistory || [];
+  existing.editHistory.push({
+    at: new Date(),
+    byName: "ncom.bd",
+    action: "edit",
+    summary: "Edited on ncom",
+    pinVerified: false,
+  });
+  await existing.save();
+
+  notifyEvent("ncom_order", {
+    severity: rebuilt.warnings.length ? "warning" : "info",
+    title: `ncom order ${existing.orderNumber} edited`,
+    body: rebuilt.warnings.length
+      ? `${rebuilt.warnings.length} thing(s) need checking.`
+      : "The order was changed on ncom.",
+    link: `/admin/orders/${existing._id}`,
+    order: existing._id,
+  }).catch(() => {});
+
+  return NextResponse.json({ ok: true, revision });
+}
+
+/**
+ * Splits a handed-over order's lines into ours and theirs.
+ *
+ * A line is ours when its `source` says so AND it resolves to a real variant
+ * here. Both halves matter: `source` is what ncom believes, and the lookup is
+ * what is true — a product deleted here since the page was rendered is a line
+ * we can describe but cannot pick from stock.
+ *
+ * Shared by the placement path and the edit path, so a line is matched the same
+ * way whenever it arrives.
+ */
+async function rebuildItems(order) {
   const warnings = [];
 
-  // ── The goods ────────────────────────────────────────────────────────────
-  // A line is ours when its `source` says so AND it resolves to a real variant
-  // here. Both halves matter: `source` is what ncom believes, and the lookup is
-  // what is true — a product deleted here since the page was rendered is a line
-  // we can describe but cannot pick from stock.
-  const ourIds = order.lines
+  const ourIds = (order.lines || [])
     .filter((line) => line.source === "website" && isObjectId(line.productId))
     .map((line) => line.productId);
 
@@ -232,6 +379,30 @@ async function placeNcomOrder({ envelope, order, key }) {
       price,
     });
   }
+
+  return { items, foreignItems, warnings };
+}
+
+/**
+ * Turns a handoff into an ordinary Elysium order.
+ *
+ * The sequence mirrors app/api/orders POST deliberately, because the promise
+ * this integration makes is that an ncom order is processed exactly like any
+ * other one. The differences are only the two things that are genuinely
+ * different: the money is theirs, and some lines may be for products that live
+ * in their catalogue rather than ours.
+ */
+async function placeNcomOrder({ envelope, order, key }) {
+  const warnings = [];
+
+  // The goods, resolved against this shop's catalogue. Shared with the edit
+  // path so a line arriving on an update is matched exactly as it was on the
+  // original order — two copies of this logic would be two answers to "is this
+  // one of ours".
+  const rebuilt = await rebuildItems(order);
+  const items = rebuilt.items;
+  const foreignItems = rebuilt.foreignItems;
+  warnings.push(...rebuilt.warnings);
 
   if (items.length === 0 && foreignItems.length === 0) {
     throw new Error("no usable lines");
