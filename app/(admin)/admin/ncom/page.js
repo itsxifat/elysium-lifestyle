@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import {
   Share2, Plug, Copy, Check, Webhook, KeyRound, RefreshCw, Barcode, Radio,
   ShieldCheck, AlertTriangle, Terminal, CircleCheck, CircleDashed, Building2,
-  Antenna, Lock, PackageCheck, SlidersHorizontal, Activity,
+  Antenna, Lock, PackageCheck, SlidersHorizontal, Activity, ShoppingBag,
 } from "lucide-react";
 import {
   PageHeader, Card, Field, TextInput, Toggle, Button, SectionTitle, StatCard, Pill,
@@ -285,6 +285,8 @@ export default function NcomPage() {
   const base = (cfg.publicBaseUrl || cfg.resolvedOrigin || origin || "").replace(/\/+$/, "");
   const connectorUrl = base + cfg.connectorPath;
   const webhookUrl = `${base}/api/ncom-webhook`;
+  const orderUrl = base + (cfg.orderPath || "/api/ncom/orders");
+  const takingOrders = cfg.acceptOrders && cfg.hasOrderSecret && !!cfg.orderKeyId;
   const cat = status?.catalogue;
   const stats = status?.stats || {};
   const reads = (stats.products || 0) + (stats.stock || 0) + (stats.categories || 0);
@@ -670,6 +672,75 @@ export default function NcomPage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      {/* ── Orders handed to us ─────────────────────────────────────────── */}
+      <Card className="mt-5 space-y-4">
+        <SectionTitle className="flex items-center gap-2"><ShoppingBag size={13} /> Orders from ncom</SectionTitle>
+        <p className="text-[12px] text-brand-tan">
+          When ncom is set to <b>process orders on your own website</b>, it posts each order here the
+          moment it is placed and does nothing else with it — no fraud screen, no courier, and no
+          <code className="mx-1">/reserve</code> call, because the order itself takes the stock. From
+          the moment it lands it is an ordinary order: it appears in the list, moves through the same
+          statuses, and ships through the same courier flow.
+        </p>
+
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[12px] bg-brand-cream/70 border border-brand-tan/20 rounded-lg px-3 py-2 text-brand-brown break-all">
+            {orderUrl}
+          </code>
+          <Button variant="outline" size="icon" onClick={() => copy(orderUrl, "orders")} title="Copy">
+            {copied === "orders" ? <Check size={15} /> : <Copy size={15} />}
+          </Button>
+        </div>
+        <p className="text-[11px] text-brand-tan -mt-2">
+          Paste this into ncom → Settings → Order handling, then press <b>Save and send a test order</b>.
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Field
+            label="Order key id"
+            hint={cfg.envOrderKeyId ? "An NCOM_ORDER_KEY_ID env var is set and takes precedence." : "Shown by ncom when you save the endpoint."}
+          >
+            <TextInput
+              value={cfg.orderKeyId}
+              onChange={(e) => set("orderKeyId", e.target.value)}
+              placeholder="ncomord_…"
+            />
+          </Field>
+
+          <Field
+            label="Order signing secret"
+            hint={cfg.envOrderSecret ? "An NCOM_ORDER_SECRET env var is set and takes precedence." : "ncom shows this exactly once. Rotate there if it is lost."}
+          >
+            <TextInput
+              type="password"
+              value={cfg.orderSecret}
+              onChange={(e) => set("orderSecret", e.target.value)}
+              placeholder={cfg.hasOrderSecret ? MASK : "ncomsec_…"}
+            />
+          </Field>
+        </div>
+
+        {/* Deliberately its own switch rather than riding on `enabled` above.
+            That one governs whether ncom may READ our catalogue; this governs
+            whether it may WRITE orders into it, and a shop pasting credentials
+            to try them must not start taking live orders as a side effect. */}
+        <Toggle
+          checked={!!cfg.acceptOrders}
+          onChange={(v) => set("acceptOrders", v)}
+          label="Accept orders from ncom"
+          hint={
+            takingOrders
+              ? "Live. Orders ncom hands over are filed here and stock is taken for them."
+              : "Off — the endpoint answers 503. Both credentials above must be stored first."
+          }
+        />
+
+        <p className="text-[11px] text-brand-tan">
+          Orders received: <b className="text-brand-brown">{cfg.ordersReceived || 0}</b>
+          {" · "}last: <b className="text-brand-brown">{relativeTime(cfg.lastOrderAt)}</b>
+        </p>
       </Card>
 
       {/* ── Webhooks ────────────────────────────────────────────────────── */}

@@ -50,6 +50,10 @@ export async function GET(request) {
         { "courier.trackingCode": rx },
         { "items.name": rx },
         { "items.sku": rx },
+        // Their number, not ours. A customer who ordered on an ncom landing
+        // page reads that number off their confirmation screen and quotes it on
+        // the phone, and it is the only reference they have.
+        { "ncom.orderNumber": rx },
       ];
     }
 

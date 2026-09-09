@@ -57,7 +57,7 @@ const orderSchema = new mongoose.Schema(
     // created by staff from the admin panel.
     source: {
       type: String,
-      enum: ["website", "landing_page", "facebook", "instagram", "whatsapp", "phone", "offline", "other"],
+      enum: ["website", "landing_page", "ncom", "facebook", "instagram", "whatsapp", "phone", "offline", "other"],
       default: "website",
     },
 
@@ -74,6 +74,74 @@ const orderSchema = new mongoose.Schema(
       offerPrice: { type: Number, default: 0 }, // LP price charged for the offer
       regularPrice: { type: Number, default: 0 }, // undiscounted product total
     },
+    // An order placed on an ncom.bd landing page and handed to us to process.
+    //
+    // ADMIN-ONLY, exactly like `landingPage` above: the customer's own account
+    // pages must render this as a perfectly ordinary order, so never project
+    // these fields into storefront views.
+    //
+    // Everything here is a snapshot of what ncom sent, because there is nothing
+    // to join to — their pages, offers and stores live in their database, not
+    // ours, and an order has to keep reading correctly after a campaign they
+    // ran last March is deleted.
+    ncom: {
+      // Their order id, and the human number the buyer was shown on their
+      // confirmation screen. A customer quoting a number over the phone is
+      // quoting THIS one, not ours, so it has to be searchable.
+      orderId: { type: String, default: "" },
+      orderNumber: { type: String, default: "" },
+
+      // The idempotency key from the handoff. Unique (sparse) — this index is
+      // the entire defence against a retried delivery becoming a second order,
+      // and it is enforced by the database rather than by a check-then-insert.
+      idempotencyKey: { type: String, default: undefined },
+
+      receivedAt: { type: Date, default: null },
+
+      // Which of their storefronts sold it, and which page on it.
+      storeName: { type: String, default: "" },
+      storeUrl: { type: String, default: "" },
+      pageTitle: { type: String, default: "" },
+      pageUrl: { type: String, default: "" },
+
+      // The offer the buyer took. This is the single most useful field on the
+      // whole record — it is what the ad promised, in the words the customer
+      // read, and it is what staff need when the customer says "the two-shirt
+      // deal".
+      offerKey: { type: String, default: "" },
+      offerLabel: { type: String, default: "" },
+      offerPrice: { type: Number, default: 0 },
+      regularPrice: { type: Number, default: 0 },
+
+      // Their coupon, if the buyer typed one. We do not re-evaluate it — the
+      // discount is already in the totals — this is for the record.
+      discountCode: { type: String, default: "" },
+
+      // Lines belonging to products ncom stores itself rather than to ours.
+      // They have no Product to reference and no stock of ours to move, so they
+      // are listed here for whoever packs the parcel and has to find them.
+      foreignItems: [
+        {
+          title: { type: String, default: "" },
+          variantTitle: { type: String, default: "" },
+          sku: { type: String, default: "" },
+          image: { type: String, default: "" },
+          quantity: { type: Number, default: 0 },
+          price: { type: Number, default: 0 },
+        },
+      ],
+
+      // Anything ncom sent that we could not match to a product of ours, and
+      // anything we could not reserve. Staff see this on the order rather than
+      // discovering it in the stockroom.
+      warnings: { type: [String], default: [] },
+
+      // The handoff exactly as it arrived. Kept so "what did they actually send
+      // us" is answerable from the order itself, which is the first question in
+      // every integration conversation. Rendered in the expandable panel.
+      payload: { type: mongoose.Schema.Types.Mixed, default: null },
+    },
+
     // Who created the order (null for customer self-checkout). createdByName is a
     // snapshot kept even if the staff account is later removed.
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
@@ -179,6 +247,16 @@ const orderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// One ncom order, once. Sparse so the overwhelming majority of orders — every
+// one placed on this shop's own storefront — carry no key and are unaffected.
+//
+// This is the guarantee that makes ncom's at-least-once delivery safe: their
+// queue retries anything it did not get a clean answer to, including a request
+// we processed and then failed to acknowledge, and the retry carries the same
+// key. Without this index that retry is a duplicate order, a duplicate stock
+// movement and a duplicate parcel.
+orderSchema.index({ "ncom.idempotencyKey": 1 }, { unique: true, sparse: true });
 
 // Fallback numbering for any code path that saves an order without going
 // through createOrderWithNumber. Routed through the same atomic counter — the

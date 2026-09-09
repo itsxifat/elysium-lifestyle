@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Settings from "@/models/Settings";
 import { requireAdmin } from "@/lib/auth";
-import { invalidateNcomConfig, NCOM_DEFAULT_API, CONNECTOR_BASE_PATH, siteOrigin } from "@/lib/ncom";
+import {
+  invalidateNcomConfig, NCOM_DEFAULT_API, CONNECTOR_BASE_PATH, ORDER_INTAKE_PATH, siteOrigin,
+} from "@/lib/ncom";
 
 const MASK = "••••••••";
 
@@ -32,6 +34,16 @@ export async function GET() {
     defaultWeightGrams: Number(cfg.defaultWeightGrams) || 0,
     publicBaseUrl: cfg.publicBaseUrl || "",
 
+    // Inbound orders. Same rule as every other credential: the key id is not
+    // itself a secret and is shown, the secret never leaves the server.
+    orderKeyId: cfg.orderKeyId || "",
+    orderSecret: cfg.orderSecret ? MASK : "",
+    hasOrderSecret: !!cfg.orderSecret,
+    acceptOrders: !!cfg.acceptOrders,
+    lastOrderAt: cfg.lastOrderAt || null,
+    ordersReceived: Number(cfg.ordersReceived) || 0,
+    orderPath: ORDER_INTAKE_PATH,
+
     // Outbound REST.
     apiKey: cfg.apiKey ? MASK : "",
     hasApiKey: !!cfg.apiKey,
@@ -57,6 +69,8 @@ export async function GET() {
     envWebhookSecret: !!(process.env.NCOM_WEBHOOK_SECRET || "").trim(),
     envConnectorKey: !!(process.env.NCOM_CONNECTOR_KEY || "").trim(),
     envConnectorSecret: !!(process.env.NCOM_CONNECTOR_SECRET || "").trim(),
+    envOrderKeyId: !!(process.env.NCOM_ORDER_KEY_ID || "").trim(),
+    envOrderSecret: !!(process.env.NCOM_ORDER_SECRET || "").trim(),
     envSiteUrl: !!(process.env.NEXT_PUBLIC_SITE_URL || "").trim(),
   });
 }
@@ -94,6 +108,16 @@ export async function PUT(request) {
     // Only an absolute http(s) origin is meaningful here; anything else would
     // produce product links ncom cannot follow.
     publicBaseUrl: /^https?:\/\/[^\s]+$/i.test(url) ? url : "",
+
+    orderKeyId: keep(data.orderKeyId, cur.orderKeyId),
+    orderSecret: keep(data.orderSecret, cur.orderSecret),
+    // Refuses to arm itself without both halves of the credential. Otherwise
+    // the switch reads as on while /api/ncom/orders answers 401, which looks
+    // like ncom being broken rather than like a field left blank here.
+    acceptOrders:
+      !!data.acceptOrders &&
+      !!keep(data.orderKeyId, cur.orderKeyId) &&
+      !!keep(data.orderSecret, cur.orderSecret),
 
     apiKey: keep(data.apiKey, cur.apiKey),
     webhookSecret: keep(data.webhookSecret, cur.webhookSecret),

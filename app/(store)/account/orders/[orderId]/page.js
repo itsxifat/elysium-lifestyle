@@ -10,6 +10,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Badge from "@/components/ui/Badge";
 import { ArrowLeft, MapPin, CreditCard, Package } from "lucide-react";
+import { CUSTOMER_HIDDEN } from "@/lib/orders";
 
 const statusSteps = ["pending", "processing", "shipped", "delivered"];
 const stepLabels = ["Pending", "Processing", "Shipped", "Delivered"];
@@ -65,11 +66,6 @@ function StatusTracker({ status }) {
     </div>
   );
 }
-
-// The customer sees every order the same way, whatever channel it came through.
-// Campaign attribution and the internal audit/fraud trail are for staff only, so
-// they never leave the database on this path.
-const CUSTOMER_HIDDEN = "-landingPage -editHistory -fraudCheck";
 
 async function getOrder(orderId, userId) {
   await connectDB();

@@ -6,7 +6,7 @@ import Settings from "@/models/Settings";
 import "@/models/User"; // register User schema for .populate("user")
 import { serializeDoc, formatPrice } from "@/lib/utils";
 import Link from "next/link";
-import { ShoppingCart, ChevronRight, Plus, Rocket } from "lucide-react";
+import { ShoppingCart, ChevronRight, Plus, Rocket, Globe } from "lucide-react";
 import { PageHeader, Card, Pill, EmptyState, TableWrap, Button } from "@/components/admin/ui";
 import OrdersFilterBar from "@/components/admin/OrdersFilterBar";
 import { resolveRange } from "@/lib/order-date-range";
@@ -16,6 +16,7 @@ const STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
 const SOURCE_LABELS = {
   website: "Website",
   landing_page: "Landing page",
+  ncom: "ncom.bd",
   facebook: "Facebook",
   instagram: "Instagram",
   whatsapp: "WhatsApp",
@@ -24,10 +25,12 @@ const SOURCE_LABELS = {
   other: "Manual",
 };
 
-// Three kinds of order, three row colours: the customer checked out on the
-// storefront, ordered from a /lp campaign funnel, or a staff member keyed it in.
+// Four kinds of order: the customer checked out on the storefront, ordered from
+// a /lp campaign funnel, ordered on an ncom.bd landing page and was handed to
+// us, or a staff member keyed it in.
 const isWebsiteOrder = (order) => !order.source || order.source === "website";
 const isLandingOrder = (order) => order.source === "landing_page";
+const isNcomOrder = (order) => order.source === "ncom";
 
 // Shows the sales channel + who created it (staff orders) or which campaign it
 // came from (landing-page orders). Admin-only — the customer never sees this.
@@ -45,6 +48,32 @@ function ChannelTag({ order }) {
           <p className="text-[10px] text-brand-tan font-mono">
             /lp/{lp.code}
             {lp.offerLabel ? <span className="font-sans"> · {lp.offerLabel}</span> : null}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // An ncom order is packed and shipped by us like any other, but it was sold
+  // on somebody else's page under an offer we did not write — so the two things
+  // staff cannot infer from anywhere else on this row are which site sold it
+  // and which offer the customer took.
+  if (isNcomOrder(order)) {
+    const n = order.ncom || {};
+    return (
+      <div className="mt-1 space-y-0.5">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-semibold">
+          <Globe size={9} /> ncom.bd
+        </span>
+        {(n.storeName || n.offerLabel) && (
+          <p className="text-[10px] text-brand-tan">
+            {n.storeName || "ncom page"}
+            {n.offerLabel ? <span> · {n.offerLabel}</span> : null}
+          </p>
+        )}
+        {n.warnings?.length > 0 && (
+          <p className="text-[10px] font-semibold text-amber-700">
+            {n.warnings.length} thing{n.warnings.length === 1 ? "" : "s"} to check
           </p>
         )}
       </div>

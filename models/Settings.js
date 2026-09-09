@@ -137,6 +137,19 @@ const settingsSchema = new mongoose.Schema(
       // NEXT_PUBLIC_SITE_URL is not set on the host.
       publicBaseUrl: { type: String, default: "" },
 
+      // ── Inbound: orders ncom hands us to process ─────────────────────────
+      // Issued by ncom on Settings → Order handling, shown there exactly once,
+      // and separate from the connector pair above on purpose: that is a READ
+      // key for our catalogue, this is a WRITE key that creates orders here.
+      // Rotating one must not silently rotate the other.
+      orderKeyId: { type: String, default: "" },
+      orderSecret: { type: String, default: "" },
+      // Off and /api/ncom/orders answers 503. On by default would mean a shop
+      // that pasted credentials to try them starts taking live orders.
+      acceptOrders: { type: Boolean, default: false },
+      lastOrderAt: { type: Date, default: null },
+      ordersReceived: { type: Number, default: 0 },
+
       // ── Outbound: the REST API, for orders and webhook management ────────
       apiKey: { type: String, default: "" },
       // Signing secret for inbound webhooks. Without it the receiver at

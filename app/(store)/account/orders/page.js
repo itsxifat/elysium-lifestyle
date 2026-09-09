@@ -9,6 +9,7 @@ import Link from "next/link";
 import Badge from "@/components/ui/Badge";
 import { redirect } from "next/navigation";
 import { Package } from "lucide-react";
+import { CUSTOMER_HIDDEN } from "@/lib/orders";
 
 const statusSteps = ["pending", "processing", "shipped", "delivered"];
 const stepLabels = ["Pending", "Processing", "Shipped", "Delivered"];
@@ -71,7 +72,7 @@ async function getUserOrders(userId) {
   // attribution and internal audit trail are staff-only and never fetched.
   return serializeDoc(
     await Order.find({ user: userId })
-      .select("-landingPage -editHistory -fraudCheck")
+      .select(CUSTOMER_HIDDEN)
       .sort({ createdAt: -1 })
       .lean()
   );
