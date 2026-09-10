@@ -277,3 +277,152 @@ export function ColumnChart({ data, valueLabel = "orders", money = false, height
     </div>
   );
 }
+
+// ── Channel mix over time ─────────────────────────────────────────────────────
+// Stacked columns, one band per channel family, in the fixed palette order. The
+// question it answers is a SHIFT ("social is eating the storefront"), which a
+// row of separate totals cannot show.
+//
+// `mode="share"` normalises every column to 100% — the mix on its own, with the
+// volume deliberately removed, so a quiet week and a busy one are comparable.
+// Absolute mode keeps the height, so the two together read as "how much" and
+// "of what".
+export function ChannelMixChart({ data, granularity, groups, colors, metric = "netSales", mode = "value" }) {
+  const [active, setActive] = useState(null);
+
+  if (!data?.length || !groups?.length) {
+    return <div className="h-[240px] flex items-center justify-center text-[13px] text-brand-tan">No sales in this period</div>;
+  }
+
+  const money = metric === "netSales";
+  const totalOf = (d) => groups.reduce((s, g) => s + (d.parts[g.key]?.[metric] || 0), 0);
+  const share = mode === "share";
+  const max = share ? 100 : niceMax(Math.max(...data.map(totalOf), 0));
+  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => ({ f, value: max * f }));
+
+  const labelStep = Math.max(1, Math.ceil(data.length / 8));
+  const mobileStep = Math.max(labelStep, Math.ceil(data.length / 4));
+
+  return (
+    <div>
+      <div className="flex">
+        <div className="relative w-11 flex-shrink-0 h-[220px]">
+          {ticks.map((t) => (
+            <span
+              key={t.f}
+              className="absolute right-1.5 -translate-y-1/2 text-[10px] text-brand-tan tabular-nums"
+              style={{ top: `${(1 - t.f) * 100}%` }}
+            >
+              {share ? `${Math.round(t.value)}%` : money ? compact(t.value) : Math.round(t.value)}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative flex-1 min-w-0 h-[220px]">
+          {ticks.map((t) => (
+            <div key={t.f} className="absolute left-0 right-0 border-t" style={{ top: `${(1 - t.f) * 100}%`, borderColor: VIZ.grid }} />
+          ))}
+
+          <div className="absolute inset-0 flex items-end gap-[2px]">
+            {data.map((d, i) => {
+              const total = totalOf(d);
+              const isActive = active === i;
+              const align = i < 2 ? "left" : i > data.length - 3 ? "right" : "center";
+              // Tallest band first: the stack is drawn top-down, so the order
+              // has to be reversed against the legend to keep the fixed hue
+              // order reading left-to-right / bottom-up.
+              const bands = [...groups]
+                .reverse()
+                .map((g) => ({ g, v: d.parts[g.key]?.[metric] || 0 }))
+                .filter((b) => b.v > 0);
+
+              return (
+                <div
+                  key={d.key}
+                  tabIndex={0}
+                  onMouseEnter={() => setActive(i)}
+                  onMouseLeave={() => setActive((cur) => (cur === i ? null : cur))}
+                  onFocus={() => setActive(i)}
+                  onBlur={() => setActive((cur) => (cur === i ? null : cur))}
+                  className="relative flex-1 min-w-0 h-full flex flex-col justify-end items-center outline-none focus-visible:bg-brand-cream/60 rounded-t"
+                >
+                  {isActive && total > 0 && (
+                    <Tooltip
+                      align={align}
+                      title={longLabel(d.key, granularity)}
+                      rows={[
+                        ...groups
+                          .map((g) => ({ g, v: d.parts[g.key]?.[metric] || 0 }))
+                          .filter((b) => b.v > 0)
+                          .map((b) => ({
+                            label: b.g.label,
+                            value: share
+                              ? `${Math.round((b.v / total) * 100)}%`
+                              : money
+                              ? formatPrice(b.v)
+                              : b.v,
+                            color: colors[b.g.key],
+                          })),
+                        { label: "total", value: money ? formatPrice(total) : total },
+                      ]}
+                    />
+                  )}
+
+                  <div className="w-full max-w-[24px] flex flex-col justify-end h-full" style={{ opacity: isActive || active === null ? 1 : 0.45 }}>
+                    {bands.map((b, bi) => {
+                      const pct = share
+                        ? total
+                          ? (b.v / total) * 100
+                          : 0
+                        : max
+                        ? (b.v / max) * 100
+                        : 0;
+                      return (
+                        <div key={b.g.key} className="w-full flex flex-col" style={{ height: `${pct}%` }}>
+                          <div className={`w-full flex-1 ${bi === 0 ? "rounded-t" : ""}`} style={{ background: colors[b.g.key], minHeight: 2 }} />
+                          {/* 2px surface gap separates the segments — never a stroke. */}
+                          {bi < bands.length - 1 && <div className="h-[2px] flex-shrink-0" style={{ background: VIZ.surface }} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <span className="sr-only">
+                    {longLabel(d.key, granularity)}:{" "}
+                    {groups
+                      .map((g) => `${g.label} ${money ? formatPrice(d.parts[g.key]?.[metric] || 0) : d.parts[g.key]?.[metric] || 0}`)
+                      .join(", ")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex mt-2">
+        <div className="w-11 flex-shrink-0" />
+        <div className="flex-1 min-w-0 flex gap-[2px]">
+          {data.map((d, i) => (
+            <div key={d.key} className="flex-1 min-w-0 text-center">
+              {i % labelStep === 0 && (
+                <span className={`text-[10px] text-brand-tan whitespace-nowrap ${i % mobileStep === 0 ? "" : "hidden sm:inline"}`}>
+                  {shortLabel(d.key, granularity)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Legend, always — five bands can never be told apart by hue alone. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 sm:pl-11">
+        {groups.map((g) => (
+          <span key={g.key} className="inline-flex items-center gap-1.5 text-[11px] text-brand-tan">
+            <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: colors[g.key] }} /> {g.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}

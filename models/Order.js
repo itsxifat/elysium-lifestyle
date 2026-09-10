@@ -276,6 +276,23 @@ const orderSchema = new mongoose.Schema(
 // movement and a duplicate parcel.
 orderSchema.index({ "ncom.idempotencyKey": 1 }, { unique: true, sparse: true });
 
+// ── Reporting indexes ─────────────────────────────────────────────────────────
+// /admin/analytics runs ~20 aggregations per page load, every one of them keyed
+// on a createdAt window and most of them additionally on `source` or
+// `createdBy` (the channel and staff filters). Without these each of those is a
+// full collection scan of every order the shop has ever taken.
+//
+// Compound with createdAt DESCENDING because the filter is always a range on
+// createdAt and the equality field leads: {source, createdAt} serves both
+// "orders in this window" grouped by source and "this channel in this window".
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ source: 1, createdAt: -1 });
+orderSchema.index({ createdBy: 1, createdAt: -1 });
+
+// The audit-trail pass windows on when the ACTION happened, not when the order
+// was placed, so it needs its own multikey index on the embedded timestamp.
+orderSchema.index({ "editHistory.at": -1 });
+
 // Fallback numbering for any code path that saves an order without going
 // through createOrderWithNumber. Routed through the same atomic counter — the
 // old `countDocuments() + 1` here handed concurrent saves the same number and
