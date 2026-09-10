@@ -28,7 +28,7 @@
     "react-hot-toast": "^2.6.0",
     "sharp": "^0.35.1",
     "sslcommerz-lts": "^1.2.0",
-    "steadfast-fraud": "^1.0.2",
+    "steadfast-fraud": "^1.1.0",
     "swiper": "^12.1.4"
   },
   "devDependencies": {
