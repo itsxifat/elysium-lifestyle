@@ -241,6 +241,12 @@ const orderSchema = new mongoose.Schema(
       deliveryCharge: { type: Number, default: 0 },
       sentAt: { type: Date, default: null },
       lastWebhookAt: { type: Date, default: null },
+      // Last time we ASKED Steadfast where this parcel is (the "Sync delivery
+      // status" button / the per-order sync). Distinct from lastWebhookAt,
+      // which is the last time they told US unprompted — the webhook only
+      // fires if it is configured in their portal, so this is what proves an
+      // order's courier status has actually been checked recently.
+      lastSyncedAt: { type: Date, default: null },
       error: { type: String, default: "" },
       trackingMessages: [{ message: String, at: { type: Date, default: Date.now } }],
     },

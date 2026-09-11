@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ShoppingCart, ChevronRight, Plus, Rocket, Globe } from "lucide-react";
 import { PageHeader, Card, Pill, EmptyState, TableWrap, Button } from "@/components/admin/ui";
 import OrdersFilterBar from "@/components/admin/OrdersFilterBar";
+import SyncDeliveryStatus from "@/components/admin/SyncDeliveryStatus";
 import { resolveRange } from "@/lib/order-date-range";
 
 const STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
@@ -215,9 +216,15 @@ export default async function AdminOrdersPage({ searchParams }) {
         subtitle={`${orders.length} order${orders.length === 1 ? "" : "s"} ${filtered ? "match this filter" : "total"}`}
         icon={ShoppingCart}
         actions={
-          <Button as={Link} href="/admin/orders/new">
-            <Plus size={14} /> Create Order
-          </Button>
+          <>
+            {/* Pulls the current delivery status of every parcel we handed to
+                Steadfast and moves the orders to match. Only orders actually
+                sent to the courier — by hand or by auto-send — are in scope. */}
+            <SyncDeliveryStatus />
+            <Button as={Link} href="/admin/orders/new">
+              <Plus size={14} /> Create Order
+            </Button>
+          </>
         }
       />
 
