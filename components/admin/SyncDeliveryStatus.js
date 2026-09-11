@@ -489,6 +489,21 @@ function RunReport({ run, onBack, onRerun, onClose }) {
         </div>
       )}
 
+      {run.note && (
+        <p className="mx-6 mt-4 text-[12px] text-brand-brown bg-brand-cream/70 border border-brand-tan/20 rounded-lg px-3 py-2">
+          {run.note}
+        </p>
+      )}
+
+      {t.unauthorized > 0 && (
+        <p className="mx-6 mt-4 text-[12px] text-brand-tan bg-brand-cream/60 rounded-lg px-3 py-2">
+          {t.unauthorized} consignment{t.unauthorized === 1 ? "" : "s"} answered “401 Unauthorized Access” — Steadfast no
+          longer holds {t.unauthorized === 1 ? "it" : "them"} on this account. The credentials are fine (every other
+          parcel answered), so {t.unauthorized === 1 ? "it has" : "they have"} been dropped from future runs rather than
+          failing them.
+        </p>
+      )}
+
       {run.failures?.length > 0 && (
         <div className="px-6 mt-4">
           <p className="text-[10px] uppercase tracking-[1.5px] text-red-600 font-semibold mb-2 flex items-center gap-1">

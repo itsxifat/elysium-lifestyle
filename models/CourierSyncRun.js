@@ -88,6 +88,10 @@ const courierSyncRunSchema = new mongoose.Schema(
       // Stale courier errors wiped off orders the sync no longer looks up
       // (cancelled, or with the return already itemised).
       clearedErrors: { type: Number, default: 0 },
+      // Consignments Steadfast refused by name (401 Unauthorized Access) — not
+      // a credentials problem and not worth retrying, so they are counted
+      // apart from `failed`.
+      unauthorized: { type: Number, default: 0 },
     },
 
     changes: { type: [changeSchema], default: [] },
@@ -98,11 +102,20 @@ const courierSyncRunSchema = new mongoose.Schema(
 
     // Why the whole run stopped, when it did.
     error: { type: String, default: "" },
-    // Their credentials were refused. Distinct from a per-order failure: the
-    // run stops on the first one, because the next parcel would fail the same
-    // way and 300 identical 401s help nobody.
+    // The API credentials themselves were refused, established by a
+    // /get_balance probe before any parcel is looked up — so this means nothing
+    // was checked at all. A 401 on an individual consignment is a different
+    // thing entirely (see totals.unauthorized) and never sets this.
     authFailed: { type: Boolean, default: false },
     returnRequestError: { type: String, default: "" },
+
+    // A sentence about this record itself, rather than about the sync.
+    //
+    // Exists because history gets corrected: the first version of this feature
+    // read one consignment's 401 as "the API keys are refused" and marked whole
+    // runs failed, and putting the correction here means the row explains
+    // itself instead of quietly changing shape.
+    note: { type: String, default: "" },
 
     // Set on rebuilt records so nothing pretends to be more precise than it is,
     // and used to make the rebuild idempotent.

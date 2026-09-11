@@ -257,6 +257,17 @@ const orderSchema = new mongoose.Schema(
       // fires if it is configured in their portal, so this is what proves an
       // order's courier status has actually been checked recently.
       lastSyncedAt: { type: Date, default: null },
+      // When Steadfast started answering `401 Unauthorized Access` for this
+      // consignment — their reply for a parcel that is no longer accessible on
+      // the account (deleted their side, or raised under different keys).
+      //
+      // It is a permanent answer, not a wobble: the same three lookups (by id,
+      // by tracking code, by our invoice) all refuse, while other parcels
+      // answer 200 in the same breath. So the bulk sync stops asking, and one
+      // dead consignment can no longer put a failure line on every run. A
+      // per-order sync ignores this and clears it if they answer again.
+      unauthorizedAt: { type: Date, default: null },
+
       // The return request Steadfast holds against this consignment, if any.
       //
       // Answers the question staff ask the moment an order shows up as "return
