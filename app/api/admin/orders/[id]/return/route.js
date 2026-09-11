@@ -5,12 +5,20 @@ import Order from "@/models/Order";
 import Product from "@/models/Product";
 import { requirePin } from "@/lib/pin";
 import { notifyEvent } from "@/lib/notifications";
+import { notifyNcom } from "@/lib/ncom-orders";
+import { orderStatusLabel, returnTally } from "@/lib/order-status";
 
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 // Record a return / partial delivery. Staff pick which lines (and how many) came
 // back; the order total is recomputed (discount scaled to kept items), the
 // delivery charge is kept or waived per this return, and stock is restored.
+//
+// This route is also what sets the two return STATUSES, and it is the only
+// thing that may: the split follows from the quantities it just wrote — every
+// unit back is a full `returned`, some units back is `partial_returned` — so
+// the status can never claim something the recorded lines do not support.
+// An order the courier left in `return_requested` leaves here classified.
 export async function POST(request, { params }) {
   const { error, session } = await requireAdmin("orders.manage");
   if (error) return error;
@@ -78,13 +86,24 @@ export async function POST(request, { params }) {
     });
 
     const returnedUnits = returnedLines.reduce((s, l) => s + l.quantity, 0);
+
+    // Classify the order from the totals now stored on its items — counting
+    // every return ever recorded against it, not just this one, so a second
+    // partial return that happens to take the last units lands on `returned`.
+    const tally = returnTally(order.items);
+    const prevStatus = order.orderStatus;
+    const statusChanged = tally.status && tally.status !== prevStatus;
+    if (statusChanged) order.orderStatus = tally.status;
+
     order.editHistory = order.editHistory || [];
     order.editHistory.push({
       at: new Date(),
       by: session.user.id,
       byName: actorName,
       action: "return",
-      summary: `Recorded return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis})${waived ? ", delivery waived" : ""}`,
+      summary:
+        `Recorded return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis})${waived ? ", delivery waived" : ""}` +
+        (statusChanged ? `; status ${prevStatus} → ${tally.status}` : ""),
       pinVerified: true,
     });
 
@@ -92,13 +111,23 @@ export async function POST(request, { params }) {
 
     notifyEvent("order_returned", {
       severity: "warning",
-      title: `Return on order ${order.orderNumber}`,
-      body: `${actorName} recorded a return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis}).`,
+      title: `${statusChanged ? orderStatusLabel(tally.status) : "Return"} — order ${order.orderNumber}`,
+      body: `${actorName} recorded a return of ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} (refund ৳${refundThis}); ${tally.returned} of ${tally.ordered} units are now back.`,
       link: `/admin/orders/${order._id}`,
       order: order._id,
       actor: session.user.id,
       actorName,
     }).catch(() => {});
+
+    // An ncom order is a shared record and a return changes the money on it, so
+    // their copy follows — a FULL return is sent as a cancellation, because for
+    // their order book a sale where everything came back is no sale, and for any
+    // product they store it is stock that has to go back on their shelf.
+    if (order.source === "ncom") {
+      await notifyNcom(order, tally.status === "returned" ? "order.cancelled" : "order.updated", {
+        reason: `Return recorded: ${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} back (refund ৳${refundThis})`,
+      }).catch(() => {});
+    }
 
     const updated = await Order.findById(params.id).populate("user", "name email").lean();
     return NextResponse.json(updated);

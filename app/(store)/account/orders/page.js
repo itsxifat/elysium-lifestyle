@@ -7,6 +7,7 @@ import Order from "@/models/Order";
 import { serializeDoc, formatPrice } from "@/lib/utils";
 import Link from "next/link";
 import Badge from "@/components/ui/Badge";
+import OrderStateNotice, { needsStateNotice } from "@/components/ui/OrderStateNotice";
 import { redirect } from "next/navigation";
 import { Package } from "lucide-react";
 import { CUSTOMER_HIDDEN } from "@/lib/orders";
@@ -15,14 +16,7 @@ const statusSteps = ["pending", "processing", "shipped", "delivered"];
 const stepLabels = ["Pending", "Processing", "Shipped", "Delivered"];
 
 function OrderTracker({ status }) {
-  if (status === "cancelled") {
-    return (
-      <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 bg-red-50">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-        <span className="text-[10px] uppercase tracking-[2px] text-red-500">Cancelled</span>
-      </div>
-    );
-  }
+  if (needsStateNotice(status)) return <OrderStateNotice status={status} size="sm" className="mt-4" />;
 
   const current = statusSteps.indexOf(status);
 

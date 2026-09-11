@@ -9,6 +9,8 @@ import { CheckCircle, Package, Truck, Clock } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import PurchaseTracker from "@/components/tracking/PurchaseTracker";
 import { CUSTOMER_HIDDEN } from "@/lib/orders";
+import OrderStateNotice, { needsStateNotice } from "@/components/ui/OrderStateNotice";
+import { RETURN_STATUSES } from "@/lib/order-status";
 
 async function getOrder(orderId) {
   await connectDB();
@@ -76,13 +78,21 @@ export default async function OrderConfirmationPage({ params }) {
             </Badge>
           </div>
 
+          {needsStateNotice(order.orderStatus) && (
+            <div className="mb-5">
+              <OrderStateNotice status={order.orderStatus} />
+            </div>
+          )}
+
           {/* Status timeline */}
           <div className="flex items-center gap-2 mb-6">
             {[
               { icon: CheckCircle, label: "Confirmed", active: true },
               { icon: Package, label: "Processing", active: order.orderStatus !== "pending" },
-              { icon: Truck, label: "Shipped", active: ["shipped", "delivered"].includes(order.orderStatus) },
-              { icon: Clock, label: "Delivered", active: order.orderStatus === "delivered" },
+              // A returned order reached the customer before it came back, so
+              // the parcel's own journey still reads as complete here.
+              { icon: Truck, label: "Shipped", active: ["shipped", "delivered", ...RETURN_STATUSES].includes(order.orderStatus) },
+              { icon: Clock, label: "Delivered", active: ["delivered", ...RETURN_STATUSES].includes(order.orderStatus) },
             ].map((step, i) => (
               <div key={i} className="flex items-center flex-1">
                 <div

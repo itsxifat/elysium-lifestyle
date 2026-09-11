@@ -9,6 +9,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Badge from "@/components/ui/Badge";
+import OrderStateNotice, { needsStateNotice } from "@/components/ui/OrderStateNotice";
 import { ArrowLeft, MapPin, CreditCard, Package } from "lucide-react";
 import { CUSTOMER_HIDDEN } from "@/lib/orders";
 
@@ -16,14 +17,9 @@ const statusSteps = ["pending", "processing", "shipped", "delivered"];
 const stepLabels = ["Pending", "Processing", "Shipped", "Delivered"];
 
 function StatusTracker({ status }) {
-  if (status === "cancelled") {
-    return (
-      <div className="inline-flex items-center gap-2 px-3 py-2 bg-red-50">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-        <span className="text-[11px] uppercase tracking-[2px] text-red-500 font-medium">Order Cancelled</span>
-      </div>
-    );
-  }
+  // A cancelled order, or one coming back, has left the delivery run — four
+  // dots reading "pending → delivered" cannot say anything true about it.
+  if (needsStateNotice(status)) return <OrderStateNotice status={status} />;
 
   const current = statusSteps.indexOf(status);
 

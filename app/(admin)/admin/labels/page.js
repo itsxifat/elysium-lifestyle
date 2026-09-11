@@ -495,6 +495,7 @@ export default function LabelsPage() {
               <option value="shipped">Shipped</option>
               <option value="delivered">Delivered</option>
               <option value="pending">Pending</option>
+              <option value="return_requested">Return requested</option>
               <option value="all">All statuses</option>
             </Select>
           </Card>
