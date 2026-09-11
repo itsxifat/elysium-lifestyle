@@ -4,10 +4,8 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import "@/models/User";
-import { getSteadfastConfig, mapSteadfastStatus } from "@/lib/steadfast";
-import { sendEmail, orderStatusTemplate } from "@/lib/email";
-import { applyCodAutoPaid } from "@/lib/orders";
-import { notifyEvent } from "@/lib/notifications";
+import { getSteadfastConfig } from "@/lib/steadfast";
+import { applyCourierStatus } from "@/lib/courier-sync";
 
 // Steadfast Courier webhook. They POST delivery-status + tracking updates here.
 // Auth: header `Authorization: Bearer <token>` where token = our configured
@@ -64,62 +62,15 @@ export async function POST(request) {
   }
 
   if (notification_type === "delivery_status") {
-    const rawStatus = String(body.status || "").toLowerCase();
-    order.courier.status = rawStatus;
-    if (body.delivery_charge != null) order.courier.deliveryCharge = Number(body.delivery_charge) || 0;
-    if (body.tracking_message) {
-      order.courier.trackingMessages = order.courier.trackingMessages || [];
-      order.courier.trackingMessages.push({ message: body.tracking_message, at: new Date() });
-    }
-
-    const mapped = mapSteadfastStatus(rawStatus);
-    let statusChanged = false;
-    // Never override a manual "cancelled"; otherwise apply the mapped status.
-    if (mapped && order.orderStatus !== mapped && order.orderStatus !== "cancelled") {
-      order.orderStatus = mapped;
-      statusChanged = true;
-    }
-
-    // COD auto-paid: courier-confirmed delivery means cash was collected.
-    const autoPaid = applyCodAutoPaid(order);
-
-    await order.save();
-
-    if (statusChanged) {
-      const toEmail = order.guestEmail || order.shippingAddress?.email;
-      if (toEmail) {
-        sendEmail({
-          to: toEmail,
-          subject: `Order Update — ${order.orderNumber}`,
-          html: orderStatusTemplate(order.toObject()),
-        }).catch(() => {});
-      }
-    }
-
-    // Notify subscribed roles on courier-driven delivery / cancellation / partial-return.
-    const isPartial = /partial|return/.test(rawStatus);
-    if (statusChanged && mapped === "cancelled") {
-      notifyEvent("order_cancelled", {
-        severity: "warning",
-        title: `Order ${order.orderNumber} cancelled (courier)`,
-        body: `Steadfast reported "${rawStatus}".`,
-        link: `/admin/orders/${order._id}`, order: order._id,
-      }).catch(() => {});
-    } else if (isPartial) {
-      notifyEvent("order_returned", {
-        severity: "warning",
-        title: `Order ${order.orderNumber} partially returned (courier)`,
-        body: `Steadfast reported "${rawStatus}". Review and record the return.`,
-        link: `/admin/orders/${order._id}`, order: order._id,
-      }).catch(() => {});
-    } else if (statusChanged && mapped === "delivered") {
-      notifyEvent("order_delivered", {
-        severity: "info",
-        title: `Order ${order.orderNumber} delivered (courier)`,
-        body: autoPaid ? "Marked COD payment as paid." : "",
-        link: `/admin/orders/${order._id}`, order: order._id,
-      }).catch(() => {});
-    }
+    // One shared rule for "the courier says the parcel is here now", whether
+    // they pushed it to us or the admin panel's sync pulled it (lib/courier-sync).
+    // It saves the order, hands back stock on a cancellation, marks COD paid on
+    // delivery, records the audit entry, mails the customer and notifies staff.
+    await applyCourierStatus(order, body.status, {
+      deliveryCharge: body.delivery_charge,
+      trackingMessage: body.tracking_message,
+      actorName: "Steadfast webhook",
+    });
 
     return NextResponse.json({ status: "success", message: "Webhook received successfully." });
   }

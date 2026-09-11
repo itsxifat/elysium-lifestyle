@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket, Globe, ChevronDown, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket, Globe, ChevronDown, AlertTriangle, RefreshCw } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
+import { courierStatusLabel } from "@/lib/steadfast-status";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
 import PinPrompt from "@/components/admin/PinPrompt";
@@ -347,11 +348,14 @@ export default function AdminOrderDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [rechecking, setRechecking] = useState(false);
   const [sendingCourier, setSendingCourier] = useState(false);
+  const [syncingCourier, setSyncingCourier] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
   const perms = getEffectivePermissions(session?.user);
   const canEdit = isElevated(session?.user?.role) || perms.includes("orders.edit");
+  // Pushing to / polling the courier moves the order, so it needs orders.manage.
+  const canManageOrders = isElevated(session?.user?.role) || perms.includes("orders.manage");
 
   const sendToCourier = async () => {
     setSendingCourier(true);
@@ -364,6 +368,29 @@ export default function AdminOrderDetailPage() {
       toast.error("Failed to send");
     } finally {
       setSendingCourier(false);
+    }
+  };
+
+  // Ask Steadfast where THIS parcel is and apply the answer. Same rule as the
+  // bulk "Sync delivery status" on the orders list — it can move the order to
+  // shipped/delivered/cancelled, mark a COD payment paid and hand stock back.
+  const syncCourierStatus = async () => {
+    setSyncingCourier(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/sync-courier`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) {
+        toast.error(d.error || "Could not reach Steadfast");
+        return;
+      }
+      if (d.order) setOrder(d.order);
+      if (d.statusChanged) toast.success(`Steadfast: ${d.courierStatusLabel} — order moved to ${d.to}`);
+      else if (d.noAnswer) toast("Steadfast had no status for this parcel yet.");
+      else toast.success(`Steadfast: ${d.courierStatusLabel} — already up to date`);
+    } catch {
+      toast.error("Sync failed");
+    } finally {
+      setSyncingCourier(false);
     }
   };
 
@@ -742,10 +769,23 @@ export default function AdminOrderDetailPage() {
                   <div className="flex justify-between"><span className="text-brand-tan">Tracking</span><span className="font-mono text-brand-brown">{order.courier.trackingCode}</span></div>
                 )}
                 {order.courier.status && (
-                  <div className="flex justify-between"><span className="text-brand-tan">Status</span><span className="text-brand-brown capitalize">{order.courier.status.replace(/_/g, " ")}</span></div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-brand-tan">Status</span>
+                    <span className="text-brand-brown text-right">{courierStatusLabel(order.courier.status)}</span>
+                  </div>
                 )}
                 {order.courier.sentAt && (
                   <p className="text-[11px] text-brand-tan pt-1">Sent {new Date(order.courier.sentAt).toLocaleString("en-BD")}</p>
+                )}
+                {order.courier.lastSyncedAt && (
+                  <p className="text-[11px] text-brand-tan">Checked {new Date(order.courier.lastSyncedAt).toLocaleString("en-BD")}</p>
+                )}
+                {order.courier.error && <p className="text-[11px] text-red-600">{order.courier.error}</p>}
+                {canManageOrders && (
+                  <Button variant="outline" onClick={syncCourierStatus} disabled={syncingCourier} className="w-full mt-1">
+                    <RefreshCw size={14} className={syncingCourier ? "animate-spin" : ""} />
+                    <span className="ml-1.5">{syncingCourier ? "Checking…" : "Sync delivery status"}</span>
+                  </Button>
                 )}
                 {order.courier.trackingMessages?.length > 0 && (
                   <div className="pt-2 mt-1 border-t border-brand-tan/10 space-y-1">
