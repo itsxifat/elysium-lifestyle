@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import "@/models/User";
 import { executeRun, startRun } from "@/lib/courier-sync-runs";
+import { isCourierFinal, orderStatusLabel } from "@/lib/order-status";
 
 // Sync ONE order's delivery status from Steadfast (the Courier panel's button
 // on the order detail page). Returns the result plus the refreshed order.
@@ -25,8 +26,21 @@ export async function POST(request, { params }) {
 
   try {
     await connectDB();
-    const existing = await Order.findById(params.id).select("orderNumber").lean();
+    const existing = await Order.findById(params.id).select("orderNumber orderStatus").lean();
     if (!existing) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    // Answered here rather than by letting the sync find nothing to do: an
+    // order we cancelled, or whose return is already itemised, is deliberately
+    // not looked up (see COURIER_FINAL_STATUSES), and "never sent to Steadfast"
+    // would be the wrong explanation for one that plainly was.
+    if (isCourierFinal(existing.orderStatus)) {
+      return NextResponse.json(
+        {
+          error: `This order is ${orderStatusLabel(existing.orderStatus).toLowerCase()}, so its delivery status is no longer checked — nothing the courier reports can change it now.`,
+        },
+        { status: 400 }
+      );
+    }
 
     const run = await startRun({
       by: session.user.id,

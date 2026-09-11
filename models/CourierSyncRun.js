@@ -85,6 +85,9 @@ const courierSyncRunSchema = new mongoose.Schema(
       remaining: { type: Number, default: 0 },
       settledSkipped: { type: Number, default: 0 },
       returnRequests: { type: Number, default: 0 },
+      // Stale courier errors wiped off orders the sync no longer looks up
+      // (cancelled, or with the return already itemised).
+      clearedErrors: { type: Number, default: 0 },
     },
 
     changes: { type: [changeSchema], default: [] },
