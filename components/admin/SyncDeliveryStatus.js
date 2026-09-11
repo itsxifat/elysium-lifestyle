@@ -511,6 +511,13 @@ function RunReport({ run, onBack, onRerun, onClose }) {
         </p>
       )}
 
+      {t.clearedErrors > 0 && (
+        <p className="mx-6 mt-4 text-[12px] text-brand-tan bg-brand-cream/60 rounded-lg px-3 py-2">
+          Cleared {t.clearedErrors} stale courier error{t.clearedErrors === 1 ? "" : "s"} from orders that are no longer
+          checked (cancelled, or with the return already recorded).
+        </p>
+      )}
+
       {t.remaining > 0 && (
         <p className="mx-6 mt-4 text-[12px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           {t.remaining} more parcel{t.remaining === 1 ? "" : "s"} still to check — press sync again to carry on.

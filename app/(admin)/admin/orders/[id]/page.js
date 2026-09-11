@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket, Globe, ChevronDown, AlertTriangle, RefreshCw } from "lucide-react";
 import { formatPrice, normalizeBdPhone } from "@/lib/utils";
 import { courierStatusLabel } from "@/lib/steadfast-status";
-import { MANUAL_ORDER_STATUSES, isReturnStatus, orderStatusLabel, returnTally } from "@/lib/order-status";
+import { MANUAL_ORDER_STATUSES, isCourierFinal, isReturnStatus, orderStatusLabel, returnTally } from "@/lib/order-status";
 import ItemThumb from "@/components/admin/ItemThumb";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
@@ -868,11 +868,20 @@ export default function AdminOrderDetailPage() {
                   </div>
                 )}
                 {order.courier.error && <p className="text-[11px] text-red-600">{order.courier.error}</p>}
-                {canManageOrders && (
-                  <Button variant="outline" onClick={syncCourierStatus} disabled={syncingCourier} className="w-full mt-1">
-                    <RefreshCw size={14} className={syncingCourier ? "animate-spin" : ""} />
-                    <span className="ml-1.5">{syncingCourier ? "Checking…" : "Sync delivery status"}</span>
-                  </Button>
+                {/* An order we cancelled, or whose return is already itemised,
+                    is not looked up any more — nothing the courier reports can
+                    move it, and a cancelled consignment is not ours to query. */}
+                {isCourierFinal(order.orderStatus) ? (
+                  <p className="text-[11px] text-brand-tan pt-1 mt-1 border-t border-brand-tan/10">
+                    No longer checked — this order is {orderStatusLabel(order.orderStatus).toLowerCase()}.
+                  </p>
+                ) : (
+                  canManageOrders && (
+                    <Button variant="outline" onClick={syncCourierStatus} disabled={syncingCourier} className="w-full mt-1">
+                      <RefreshCw size={14} className={syncingCourier ? "animate-spin" : ""} />
+                      <span className="ml-1.5">{syncingCourier ? "Checking…" : "Sync delivery status"}</span>
+                    </Button>
+                  )
                 )}
                 {order.courier.trackingMessages?.length > 0 && (
                   <div className="pt-2 mt-1 border-t border-brand-tan/10 space-y-1">
