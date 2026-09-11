@@ -10,6 +10,7 @@ import Link from "next/link";
 import { PageHeader, Card, StatCard, TableWrap, Pill, EmptyState } from "@/components/admin/ui";
 import { resolveRange } from "@/lib/order-date-range";
 import { getTotals } from "@/lib/analytics";
+import { orderStatusLabel, orderStatusTone } from "@/lib/order-status";
 
 async function getDashboardData() {
   await connectDB();
@@ -38,9 +39,7 @@ async function getDashboardData() {
   };
 }
 
-const STATUS_TONE = {
-  pending: "amber", processing: "blue", shipped: "blue", delivered: "green", cancelled: "red",
-};
+
 const PAYMENT_TONE = { paid: "green", failed: "red", pending: "amber" };
 
 export default async function AdminDashboard() {
@@ -140,7 +139,7 @@ export default async function AdminDashboard() {
                       {formatPrice(order.totalAmount)}
                     </td>
                     <td className="px-4 sm:px-5 py-3"><Pill tone={PAYMENT_TONE[order.paymentStatus] || "gray"}>{order.paymentStatus}</Pill></td>
-                    <td className="px-4 sm:px-5 py-3"><Pill tone={STATUS_TONE[order.orderStatus] || "gray"}>{order.orderStatus}</Pill></td>
+                    <td className="px-4 sm:px-5 py-3"><Pill tone={orderStatusTone(order.orderStatus)}>{orderStatusLabel(order.orderStatus)}</Pill></td>
                     <td className="px-4 sm:px-5 py-3 text-[12px] text-brand-tan whitespace-nowrap">
                       {new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                     </td>

@@ -11,8 +11,7 @@ import { PageHeader, Card, Pill, EmptyState, TableWrap, Button } from "@/compone
 import OrdersFilterBar from "@/components/admin/OrdersFilterBar";
 import SyncDeliveryStatus from "@/components/admin/SyncDeliveryStatus";
 import { resolveRange } from "@/lib/order-date-range";
-
-const STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
+import { ORDER_STATUSES, orderStatusLabel, orderStatusTone } from "@/lib/order-status";
 
 const SOURCE_LABELS = {
   website: "Website",
@@ -128,7 +127,7 @@ async function getData({ status, range, from, to }) {
   ]);
 
   const counts = { all: 0 };
-  for (const s of STATUSES) counts[s] = 0;
+  for (const s of ORDER_STATUSES) counts[s] = 0;
   for (const row of countsAgg) {
     if (row._id in counts) counts[row._id] = row.n;
     counts.all += row.n;
@@ -169,7 +168,6 @@ function ColorLegend({ colors }) {
   );
 }
 
-const STATUS_TONE = { pending: "amber", processing: "blue", shipped: "blue", delivered: "green", cancelled: "red" };
 const PAYMENT_TONE = { paid: "green", failed: "red", pending: "amber" };
 
 // Compact courier-history indicator (delivered/total, flags frauds).
@@ -279,7 +277,7 @@ export default async function AdminOrdersPage({ searchParams }) {
                             <Pill tone={PAYMENT_TONE[order.paymentStatus] || "gray"}>{order.paymentStatus}</Pill>
                           </div>
                         </td>
-                        <td className="px-4 py-3"><Pill tone={STATUS_TONE[order.orderStatus] || "gray"}>{order.orderStatus}</Pill></td>
+                        <td className="px-4 py-3"><Pill tone={orderStatusTone(order.orderStatus)}>{orderStatusLabel(order.orderStatus)}</Pill></td>
                         <td className="px-4 py-3 text-brand-tan text-xs whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</td>
                         <td className="px-4 py-3"><Link href={`/admin/orders/${order._id}`} className="text-xs text-brand-terracotta hover:underline">View</Link></td>
                       </tr>
@@ -304,7 +302,7 @@ export default async function AdminOrdersPage({ searchParams }) {
                     <ChannelTag order={order} />
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <Pill tone={PAYMENT_TONE[order.paymentStatus] || "gray"}>{order.paymentStatus}</Pill>
-                      <Pill tone={STATUS_TONE[order.orderStatus] || "gray"}>{order.orderStatus}</Pill>
+                      <Pill tone={orderStatusTone(order.orderStatus)}>{orderStatusLabel(order.orderStatus)}</Pill>
                       <FraudBadge fc={order.fraudCheck} />
                       <span className="text-[11px] text-brand-tan ml-auto">{new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>
                     </div>

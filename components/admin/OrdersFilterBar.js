@@ -4,27 +4,29 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import { DATE_PRESETS } from "@/lib/order-date-range";
+import { ORDER_STATUSES, orderStatusLabel, orderStatusTone } from "@/lib/order-status";
 import DateOnlyPicker from "./DateOnlyPicker";
 
-// Status tabs, in display order. `all` clears the status filter.
+// Status tabs, in display order: the fulfilment run, then the three return
+// states, then cancelled — mirroring lib/order-status so a status added there
+// gets a tab here without anyone remembering to add one.
 const STATUS_TABS = [
   { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "processing", label: "Processing" },
-  { key: "shipped", label: "Shipped" },
-  { key: "delivered", label: "Delivered" },
-  { key: "cancelled", label: "Cancelled" },
+  ...ORDER_STATUSES.map((key) => ({ key, label: orderStatusLabel(key) })),
 ];
 
 // Colour accent per status for the inactive-tab count badge ("tulip").
-const TAB_BADGE = {
-  all: "bg-brand-brown/10 text-brand-brown",
-  pending: "bg-amber-100 text-amber-700",
-  processing: "bg-blue-100 text-blue-700",
-  shipped: "bg-blue-100 text-blue-700",
-  delivered: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-red-100 text-red-700",
+const TONE_BADGE = {
+  amber: "bg-amber-100 text-amber-700",
+  blue: "bg-blue-100 text-blue-700",
+  green: "bg-emerald-100 text-emerald-700",
+  red: "bg-red-100 text-red-700",
+  terracotta: "bg-brand-terracotta/12 text-brand-terracotta",
+  brown: "bg-brand-brown/10 text-brand-brown",
+  gray: "bg-brand-cream-dark text-brand-tan",
 };
+const tabBadgeCls = (key) =>
+  key === "all" ? TONE_BADGE.brown : TONE_BADGE[orderStatusTone(key)] || TONE_BADGE.gray;
 
 function buildUrl(pathname, { status, range, from, to }) {
   const sp = new URLSearchParams();
@@ -78,7 +80,7 @@ export default function OrdersFilterBar({ status = "all", range = "all", from = 
               className={`${tabBase} ${active ? "bg-brand-brown text-white" : "bg-brand-cream/50 text-brand-brown hover:bg-brand-cream"}`}
             >
               {t.label}
-              <span className={`inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full text-[10px] font-bold ${active ? "bg-white/25 text-white" : TAB_BADGE[t.key]}`}>
+              <span className={`inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full text-[10px] font-bold ${active ? "bg-white/25 text-white" : tabBadgeCls(t.key)}`}>
                 {count}
               </span>
             </button>

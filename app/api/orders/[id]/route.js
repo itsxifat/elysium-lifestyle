@@ -17,6 +17,7 @@ import { notifyNcom } from "@/lib/ncom-orders";
 import { notifyEvent } from "@/lib/notifications";
 import Product from "@/models/Product";
 import { releaseIfHeld, reserveIfNotHeld } from "@/lib/stock";
+import { COMPUTED_RETURN_STATUSES, ORDER_STATUSES, orderStatusLabel } from "@/lib/order-status";
 
 export async function GET(request, { params }) {
   try {
@@ -80,6 +81,24 @@ export async function PUT(request, { params }) {
     const prevPaymentStatus = order.paymentStatus;
 
     const nextStatus = typeof data.orderStatus === "string" ? data.orderStatus : prevStatus;
+
+    if (nextStatus !== prevStatus && !ORDER_STATUSES.includes(nextStatus)) {
+      return NextResponse.json({ error: `"${nextStatus}" is not an order status.` }, { status: 400 });
+    }
+
+    // "Returned" and "partially returned" describe recorded facts — which items
+    // came back, how many, what was refunded, what went back into stock — so
+    // they are produced by the return editor and cannot be asserted from here.
+    // Without this an order could read as fully returned while every unit was
+    // still on the customer's floor and the money still counted as taken.
+    if (nextStatus !== prevStatus && COMPUTED_RETURN_STATUSES.includes(nextStatus)) {
+      return NextResponse.json(
+        {
+          error: `Use "Manage return" to mark this order ${orderStatusLabel(nextStatus).toLowerCase()} — the status follows from the items you record as returned.`,
+        },
+        { status: 400 }
+      );
+    }
     const nextPaymentStatus = typeof data.paymentStatus === "string" ? data.paymentStatus : prevPaymentStatus;
     const statusChanged = nextStatus !== prevStatus;
     const paymentStatusChanged = nextPaymentStatus !== prevPaymentStatus;

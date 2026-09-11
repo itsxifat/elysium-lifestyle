@@ -9,6 +9,11 @@ const variants = {
   processing: "bg-blue-100 text-blue-800",
   shipped: "bg-purple-100 text-purple-800",
   delivered: "bg-green-100 text-green-800",
+  // The three return states, in their own colour family so "coming back" never
+  // reads as delivered-green or cancelled-red at a glance.
+  return_requested: "bg-orange-100 text-orange-800",
+  partial_returned: "bg-amber-100 text-amber-900",
+  returned: "bg-stone-200 text-stone-700",
   cancelled: "bg-red-100 text-red-800",
   paid: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",

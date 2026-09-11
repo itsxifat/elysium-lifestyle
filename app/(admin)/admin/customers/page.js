@@ -13,6 +13,7 @@ import {
   ROLES, ROLE_LABELS, ROLE_PERMISSIONS, assignableRoles,
   getEffectivePermissions, isElevated, PERMISSION_GROUPS, PERMISSIONS,
 } from "@/lib/permissions";
+import { ORDER_STATUSES, orderStatusLabel, orderStatusTone } from "@/lib/order-status";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const ROLE_BADGE_CLS = {
@@ -73,13 +74,19 @@ function StatCard({ label, value, icon: Icon, accent }) {
 }
 
 // ── Order status colors ────────────────────────────────────────────────────────
-const orderStatusCls = {
-  delivered:  "bg-emerald-100 text-emerald-700",
-  shipped:    "bg-blue-100 text-blue-700",
-  processing: "bg-amber-100 text-amber-700",
-  pending:    "bg-yellow-100 text-yellow-700",
-  cancelled:  "bg-red-100 text-red-600",
+// Keyed off the shared tone per status (lib/order-status) so the return states
+// arrive here coloured rather than falling through to plain tan.
+const TONE_CLS = {
+  amber:      "bg-amber-100 text-amber-700",
+  blue:       "bg-blue-100 text-blue-700",
+  green:      "bg-emerald-100 text-emerald-700",
+  red:        "bg-red-100 text-red-600",
+  terracotta: "bg-brand-terracotta/12 text-brand-terracotta",
+  brown:      "bg-brand-brown/10 text-brand-brown",
 };
+const orderStatusCls = Object.fromEntries(
+  ORDER_STATUSES.map((status) => [status, TONE_CLS[orderStatusTone(status)] || "bg-brand-tan/15 text-brand-tan"])
+);
 
 // ── User detail drawer ─────────────────────────────────────────────────────────
 function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
@@ -207,7 +214,7 @@ function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
                         <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 inline-block mt-0.5 ${
                           orderStatusCls[order.orderStatus] || "bg-brand-tan/15 text-brand-tan"
                         }`}>
-                          {order.orderStatus}
+                          {orderStatusLabel(order.orderStatus)}
                         </span>
                       </div>
                     </div>

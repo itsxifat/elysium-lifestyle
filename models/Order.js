@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 import { tenantModel } from "@enfinito/demo-kit/model";
+// Relative, not "@/lib/...": this model is also imported by the plain-node
+// scripts in scripts/, which have no path-alias resolution.
+import { ORDER_STATUSES } from "../lib/order-status.js";
 
 const orderItemSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
@@ -175,9 +178,16 @@ const orderSchema = new mongoose.Schema(
       enum: ["pending", "paid", "failed"],
       default: "pending",
     },
+    // The lifecycle lives in lib/order-status.js — labels, colours and the
+    // "which of these may staff set by hand" rule all resolve from there.
+    //
+    // The three return states: `return_requested` is what a courier-reported
+    // partial delivery / return request lands on (nothing itemised yet), and
+    // `partial_returned` / `returned` are computed from the recorded return
+    // lines when staff work through the return editor.
     orderStatus: {
       type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+      enum: ORDER_STATUSES,
       default: "pending",
     },
     shippingZone: {
@@ -247,6 +257,20 @@ const orderSchema = new mongoose.Schema(
       // fires if it is configured in their portal, so this is what proves an
       // order's courier status has actually been checked recently.
       lastSyncedAt: { type: Date, default: null },
+      // The return request Steadfast holds against this consignment, if any.
+      //
+      // Answers the question staff ask the moment an order shows up as "return
+      // requested": who said so and why. Their request has its own lifecycle
+      // ('pending' → 'approved' → 'processing' → 'completed' / 'cancelled')
+      // which is about the PARCEL coming back, not about our itemising of it —
+      // ours is the order status, driven by the return editor.
+      returnRequest: {
+        id: { type: String, default: "" },
+        status: { type: String, default: "" }, // their request status, raw
+        reason: { type: String, default: "" },
+        at: { type: Date, default: null }, // when they raised it
+        seenAt: { type: Date, default: null }, // when a sync first saw it
+      },
       error: { type: String, default: "" },
       trackingMessages: [{ message: String, at: { type: Date, default: Date.now } }],
     },

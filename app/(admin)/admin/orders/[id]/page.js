@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ShieldAlert, PackageCheck, Send, RotateCcw, X, Pencil, Plus, Minus, Trash2, Search, Clock, Rocket, Globe, ChevronDown, AlertTriangle, RefreshCw } from "lucide-react";
-import { formatPrice, shouldUnoptimizeImage, normalizeBdPhone } from "@/lib/utils";
+import { formatPrice, normalizeBdPhone } from "@/lib/utils";
 import { courierStatusLabel } from "@/lib/steadfast-status";
+import { MANUAL_ORDER_STATUSES, isReturnStatus, orderStatusLabel, returnTally } from "@/lib/order-status";
+import ItemThumb from "@/components/admin/ItemThumb";
 import { Button, Toggle, TextInput, Field, Select } from "@/components/admin/ui";
 import { FraudStats } from "@/components/admin/FraudsClient";
 import PinPrompt from "@/components/admin/PinPrompt";
@@ -15,7 +16,6 @@ import Badge from "@/components/ui/Badge";
 import { getEffectivePermissions, isElevated } from "@/lib/permissions";
 import toast from "react-hot-toast";
 
-const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
 const PIN_STATUSES = ["delivered", "cancelled"]; // status changes that require the PIN
 
 const PAYMENT_OPTIONS = [
@@ -260,6 +260,11 @@ function ReturnModal({ order, pinRef, onClose, onDone }) {
   const setQ = (i, v, max) => setQty((a) => a.map((x, idx) => (idx === i ? Math.max(0, Math.min(max, v)) : x)));
 
   const returnedValue = order.items.reduce((s, it, i) => s + qty[i] * it.price, 0);
+  // What the status will be once this is recorded — the same tally the server
+  // runs, so the modal cannot promise something the route would not do.
+  const nextStatus = returnTally(
+    order.items.map((it, i) => ({ quantity: it.quantity, returnedQuantity: (it.returnedQuantity || 0) + qty[i] }))
+  ).status;
   const keptSubtotal = order.items.reduce((s, it, i) => s + (it.quantity - (it.returnedQuantity || 0) - qty[i]) * it.price, 0);
   const origSubtotal = order.subtotal || 0;
   const effDiscount = origSubtotal > 0 ? (order.discount || 0) * (keptSubtotal / origSubtotal) : 0;
@@ -300,13 +305,35 @@ function ReturnModal({ order, pinRef, onClose, onDone }) {
         </div>
         <div className="p-5 space-y-3">
           <p className="text-[12px] text-brand-tan">Pick how many of each item the customer returned. Stock is restored automatically. Requires your PIN.</p>
+
+          {/* Why this order is in front of them, when a courier put it there. */}
+          {order.orderStatus === "return_requested" && (
+            <div className="rounded-lg bg-brand-terracotta/8 border border-brand-terracotta/25 px-3 py-2">
+              <p className="text-[12px] font-medium text-brand-brown">The courier reported a return on this order.</p>
+              <p className="text-[11px] text-brand-tan mt-0.5">
+                {order.courier?.returnRequest?.reason
+                  ? `Reason given: ${order.courier.returnRequest.reason}`
+                  : order.courier?.status
+                    ? `Steadfast status: ${courierStatusLabel(order.courier.status)}`
+                    : "Record what actually came back to close it off."}
+              </p>
+            </div>
+          )}
+
           {order.items.map((it, i) => {
             const remaining = it.quantity - (it.returnedQuantity || 0);
             return (
               <div key={i} className="flex items-center justify-between gap-3 border-b border-brand-tan/10 pb-2">
-                <div className="min-w-0">
-                  <p className="text-[13px] text-brand-brown line-clamp-1">{it.name}</p>
-                  <p className="text-[11px] text-brand-tan">{it.size} · {formatPrice(it.price)} · {remaining} deliverable{it.returnedQuantity ? ` · ${it.returnedQuantity} returned` : ""}</p>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {/* Staff are matching what is physically in their hands to a
+                      line on a screen, so the picture is the useful part —
+                      whatever shop the item came from. */}
+                  <ItemThumb src={it.image} alt={it.name} className="w-11 h-12" />
+                  <div className="min-w-0">
+                    <p className="text-[13px] text-brand-brown line-clamp-1">{it.name}</p>
+                    <p className="text-[11px] text-brand-tan">{it.size} · {formatPrice(it.price)} · {remaining} deliverable{it.returnedQuantity ? ` · ${it.returnedQuantity} returned` : ""}</p>
+                    {it.sku && <p className="text-[10px] text-brand-tan/80">SKU: {it.sku}</p>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button onClick={() => setQ(i, qty[i] - 1, remaining)} className="w-7 h-7 rounded border border-brand-tan/30 text-brand-tan">−</button>
@@ -317,6 +344,27 @@ function ReturnModal({ order, pinRef, onClose, onDone }) {
             );
           })}
 
+          {/* Lines ncom sold from its own catalogue. No stock of ours moved for
+              them and there is nothing here to restock, but whoever checks the
+              parcel still has to know they were in it. */}
+          {(order.ncom?.foreignItems?.length || 0) > 0 && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-2.5 space-y-2">
+              <p className="text-[11px] font-semibold text-brand-brown">Also in this parcel — ncom.bd&apos;s own items</p>
+              {order.ncom.foreignItems.map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <ItemThumb src={f.image} alt={f.title} className="w-9 h-10" />
+                  <div className="min-w-0">
+                    <p className="text-[12px] text-brand-brown line-clamp-1">
+                      {f.title}{f.variantTitle ? ` (${f.variantTitle})` : ""}
+                    </p>
+                    <p className="text-[10px] text-brand-tan">×{f.quantity} · {formatPrice(f.price)} · not our stock</p>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[10px] text-brand-tan">Tell ncom about these — they are not part of the totals below.</p>
+            </div>
+          )}
+
           <label className="flex items-center justify-between py-2">
             <span className="text-[13px] text-brand-brown">Waive delivery charge</span>
             <Toggle checked={waive} onChange={setWaive} />
@@ -326,6 +374,14 @@ function ReturnModal({ order, pinRef, onClose, onDone }) {
           <div className="bg-brand-cream/60 rounded-lg p-3 text-sm space-y-1">
             <div className="flex justify-between text-brand-tan"><span>Returned value</span><span>− {formatPrice(returnedValue)}</span></div>
             <div className="flex justify-between font-semibold text-brand-brown"><span>New order total</span><span>{formatPrice(newTotal)}</span></div>
+            {/* The rule, shown before it is applied: every unit back is a full
+                return, some units back is a partial one. */}
+            {nextStatus && (
+              <div className="flex justify-between pt-1 mt-1 border-t border-brand-tan/15 text-brand-brown">
+                <span className="text-brand-tan">Order becomes</span>
+                <span className="font-semibold">{orderStatusLabel(nextStatus)}</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex gap-3 px-5 py-4 border-t border-brand-tan/15">
@@ -475,7 +531,7 @@ export default function AdminOrderDetailPage() {
           <ArrowLeft size={16} />
         </button>
         <h1 className="text-xl sm:text-2xl font-bold text-brand-brown tracking-tight">{order.orderNumber}</h1>
-        <Badge variant={order.orderStatus}>{order.orderStatus}</Badge>
+        <Badge variant={order.orderStatus}>{orderStatusLabel(order.orderStatus)}</Badge>
         {canEdit && (
           <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditOpen(true)}>
             <Pencil size={13} /> Edit Order
@@ -500,16 +556,7 @@ export default function AdminOrderDetailPage() {
                 return (
                 <div key={i} className="flex justify-between items-center gap-3 border-b border-brand-tan/10 pb-3 last:border-0 last:pb-0">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative w-12 h-14 flex-shrink-0 bg-brand-cream-dark overflow-hidden rounded">
-                      <Image
-                        src={item.image || "/placeholder.jpg"}
-                        alt={item.name}
-                        fill
-                        sizes="48px"
-                        unoptimized={shouldUnoptimizeImage(item.image)}
-                        className="object-cover"
-                      />
-                    </div>
+                    <ItemThumb src={item.image} alt={item.name} className="w-12 h-14" />
                     <div className="min-w-0">
                       <p className="font-medium text-brand-brown line-clamp-1">{item.name}</p>
                       <p className="text-sm text-brand-tan">
@@ -602,8 +649,30 @@ export default function AdminOrderDetailPage() {
         <div className="space-y-6">
           <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-6">
             <h2 className="font-semibold text-brand-brown mb-4">Order Status</h2>
+
+            {/* "Returned" / "Partially returned" are not on this list because
+                they are worked out from the items staff record as returned —
+                so when the order is in one of them, it is shown here as the
+                state it is in, with the way back to the return editor. */}
+            {isReturnStatus(order.orderStatus) && (
+              <div className="mb-3 rounded-lg bg-brand-terracotta/8 border border-brand-terracotta/25 p-3">
+                <p className="text-[13px] font-semibold text-brand-brown">{orderStatusLabel(order.orderStatus)}</p>
+                <p className="text-[11px] text-brand-tan mt-0.5">
+                  {order.orderStatus === "return_requested"
+                    ? "The courier says items are coming back. Record which ones in Manage return — the order then becomes Returned or Partially returned automatically."
+                    : `${returnTally(order.items).returned} of ${returnTally(order.items).ordered} units are back. Add to it in Manage return.`}
+                </p>
+                <button
+                  onClick={() => setReturnOpen(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-medium text-brand-terracotta hover:underline"
+                >
+                  <RotateCcw size={12} /> Manage return
+                </button>
+              </div>
+            )}
+
             <div className="space-y-2">
-              {ORDER_STATUSES.map((status) => (
+              {MANUAL_ORDER_STATUSES.map((status) => (
                 <label key={status} className={`flex items-center gap-3 p-2 cursor-pointer transition-colors ${order.orderStatus === status ? "bg-brand-cream" : "hover:bg-brand-cream/50"}`}>
                   <input
                     type="radio"
@@ -614,7 +683,7 @@ export default function AdminOrderDetailPage() {
                     disabled={updating}
                     className="accent-brand-terracotta"
                   />
-                  <span className="text-sm capitalize text-brand-brown">{status}</span>
+                  <span className="text-sm text-brand-brown">{orderStatusLabel(status)}</span>
                   {PIN_STATUSES.includes(status) && <span className="text-[10px] text-brand-tan ml-auto">🔒 PIN</span>}
                 </label>
               ))}
@@ -780,6 +849,24 @@ export default function AdminOrderDetailPage() {
                 {order.courier.lastSyncedAt && (
                   <p className="text-[11px] text-brand-tan">Checked {new Date(order.courier.lastSyncedAt).toLocaleString("en-BD")}</p>
                 )}
+                {/* A return request they are holding against this consignment.
+                    The first question staff ask about an order sitting in
+                    "return requested" is who said so and why. */}
+                {order.courier.returnRequest?.id && (
+                  <div className="mt-2 pt-2 border-t border-brand-tan/10">
+                    <p className="text-[11px] font-semibold text-brand-terracotta uppercase tracking-[1.2px]">Return request</p>
+                    <p className="text-[12px] text-brand-brown mt-0.5">
+                      #{order.courier.returnRequest.id}
+                      {order.courier.returnRequest.status ? ` · ${order.courier.returnRequest.status.replace(/_/g, " ")}` : ""}
+                    </p>
+                    {order.courier.returnRequest.reason && (
+                      <p className="text-[11px] text-brand-tan">{order.courier.returnRequest.reason}</p>
+                    )}
+                    {order.courier.returnRequest.at && (
+                      <p className="text-[11px] text-brand-tan">Raised {new Date(order.courier.returnRequest.at).toLocaleString("en-BD")}</p>
+                    )}
+                  </div>
+                )}
                 {order.courier.error && <p className="text-[11px] text-red-600">{order.courier.error}</p>}
                 {canManageOrders && (
                   <Button variant="outline" onClick={syncCourierStatus} disabled={syncingCourier} className="w-full mt-1">
@@ -930,12 +1017,7 @@ function NcomPanel({ ncom }) {
           <div className="space-y-2">
             {foreign.map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-[12px]">
-                {item.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image} alt="" className="w-8 h-8 rounded object-cover border border-brand-tan/20" />
-                ) : (
-                  <span className="w-8 h-8 rounded bg-brand-tan/10 border border-brand-tan/20" />
-                )}
+                <ItemThumb src={item.image} alt={item.title || ""} className="w-9 h-9" />
                 <span className="flex-1 text-brand-brown">
                   {item.title}
                   {item.variantTitle ? ` (${item.variantTitle})` : ""}
