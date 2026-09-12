@@ -4,773 +4,508 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
-  Search, Plus, X, Users, UserCheck, Shield, ShoppingBag,
-  Trash2, Pencil, ChevronLeft, ChevronRight, Eye,
-  Mail, Phone, MapPin, Calendar, CheckCircle, XCircle,
+  Search, Plus, Users, UserCheck, ShoppingBag, Repeat, Wallet, AlertTriangle,
+  ChevronLeft, ChevronRight, Trash2, Pencil, Eye, Merge, Download, X, Phone, Mail,
 } from "lucide-react";
-import { PageHeader, Button } from "@/components/admin/ui";
+import { cn } from "@/lib/utils";
+import { PageHeader, Button, Card, StatCard, TableWrap, EmptyState, Pill } from "@/components/admin/ui";
+import { ROLE_LABELS } from "@/lib/permissions";
 import {
-  ROLES, ROLE_LABELS, ROLE_PERMISSIONS, assignableRoles,
-  getEffectivePermissions, isElevated, PERMISSION_GROUPS, PERMISSIONS,
-} from "@/lib/permissions";
-import { ORDER_STATUSES, orderStatusLabel, orderStatusTone } from "@/lib/order-status";
+  Avatar, TypeBadge, ChannelPills, Dropdown, Checkbox, Modal,
+  taka, takaShort, shortDate, timeAgo,
+} from "@/components/admin/customers/shared";
+import CustomerDrawer from "@/components/admin/customers/CustomerDrawer";
+import CustomerFormModal from "@/components/admin/customers/CustomerFormModal";
+import DuplicatesModal, { MergeGroup } from "@/components/admin/customers/DuplicatesModal";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-const ROLE_BADGE_CLS = {
-  superadmin: "bg-brand-brown/10 text-brand-brown",
-  admin: "bg-brand-terracotta/10 text-brand-terracotta",
-  moderator: "bg-blue-100 text-blue-700",
-  staff: "bg-amber-100 text-amber-700",
-  customer: "bg-brand-tan/15 text-brand-tan",
-};
-function RoleBadge({ role }) {
-  return (
-    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 font-medium ${ROLE_BADGE_CLS[role] || ROLE_BADGE_CLS.customer}`}>
-      {ROLE_LABELS[role] || role}
-    </span>
-  );
-}
+// The customer directory.
+//
+// Almost every buyer here is a guest record created from a COD order — they have
+// never signed in and most have no email. So the page is built around the two
+// questions staff actually ask: "who is this number calling me" (search) and
+// "who is worth keeping" (sort by value, repeat segment), rather than around
+// account management, which is now its own Team tab.
 
-function Avatar({ user, size = "sm" }) {
-  const cls = size === "sm"
-    ? "w-8 h-8 text-[11px]"
-    : "w-14 h-14 text-xl";
-  if (user?.image) {
-    return (
-      <img
-        src={user.image}
-        alt={user.name}
-        className={`${cls} rounded-full object-cover flex-shrink-0`}
-      />
-    );
-  }
-  return (
-    <div className={`${cls} rounded-full bg-brand-terracotta flex items-center justify-center text-white font-bold flex-shrink-0`}>
-      {user?.name?.charAt(0)?.toUpperCase() || "U"}
-    </div>
-  );
-}
+const SEGMENTS = [
+  { value: "all", label: "All customers" },
+  { value: "repeat", label: "Repeat buyers" },
+  { value: "guests", label: "Guests" },
+  { value: "registered", label: "Registered" },
+  { value: "inactive", label: "No orders" },
+  { value: "team", label: "Team" },
+];
 
-function StatCard({ label, value, icon: Icon, accent }) {
-  const accents = {
-    brown: "bg-brand-brown/8 text-brand-brown",
-    tan: "bg-brand-tan/15 text-brand-tan",
-    terracotta: "bg-brand-terracotta/10 text-brand-terracotta",
-    green: "bg-emerald-500/10 text-emerald-600",
-  };
-  return (
-    <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-brand-tan mb-1.5">{label}</p>
-          <p className="text-2xl font-bold text-brand-brown">{value ?? "—"}</p>
-        </div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${accents[accent] || accents.tan}`}>
-          <Icon size={18} strokeWidth={1.5} />
-        </div>
-      </div>
-    </div>
-  );
-}
+const SORT_OPTIONS = [
+  { value: "recent", label: "Newest first" },
+  { value: "last_order", label: "Recently ordered" },
+  { value: "collected", label: "Highest paid" },
+  { value: "spent", label: "Highest invoiced" },
+  { value: "orders", label: "Most orders" },
+  { value: "name", label: "Name (A–Z)" },
+  { value: "oldest", label: "Oldest first" },
+];
 
-// ── Order status colors ────────────────────────────────────────────────────────
-// Keyed off the shared tone per status (lib/order-status) so the return states
-// arrive here coloured rather than falling through to plain tan.
-const TONE_CLS = {
-  amber:      "bg-amber-100 text-amber-700",
-  blue:       "bg-blue-100 text-blue-700",
-  green:      "bg-emerald-100 text-emerald-700",
-  red:        "bg-red-100 text-red-600",
-  terracotta: "bg-brand-terracotta/12 text-brand-terracotta",
-  brown:      "bg-brand-brown/10 text-brand-brown",
-};
-const orderStatusCls = Object.fromEntries(
-  ORDER_STATUSES.map((status) => [status, TONE_CLS[orderStatusTone(status)] || "bg-brand-tan/15 text-brand-tan"])
-);
+const PAGE_SIZES = [
+  { value: "25", label: "25 per page" },
+  { value: "50", label: "50 per page" },
+  { value: "100", label: "100 per page" },
+];
 
-// ── User detail drawer ─────────────────────────────────────────────────────────
-function UserDetailDrawer({ userId, onClose, onEdit, onDelete }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/admin/users/${userId}`)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => toast.error("Failed to load"))
-      .finally(() => setLoading(false));
-  }, [userId]);
-
-  const user = data?.user;
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-full max-w-[420px] bg-white z-50 flex flex-col shadow-2xl animate-slide-in-right">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-tan/20 flex-shrink-0">
-          <p className="text-[11px] uppercase tracking-widest text-brand-tan font-medium">User Details</p>
-          <button onClick={onClose} className="text-brand-tan hover:text-brand-brown transition-colors">
-            <X size={16} strokeWidth={1.5} />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center text-brand-tan text-sm">Loading…</div>
-        ) : !user ? (
-          <div className="flex-1 flex items-center justify-center text-brand-tan text-sm">Failed to load</div>
-        ) : (
-          <div className="flex-1 overflow-y-auto">
-            {/* Profile header */}
-            <div className="px-6 py-5 border-b border-brand-tan/10">
-              <div className="flex items-start gap-4">
-                <Avatar user={user} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold text-brand-brown truncate">{user.name}</p>
-                  <p className="text-sm text-brand-tan truncate">{user.email}</p>
-                  <div className="flex items-center flex-wrap gap-2 mt-2">
-                    <RoleBadge role={user.role} />
-                    {user.emailVerified ? (
-                      <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
-                        <CheckCircle size={11} /> Verified
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[10px] text-brand-tan/50">
-                        <XCircle size={11} /> Unverified
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick stats */}
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-brand-cream/60 p-3 text-center">
-                  <p className="text-lg font-bold text-brand-brown">{user.orderCount}</p>
-                  <p className="text-[10px] text-brand-tan uppercase tracking-wider">Orders</p>
-                </div>
-                <div className="bg-brand-cream/60 p-3 text-center">
-                  <p className="text-lg font-bold text-brand-brown">Tk {user.totalSpent?.toLocaleString()}</p>
-                  <p className="text-[10px] text-brand-tan uppercase tracking-wider">Total Spent</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Info rows */}
-            <div className="px-6 py-4 space-y-3 border-b border-brand-tan/10">
-              <div className="flex items-center gap-3 text-sm">
-                <Mail size={14} className="text-brand-tan flex-shrink-0" strokeWidth={1.5} />
-                <span className="text-brand-brown break-all">{user.email}</span>
-              </div>
-              {user.phone && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Phone size={14} className="text-brand-tan flex-shrink-0" strokeWidth={1.5} />
-                  <span className="text-brand-brown">{user.phone}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar size={14} className="text-brand-tan flex-shrink-0" strokeWidth={1.5} />
-                <span className="text-brand-brown">
-                  Joined {new Date(user.createdAt).toLocaleDateString("en-BD", {
-                    year: "numeric", month: "long", day: "numeric",
-                  })}
-                </span>
-              </div>
-              {user.address?.city && (
-                <div className="flex items-center gap-3 text-sm">
-                  <MapPin size={14} className="text-brand-tan flex-shrink-0" strokeWidth={1.5} />
-                  <span className="text-brand-brown">
-                    {[user.address.street, user.address.city, user.address.state]
-                      .filter(Boolean).join(", ")}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Recent orders */}
-            {data.orders?.length > 0 && (
-              <div className="px-6 py-4">
-                <p className="text-[10px] uppercase tracking-widest text-brand-tan font-medium mb-3">
-                  Recent Orders
-                </p>
-                <div className="space-y-0">
-                  {data.orders.slice(0, 6).map((order) => (
-                    <div
-                      key={order._id}
-                      className="flex items-center justify-between py-2.5 border-b border-brand-tan/10 last:border-0"
-                    >
-                      <div>
-                        <p className="text-[12px] font-semibold text-brand-brown">{order.orderNumber}</p>
-                        <p className="text-[10px] text-brand-tan mt-0.5">
-                          {order.itemCount} item{order.itemCount !== 1 ? "s" : ""} ·{" "}
-                          {new Date(order.createdAt).toLocaleDateString("en-BD")}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[12px] font-semibold text-brand-brown">
-                          Tk {order.totalAmount.toLocaleString()}
-                        </p>
-                        <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 inline-block mt-0.5 ${
-                          orderStatusCls[order.orderStatus] || "bg-brand-tan/15 text-brand-tan"
-                        }`}>
-                          {orderStatusLabel(order.orderStatus)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Footer actions */}
-        {user && (
-          <div className="flex gap-3 px-6 py-4 border-t border-brand-tan/20 flex-shrink-0">
-            <Button onClick={() => onEdit(user)} className="flex-1">
-              <Pencil size={13} /> Edit User
-            </Button>
-            <button
-              onClick={() => onDelete(user)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[11px] uppercase tracking-[2px] border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 size={13} strokeWidth={1.5} />
-            </button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ── Create / Edit modal ────────────────────────────────────────────────────────
-function UserFormModal({ mode, user, onClose, onSaved, actorRole, grantablePerms }) {
-  const [form, setForm] = useState(
-    mode === "edit"
-      ? {
-          name: user.name || "",
-          phone: user.phone || "",
-          role: user.role || "customer",
-          permissions: user.permissions || [],
-          emailVerified: user.emailVerified || false,
-        }
-      : { name: "", email: "", password: "", role: "customer", phone: "", permissions: [] }
-  );
-  const [saving, setSaving] = useState(false);
-
-  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
-  const togglePerm = (key) =>
-    set("permissions", form.permissions.includes(key)
-      ? form.permissions.filter((k) => k !== key)
-      : [...form.permissions, key]);
-
-  // Roles the actor may assign, plus the account's current role so the select
-  // never silently misrepresents an existing higher-tier user.
-  const roleOptions = Array.from(new Set([form.role, ...assignableRoles(actorRole)]));
-
-  const submit = async () => {
-    if (!form.name.trim()) { toast.error("Name is required"); return; }
-    if (mode === "create") {
-      if (!form.email.trim()) { toast.error("Email is required"); return; }
-      if (!form.password || form.password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
-    }
-
-    setSaving(true);
-    try {
-      const url = mode === "edit" ? `/api/admin/users/${user._id}` : "/api/admin/users";
-      const method = mode === "edit" ? "PUT" : "POST";
-      // Elevated roles implicitly hold everything — no override list needed.
-      const payload = { ...form };
-      if (form.role === "customer" || isElevated(form.role)) payload.permissions = [];
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error || "Failed"); return; }
-      toast.success(mode === "edit" ? "User updated" : "User created");
-      onSaved(json);
-    } catch {
-      toast.error("Something went wrong");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const inputCls = "w-full rounded-lg border border-brand-tan/30 bg-transparent px-3 py-2 text-sm text-brand-brown focus:outline-none focus:border-brand-brown transition-colors";
-  const labelCls = "block text-[10px] uppercase tracking-widest text-brand-tan mb-1.5";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-[11px] uppercase tracking-widest text-brand-tan font-medium">
-            {mode === "edit" ? "Edit User" : "Create User"}
-          </p>
-          <button onClick={onClose} className="text-brand-tan hover:text-brand-brown transition-colors">
-            <X size={16} strokeWidth={1.5} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>Full Name *</label>
-            <input
-              className={inputCls}
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="e.g. Rahim Uddin"
-            />
-          </div>
-
-          {mode === "create" && (
-            <>
-              <div>
-                <label className={labelCls}>Email *</label>
-                <input
-                  className={inputCls}
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => set("email", e.target.value)}
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Password *</label>
-                <input
-                  className={inputCls}
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => set("password", e.target.value)}
-                  placeholder="Min 6 characters"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className={labelCls}>Phone</label>
-            <input
-              className={inputCls}
-              value={form.phone}
-              onChange={(e) => set("phone", e.target.value)}
-              placeholder="+880 1XXX XXXXXX"
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>Role</label>
-            <select
-              className={inputCls + " bg-white"}
-              value={form.role}
-              onChange={(e) => set("role", e.target.value)}
-            >
-              {roleOptions.map((r) => (
-                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Permission editor — only for staff roles below the elevated tier. */}
-          {form.role !== "customer" && (
-            isElevated(form.role) ? (
-              <div className="rounded-lg bg-brand-cream/60 px-3 py-2.5 text-[11px] text-brand-tan">
-                Full access — this role holds every permission.
-              </div>
-            ) : (
-              <div>
-                <label className={labelCls}>Permissions</label>
-                <p className="text-[10px] text-brand-tan mb-2 normal-case tracking-normal">
-                  Role defaults are locked on. Tick extra permissions to grant.
-                </p>
-                <div className="space-y-3 max-h-52 overflow-y-auto pr-1 border border-brand-tan/15 rounded-lg p-3">
-                  {PERMISSION_GROUPS.map((g) => (
-                    <div key={g.label}>
-                      <p className="text-[9px] uppercase tracking-widest text-brand-tan/70 mb-1">{g.label}</p>
-                      <div className="space-y-1">
-                        {g.keys.map((key) => {
-                          const isDefault = (ROLE_PERMISSIONS[form.role] || []).includes(key);
-                          const grantable = grantablePerms.includes(key);
-                          const checked = isDefault || form.permissions.includes(key);
-                          const disabled = isDefault || !grantable;
-                          return (
-                            <label
-                              key={key}
-                              className={`flex items-center gap-2 text-[12px] ${disabled && !isDefault ? "opacity-40" : "cursor-pointer"}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={disabled}
-                                onChange={() => togglePerm(key)}
-                                className="accent-brand-terracotta"
-                              />
-                              <span className="text-brand-brown">{PERMISSIONS[key]}</span>
-                              {isDefault && <span className="text-[9px] text-brand-tan">(role)</span>}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          )}
-
-          {mode === "edit" && (
-            <div className="flex items-center justify-between py-3 border-t border-brand-tan/10">
-              <div>
-                <p className="text-[12px] font-medium text-brand-brown">Email Verified</p>
-                <p className="text-[10px] text-brand-tan">Allow login without OTP</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.emailVerified}
-                  onChange={(e) => set("emailVerified", e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-brand-tan/40 rounded-full peer peer-checked:bg-brand-terracotta transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-all peer-checked:after:translate-x-5" />
-              </label>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button onClick={submit} disabled={saving} className="flex-1">
-              {saving ? "Saving…" : mode === "edit" ? "Save Changes" : "Create User"}
-            </Button>
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ──────────────────────────────────────────────────────────────────
-export default function AdminUsersPage() {
+export default function CustomersPage() {
   const { data: session } = useSession();
-  const actorRole = session?.user?.role || ROLES.CUSTOMER;
-  const grantablePerms = getEffectivePermissions(session?.user);
+  const actor = session?.user;
 
-  const [users, setUsers] = useState([]);
+  const [rows, setRows] = useState([]);
   const [stats, setStats] = useState(null);
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1, canManageUsers: false });
   const [loading, setLoading] = useState(true);
 
+  const [segment, setSegment] = useState("all");
+  const [sort, setSort] = useState("recent");
+  const [limit, setLimit] = useState("25");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
+  const [q, setQ] = useState("");
 
-  const [detailId, setDetailId] = useState(null);
-  const [editUser, setEditUser] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [drawerId, setDrawerId] = useState(null);
+  const [formState, setFormState] = useState({ open: false, mode: "create", user: null });
+  const [dupesOpen, setDupesOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
-  const searchTimer = useRef(null);
+  // Debounce the search box — a phone number is typed digit by digit and each
+  // keystroke would otherwise be a full aggregation.
+  const debounce = useRef(null);
+  useEffect(() => {
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => { setQ(search); setPage(1); }, 350);
+    return () => clearTimeout(debounce.current);
+  }, [search]);
 
-  const load = useCallback(async (p = page, q = search, r = roleFilter) => {
+  const params = useCallback(
+    () => new URLSearchParams({ segment, sort, q, page: String(page), limit }),
+    [segment, sort, q, page, limit]
+  );
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: p, limit: 20 });
-      if (q) params.set("q", q);
-      if (r) params.set("role", r);
-      const res = await fetch(`/api/admin/users?${params}`);
+      const res = await fetch(`/api/admin/users?${params()}`);
       const data = await res.json();
-      setUsers(data.users || []);
-      setTotal(data.total || 0);
-      setPages(data.pages || 1);
-      if (data.stats) setStats(data.stats);
-    } catch {
-      toast.error("Failed to load users");
+      if (!res.ok) throw new Error(data.error || "Could not load customers");
+      setRows(data.users || []);
+      setStats(data.stats || null);
+      setMeta({ total: data.total, page: data.page, pages: data.pages, canManageUsers: data.canManageUsers });
+    } catch (err) {
+      toast.error(err.message);
+      setRows([]);
     } finally {
       setLoading(false);
     }
-  }, [page, search, roleFilter]);
+  }, [params]);
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setSelected(new Set()); }, [segment, q, page]);
 
-  const handleSearchChange = (val) => {
-    setSearch(val);
-    setPage(1);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => load(1, val, roleFilter), 400);
+  const canManage = meta.canManageUsers;
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r._id));
+  const toggleAll = () => {
+    setSelected((prev) => {
+      if (allOnPageSelected) {
+        const next = new Set(prev);
+        rows.forEach((r) => next.delete(r._id));
+        return next;
+      }
+      return new Set([...prev, ...rows.map((r) => r._id)]);
+    });
   };
 
-  const handleRoleChange = (val) => {
-    setRoleFilter(val);
-    setPage(1);
-    load(1, search, val);
-  };
-
-  const handleDelete = async (user) => {
-    if (!confirm(`Delete "${user.name}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/admin/users/${user._id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) { toast.error(data.error || "Failed to delete"); return; }
-    toast.success("User deleted");
-    if (detailId === user._id) setDetailId(null);
-    load();
-  };
-
-  const handleSaved = (savedUser) => {
-    setEditUser(null);
-    setCreateOpen(false);
-    load();
-    // If we were viewing the edited user, refresh their detail
-    if (detailId === savedUser._id) {
-      setDetailId(null);
-      setTimeout(() => setDetailId(savedUser._id), 50);
+  const remove = async (user) => {
+    if (!confirm(`Delete ${user.name}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${user._id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not delete");
+      toast.success("Record deleted");
+      load();
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
+  const exportCsv = () => {
+    const p = new URLSearchParams({ segment, sort, q });
+    window.location.href = `/api/admin/users/export?${p}`;
+  };
+
+  const selectedRows = rows.filter((r) => selected.has(r._id));
+  const isTeam = segment === "team";
+
   return (
-    <div>
+    <div className="w-full">
       <PageHeader
         icon={Users}
-        title="User Management"
-        subtitle={`${total} ${total === 1 ? "user" : "users"} total`}
+        title={isTeam ? "Team" : "Customers"}
+        subtitle={
+          isTeam
+            ? "Panel accounts, their roles and what each one may do"
+            : "Everyone who has ever ordered — matched by phone and email, however they bought"
+        }
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus size={14} /> Add User
-          </Button>
+          <>
+            <Button variant="outline" size="sm" onClick={exportCsv}>
+              <Download size={14} /> <span className="hidden sm:inline">Export</span>
+            </Button>
+            {canManage && !isTeam && (
+              <Button variant="outline" size="sm" onClick={() => setDupesOpen(true)}>
+                <Merge size={14} /> <span className="hidden sm:inline">Duplicates</span>
+              </Button>
+            )}
+            {canManage && (
+              <Button size="sm" onClick={() => setFormState({ open: true, mode: "create", user: null })}>
+                <Plus size={14} /> <span className="hidden sm:inline">{isTeam ? "Add member" : "Add customer"}</span>
+              </Button>
+            )}
+          </>
         }
       />
 
-      {/* Stats */}
+      {/* Health + headline numbers */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Total Users"  value={stats.total}     icon={Users}      accent="brown" />
-          <StatCard label="Customers"    value={stats.customers} icon={ShoppingBag} accent="tan" />
-          <StatCard label="Staff"        value={stats.staff}     icon={Shield}     accent="terracotta" />
-          <StatCard label="Verified"     value={stats.verified}  icon={UserCheck}  accent="green" />
-        </div>
+        <>
+          {stats.unattachedOrders > 0 && (
+            <Card className="mb-4 border-amber-300 bg-amber-50 flex items-start gap-3">
+              <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-amber-900">
+                  {stats.unattachedOrders} order{stats.unattachedOrders === 1 ? " is" : "s are"} not linked to any customer
+                </p>
+                <p className="text-[12px] text-amber-800 mt-0.5">
+                  Those buyers are missing from this list and from every lifetime-value total.
+                  Run <code className="font-mono bg-amber-100 px-1 rounded">node scripts/backfill-order-customers.mjs</code> on the server to attach them.
+                </p>
+              </div>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+            <StatCard label="Customers" value={stats.customers.toLocaleString()} icon={Users}
+              hint={`${stats.registered} registered · ${stats.guests} guest`} />
+            <StatCard label="Have ordered" value={stats.buyers.toLocaleString()} icon={ShoppingBag}
+              hint={`${stats.orders.toLocaleString()} orders`} />
+            <StatCard label="Repeat buyers" value={stats.repeatBuyers.toLocaleString()} icon={Repeat}
+              hint={stats.buyers ? `${Math.round((stats.repeatBuyers / stats.buyers) * 100)}% come back` : "—"} />
+            <StatCard label="Collected" value={takaShort(stats.collected)} icon={Wallet}
+              hint="delivered orders only" accent="text-emerald-700" />
+            <StatCard label="Reachable" value={stats.withPhone.toLocaleString()} icon={Phone}
+              hint={`${stats.withEmail} also by email`} />
+          </div>
+        </>
       )}
 
+      {/* Segments */}
+      <div className="flex gap-1 overflow-x-auto pb-1 mb-3 -mx-1 px-1">
+        {SEGMENTS.map((s) => {
+          const active = segment === s.value;
+          const count =
+            stats &&
+            { all: stats.customers, guests: stats.guests, registered: stats.registered, team: stats.team, repeat: stats.repeatBuyers }[s.value];
+          return (
+            <button
+              key={s.value}
+              onClick={() => { setSegment(s.value); setPage(1); }}
+              className={cn(
+                "px-3.5 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors flex items-center gap-1.5",
+                active
+                  ? "bg-brand-brown text-white"
+                  : "text-brand-tan hover:text-brand-brown hover:bg-brand-cream-dark/70"
+              )}
+            >
+              {s.label}
+              {count !== undefined && count !== null && (
+                <span className={cn("text-[11px] tabular-nums", active ? "text-white/70" : "text-brand-tan/70")}>
+                  {count.toLocaleString()}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-tan/60" strokeWidth={1.5} />
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <div className="relative flex-1 min-w-0">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-tan pointer-events-none" />
           <input
             value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by name, email, or phone…"
-            className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-brand-tan/30 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, phone or email…"
+            className="w-full pl-9 pr-9 py-2 rounded-lg border border-brand-tan/30 bg-white text-[13px] text-brand-brown placeholder:text-brand-tan/50 focus:outline-none focus:border-brand-brown focus:ring-2 focus:ring-brand-terracotta/15 transition-shadow"
           />
           {search && (
             <button
-              onClick={() => handleSearchChange("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tan/60 hover:text-brand-brown transition-colors"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tan hover:text-brand-brown"
+              aria-label="Clear search"
             >
               <X size={14} />
             </button>
           )}
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => handleRoleChange(e.target.value)}
-          className="rounded-lg border border-brand-tan/30 px-3 py-2.5 text-sm text-brand-brown bg-white focus:outline-none focus:border-brand-brown transition-colors"
-        >
-          <option value="">All Roles</option>
-          <option value="customer">Customers</option>
-          <option value="staff">Staff</option>
-          <option value="moderator">Moderators</option>
-          <option value="admin">Admins</option>
-          <option value="superadmin">Super Admins</option>
-        </select>
+        <Dropdown value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} className="sm:w-48" widthClass="w-48" align="right" />
+        <Dropdown value={limit} onChange={(v) => { setLimit(v); setPage(1); }} options={PAGE_SIZES} className="sm:w-36" widthClass="w-36" align="right" />
       </div>
+
+      {/* Selection bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 mb-3 px-3.5 py-2.5 rounded-lg bg-brand-brown text-white">
+          <span className="text-[13px]">
+            {selected.size} selected
+            {selected.size > 1 && <span className="text-white/60"> · merge folds them into one customer</span>}
+          </span>
+          <div className="flex items-center gap-2">
+            {canManage && selected.size > 1 && selectedRows.length === selected.size && (
+              <Button size="sm" variant="primary" onClick={() => setMergeOpen(true)}>
+                <Merge size={13} /> Merge
+              </Button>
+            )}
+            <button onClick={() => setSelected(new Set())} className="text-[12px] text-white/70 hover:text-white">
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
-      <div className="bg-white border border-brand-tan/15 rounded-xl shadow-[0_1px_3px_rgba(44,24,16,0.04)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-brand-tan/15 bg-brand-cream/40">
-                {["User", "Role", "Phone", "Orders", "Spent", "Status", "Joined", ""].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-brand-tan font-medium whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-tan/5">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-brand-tan text-sm">
-                    Loading…
-                  </td>
-                </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center">
-                    <Users size={28} className="text-brand-tan/30 mx-auto mb-2" strokeWidth={1} />
-                    <p className="text-sm text-brand-tan">No users found</p>
-                  </td>
-                </tr>
-              ) : (
-                users.map((user) => (
-                  <tr
-                    key={user._id}
-                    onClick={() => setDetailId(detailId === user._id ? null : user._id)}
-                    className={`hover:bg-brand-cream/30 transition-colors cursor-pointer ${
-                      detailId === user._id ? "bg-brand-cream/50" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar user={user} />
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-brand-brown truncate max-w-[140px]">
-                            {user.name}
-                          </p>
-                          <p className="text-[11px] text-brand-tan truncate max-w-[140px]">
-                            {user.email}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <RoleBadge role={user.role} />
-                    </td>
-                    <td className="px-4 py-3 text-[12px] text-brand-brown/70 whitespace-nowrap">
-                      {user.phone || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] font-semibold text-brand-brown">
-                      {user.orderCount}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] font-semibold text-brand-brown whitespace-nowrap">
-                      Tk {user.totalSpent.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {user.emailVerified ? (
-                        <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium whitespace-nowrap">
-                          <CheckCircle size={12} /> Verified
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-[11px] text-brand-tan/50 whitespace-nowrap">
-                          <XCircle size={12} /> Unverified
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[11px] text-brand-tan whitespace-nowrap">
-                      {new Date(user.createdAt).toLocaleDateString("en-BD")}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div
-                        className="flex items-center gap-0.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => setDetailId(user._id)}
-                          title="View details"
-                          className="p-1.5 text-brand-tan hover:text-brand-brown transition-colors"
-                        >
-                          <Eye size={13} strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={() => setEditUser(user)}
-                          title="Edit"
-                          className="p-1.5 text-brand-tan hover:text-brand-brown transition-colors"
-                        >
-                          <Pencil size={13} strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user)}
-                          title="Delete"
-                          className="p-1.5 text-brand-tan hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={13} strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-brand-tan/10">
-            <p className="text-[11px] text-brand-tan">
-              Page {page} of {pages} · {total} users
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="p-1.5 text-brand-tan hover:text-brand-brown disabled:opacity-30 transition-colors"
-              >
-                <ChevronLeft size={16} strokeWidth={2} />
-              </button>
-              {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
-                const p = page <= 3 ? i + 1 : page - 2 + i;
-                if (p < 1 || p > pages) return null;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-7 h-7 text-[12px] transition-colors ${
-                      p === page
-                        ? "bg-brand-terracotta text-white"
-                        : "text-brand-tan hover:text-brand-brown"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                disabled={page === pages}
-                className="p-1.5 text-brand-tan hover:text-brand-brown disabled:opacity-30 transition-colors"
-              >
-                <ChevronRight size={16} strokeWidth={2} />
-              </button>
-            </div>
+      <Card padded={false} className="overflow-hidden">
+        {loading ? (
+          <div className="p-4 space-y-2">
+            {[...Array(8)].map((_, i) => <div key={i} className="h-14 bg-brand-cream/60 rounded-lg animate-pulse" />)}
           </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={q ? "No one matches that search" : "Nothing here yet"}
+            hint={
+              q
+                ? "Try just the last few digits of the phone number."
+                : segment === "inactive"
+                ? "Every customer record has at least one order against it."
+                : "Customers appear here the moment an order is placed, signed in or not."
+            }
+            action={q ? <Button variant="outline" size="sm" onClick={() => setSearch("")}>Clear search</Button> : null}
+          />
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <TableWrap>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-brand-tan/15 bg-brand-cream/40">
+                      {canManage && (
+                        <th className="w-10 pl-4 py-2.5">
+                          <Checkbox checked={allOnPageSelected} onChange={toggleAll} label="Select all on page" />
+                        </th>
+                      )}
+                      <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan">Customer</th>
+                      <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan">Contact</th>
+                      {isTeam ? (
+                        <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan">Role</th>
+                      ) : (
+                        <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan">Channels</th>
+                      )}
+                      <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan text-right">Orders</th>
+                      <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan text-right">Collected</th>
+                      <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-brand-tan">Last order</th>
+                      <th className="px-3 py-2.5 w-24" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-tan/10">
+                    {rows.map((u) => (
+                      <tr
+                        key={u._id}
+                        className={cn("hover:bg-brand-cream/40 transition-colors", selected.has(u._id) && "bg-brand-terracotta/5")}
+                      >
+                        {canManage && (
+                          <td className="pl-4 py-2.5">
+                            <Checkbox checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)} label={`Select ${u.name}`} />
+                          </td>
+                        )}
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => setDrawerId(u._id)} className="flex items-center gap-2.5 text-left group min-w-0">
+                            <Avatar user={u} />
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-medium text-brand-brown group-hover:text-brand-terracotta transition-colors truncate max-w-[200px]">
+                                {u.name}
+                              </p>
+                              <div className="mt-0.5"><TypeBadge user={u} /></div>
+                            </div>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="text-[12px] text-brand-brown tabular-nums">{u.phone || <span className="text-brand-tan/50">—</span>}</div>
+                          {u.email && <div className="text-[11px] text-brand-tan truncate max-w-[180px]">{u.email}</div>}
+                        </td>
+                        {isTeam ? (
+                          <td className="px-3 py-2.5">
+                            <Pill tone="brown">{ROLE_LABELS[u.role] || u.role}</Pill>
+                            {u.hasPin && <span className="ml-1.5 text-[10px] text-brand-tan">PIN set</span>}
+                          </td>
+                        ) : (
+                          <td className="px-3 py-2.5"><ChannelPills channels={u.channels} /></td>
+                        )}
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="text-[13px] font-medium text-brand-brown tabular-nums">{u.orderCount}</span>
+                          {u.cancelledCount > 0 && (
+                            <span className="block text-[10px] text-red-500 tabular-nums">{u.cancelledCount} cancelled</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="text-[13px] font-semibold text-brand-brown tabular-nums">{taka(u.collected)}</span>
+                          {u.totalSpent !== u.collected && (
+                            <span className="block text-[10px] text-brand-tan tabular-nums">{taka(u.totalSpent)} invoiced</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-[12px] text-brand-tan">{u.lastOrderAt ? timeAgo(u.lastOrderAt) : "—"}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center justify-end gap-0.5">
+                            <Button variant="ghost" size="icon" onClick={() => setDrawerId(u._id)} aria-label={`View ${u.name}`}>
+                              <Eye size={15} />
+                            </Button>
+                            {canManage && (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => setFormState({ open: true, mode: "edit", user: u })} aria-label={`Edit ${u.name}`}>
+                                  <Pencil size={15} />
+                                </Button>
+                                <Button variant="danger-ghost" size="icon" onClick={() => remove(u)} aria-label={`Delete ${u.name}`}>
+                                  <Trash2 size={15} />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableWrap>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-brand-tan/10">
+              {rows.map((u) => (
+                <div key={u._id} className={cn("p-3.5", selected.has(u._id) && "bg-brand-terracotta/5")}>
+                  <div className="flex items-start gap-3">
+                    {canManage && (
+                      <div className="pt-1">
+                        <Checkbox checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)} label={`Select ${u.name}`} />
+                      </div>
+                    )}
+                    <button onClick={() => setDrawerId(u._id)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
+                      <Avatar user={u} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-[14px] font-medium text-brand-brown truncate">{u.name}</p>
+                          <TypeBadge user={u} />
+                        </div>
+                        {u.phone && (
+                          <p className="text-[12px] text-brand-tan mt-0.5 tabular-nums flex items-center gap-1">
+                            <Phone size={10} /> {u.phone}
+                          </p>
+                        )}
+                        {u.email && (
+                          <p className="text-[12px] text-brand-tan truncate flex items-center gap-1">
+                            <Mail size={10} /> {u.email}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 text-[12px]">
+                          <span className="text-brand-brown font-medium tabular-nums">
+                            {u.orderCount} order{u.orderCount === 1 ? "" : "s"}
+                          </span>
+                          <span className="text-emerald-700 font-semibold tabular-nums">{taka(u.collected)}</span>
+                          <span className="text-brand-tan">{u.lastOrderAt ? timeAgo(u.lastOrderAt) : "no orders"}</span>
+                        </div>
+                        {!isTeam && u.channels.length > 0 && (
+                          <div className="mt-2"><ChannelPills channels={u.channels} max={3} /></div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
-      </div>
+      </Card>
 
-      {/* User detail drawer */}
-      {detailId && (
-        <UserDetailDrawer
-          userId={detailId}
-          onClose={() => setDetailId(null)}
-          onEdit={(u) => { setEditUser(u); setDetailId(null); }}
-          onDelete={(u) => { handleDelete(u); setDetailId(null); }}
-        />
+      {/* Pagination */}
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+          <p className="text-[12px] text-brand-tan">
+            Showing {(meta.page - 1) * Number(limit) + 1}–{Math.min(meta.page * Number(limit), meta.total)} of{" "}
+            {meta.total.toLocaleString()}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={meta.page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft size={14} /> Prev
+            </Button>
+            <span className="px-3 text-[12px] text-brand-tan tabular-nums">
+              {meta.page} / {meta.pages}
+            </span>
+            <Button variant="outline" size="sm" disabled={meta.page >= meta.pages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight size={14} />
+            </Button>
+          </div>
+        </div>
       )}
 
-      {/* Edit modal */}
-      {editUser && (
-        <UserFormModal
-          mode="edit"
-          user={editUser}
-          actorRole={actorRole}
-          grantablePerms={grantablePerms}
-          onClose={() => setEditUser(null)}
-          onSaved={handleSaved}
-        />
-      )}
+      {/* Overlays */}
+      <CustomerDrawer
+        customerId={drawerId}
+        open={!!drawerId}
+        onClose={() => setDrawerId(null)}
+        onEdit={(u) => { setDrawerId(null); setFormState({ open: true, mode: "edit", user: u }); }}
+        canManage={canManage}
+      />
 
-      {/* Create modal */}
-      {createOpen && (
-        <UserFormModal
-          mode="create"
-          actorRole={actorRole}
-          grantablePerms={grantablePerms}
-          onClose={() => setCreateOpen(false)}
-          onSaved={handleSaved}
-        />
-      )}
+      <CustomerFormModal
+        open={formState.open}
+        mode={formState.mode}
+        user={formState.user}
+        actor={actor}
+        onClose={() => setFormState({ open: false, mode: "create", user: null })}
+        onSaved={load}
+      />
+
+      <DuplicatesModal open={dupesOpen} onClose={() => setDupesOpen(false)} onMerged={load} />
+
+      {/* Merge the rows the admin hand-picked */}
+      <Modal open={mergeOpen} onClose={() => setMergeOpen(false)} size="md" labelledBy="merge-selected-title">
+        <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-brand-tan/15">
+          <h2 id="merge-selected-title" className="text-base font-bold text-brand-brown">Merge {selectedRows.length} records</h2>
+          <Button variant="ghost" size="icon" onClick={() => setMergeOpen(false)} aria-label="Close"><X size={18} /></Button>
+        </div>
+        <div className="p-4 sm:p-5 overflow-y-auto">
+          <p className="text-[12px] text-brand-tan mb-3">
+            Choose the record to keep. Every order from the others moves onto it, and the emptied records are removed.
+          </p>
+          <MergeGroup
+            group={{ reason: "manual", confidence: "chosen by you", key: "", users: selectedRows }}
+            onMerged={() => { setMergeOpen(false); setSelected(new Set()); load(); }}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

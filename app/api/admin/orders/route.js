@@ -9,7 +9,7 @@ import { runFraudCheckForOrder } from "@/lib/fraud";
 import { maybeAutoSendToCourier } from "@/lib/steadfast";
 import { notifyEvent } from "@/lib/notifications";
 import { normalizeBdPhone } from "@/lib/utils";
-import { findOrCreateCustomer } from "@/lib/customer-link";
+import { resolveCustomerId } from "@/lib/customer-link";
 import { reserveStock, releaseStock } from "@/lib/stock";
 
 const SOURCES = ["facebook", "instagram", "whatsapp", "phone", "offline", "other"];
@@ -95,18 +95,12 @@ export async function POST(request) {
     // Attach the sale to a customer record (matched on phone/email, guest stub
     // on a miss) so walk-in and social-channel buyers build the same history as
     // storefront ones. Never blocks the sale — see /api/orders for the rationale.
-    let customerId = null;
-    try {
-      const { user } = await findOrCreateCustomer({
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        source,
-      });
-      customerId = user._id;
-    } catch (e) {
-      console.error("customer link error:", e.message);
-    }
+    const customerId = await resolveCustomerId({
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+      source,
+    });
 
     // Take the stock before the order exists, atomically — a counter sale and a
     // website sale race for the same unit exactly like two website sales do.

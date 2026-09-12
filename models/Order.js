@@ -330,6 +330,13 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ source: 1, createdAt: -1 });
 orderSchema.index({ createdBy: 1, createdAt: -1 });
 
+// Customer management joins orders to users constantly: the list computes each
+// customer's order count, lifetime spend and last-order date, and the detail
+// drawer pulls one customer's history newest-first. Without this every one of
+// those is a full scan — and there is now one customer record per buyer, so the
+// list alone would scan the orders collection once per row.
+orderSchema.index({ user: 1, createdAt: -1 });
+
 // The audit-trail pass windows on when the ACTION happened, not when the order
 // was placed, so it needs its own multikey index on the embedded timestamp.
 orderSchema.index({ "editHistory.at": -1 });

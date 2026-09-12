@@ -10,7 +10,7 @@ import "@/models/User"; // register User for the customer link below
 import { getNcomConfig, centsToTaka } from "@/lib/ncom";
 import { verifySignature, secretEquals } from "@/lib/ncom-signature";
 import { normalizeBdPhone } from "@/lib/utils";
-import { findOrCreateCustomer } from "@/lib/customer-link";
+import { resolveCustomerId } from "@/lib/customer-link";
 import { createOrderWithNumber } from "@/lib/order-number";
 import { reserveStock, releaseStock, adjustReservation } from "@/lib/stock";
 import { runFraudCheckForOrder } from "@/lib/fraud";
@@ -435,20 +435,14 @@ async function placeNcomOrder({ envelope, order, key }) {
   const phone = normalizeBdPhone(order.customer?.phone || address.phone || "");
   const email = order.customer?.email || address.email || "";
 
-  let customerId = null;
-  try {
-    const { user } = await findOrCreateCustomer({
-      name: order.customer?.name || address.name,
-      phone,
-      email,
-      source: "ncom",
-    });
-    customerId = user._id;
-  } catch (e) {
-    // Never block the sale on this. An unattached order is repairable by the
-    // backfill script; a refused one is a lost customer.
-    console.error("[ncom] customer link failed:", e.message);
-  }
+  // Never block the sale on this. An unattached order is repairable by the
+  // backfill script; a refused one is a lost customer.
+  const customerId = await resolveCustomerId({
+    name: order.customer?.name || address.name,
+    phone,
+    email,
+    source: "ncom",
+  });
 
   // ── Take the stock ───────────────────────────────────────────────────────
   // Atomic and all-or-nothing, through the same helper the storefront uses —

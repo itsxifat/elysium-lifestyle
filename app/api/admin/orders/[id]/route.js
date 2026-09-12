@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { connectDB } from "@/lib/mongoose";
 import Order from "@/models/Order";
 import Product from "@/models/Product";
-import "@/models/User";
+import User from "@/models/User";
+import { resolveCustomerId } from "@/lib/customer-link";
 import { requirePin } from "@/lib/pin";
 import { isElevated } from "@/lib/permissions";
 import { notifyEvent } from "@/lib/notifications";
@@ -115,8 +116,31 @@ export async function PATCH(request, { params }) {
       const addrChanged = ["name", "phone", "email", "street", "city", "state", "postalCode"].some(
         (f) => (merged[f] || "") !== (cur[f] || "")
       );
+      const contactChanged =
+        (merged.phone || "") !== (cur.phone || "") || (merged.email || "") !== (cur.email || "");
       order.shippingAddress = merged;
       if (addrChanged) changes.push("shipping address");
+
+      // ── Keep the customer record in step with the corrected contact ────────
+      // Staff fixing a mistyped phone is the commonest way an order ends up
+      // filed under the wrong person, so re-resolve who this is. Two cases only:
+      // an order attached to nobody, and one attached to a guest stub whose
+      // contact details just changed. An order owned by a REAL account belongs
+      // to that shopper — editing the delivery phone must never hand their
+      // purchase to someone else.
+      const owner = order.user ? await User.findById(order.user).select("isGuest").lean() : null;
+      if (!order.user || (owner?.isGuest && contactChanged)) {
+        const relinked = await resolveCustomerId({
+          name: merged.name,
+          phone: merged.phone,
+          email: merged.email,
+          source: order.source || "website",
+        });
+        if (relinked && String(relinked) !== String(order.user || "")) {
+          order.user = relinked;
+          changes.push("customer record");
+        }
+      }
     }
 
     // ── Money + meta ─────────────────────────────────────────────────────────
