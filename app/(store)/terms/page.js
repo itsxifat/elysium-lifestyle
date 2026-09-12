@@ -9,7 +9,7 @@ export const metadata = {
 // Re-read settings on each request so contact details stay in sync with admin.
 export const dynamic = "force-dynamic";
 
-const LAST_UPDATED = "1 May 2025";
+const LAST_UPDATED = "12 September 2026";
 
 export default async function TermsPage() {
   const { phone, email, address } = await getSiteInfo();
@@ -69,13 +69,12 @@ export default async function TermsPage() {
             </LegalSection>
 
             <LegalSection title="5. Returns and Exchanges">
-              <ul>
-                <li>We accept returns within 7 days of delivery for unused, unwashed items in original packaging with tags attached.</li>
-                <li>Sale items, innerwear, and customised products are non-returnable.</li>
-                <li>To initiate a return, contact us at <a href={`mailto:${email}`}>{email}</a> with your order number and reason.</li>
-                <li>Refunds are processed within 5–7 business days after we receive and inspect the returned item.</li>
-                <li>Shipping costs for returns are borne by the customer unless the item is defective or incorrect.</li>
-              </ul>
+              <p>
+                Returns and exchanges are governed by our <a href="/returns" className="text-brand-terracotta hover:underline">Return &amp; Exchange Policy</a>, which is incorporated into these Terms by reference.
+              </p>
+              <p>
+                Please check your product carefully in front of the delivery rider before accepting the parcel. Once the parcel is accepted and the rider leaves, refunds will not be provided; eligible exchanges are processed through a new exchange order instead.
+              </p>
             </LegalSection>
 
             <LegalSection title="6. User Accounts">
