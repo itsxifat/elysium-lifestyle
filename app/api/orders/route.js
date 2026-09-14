@@ -8,7 +8,7 @@ import Settings from "@/models/Settings";
 import "@/models/User"; // ensure User schema is registered for .populate("user")
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
 import { escapeRegExp, normalizeBdPhone } from "@/lib/utils";
-import { findOrCreateCustomer } from "@/lib/customer-link";
+import { resolveCustomerId } from "@/lib/customer-link";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
@@ -235,17 +235,12 @@ export async function POST(request) {
     // still created, just unattached (the backfill script can repair it).
     let customerId = session?.user?.id || null;
     if (!customerId) {
-      try {
-        const { user } = await findOrCreateCustomer({
-          name: data.shippingAddress?.name,
-          phone: data.shippingAddress?.phone,
-          email: data.guestEmail || data.shippingAddress?.email,
-          source: "website",
-        });
-        customerId = user._id;
-      } catch (e) {
-        console.error("customer link error:", e.message);
-      }
+      customerId = await resolveCustomerId({
+        name: data.shippingAddress?.name,
+        phone: data.shippingAddress?.phone,
+        email: data.guestEmail || data.shippingAddress?.email,
+        source: "website",
+      });
     }
 
     // ── Take the stock ───────────────────────────────────────────────────────

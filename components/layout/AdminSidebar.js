@@ -27,7 +27,10 @@ const navGroups = [
       { href: "/admin/scan",      label: "Scan",       icon: ScanLine,     perm: "orders.view" },
       { href: "/admin/notifications", label: "Notifications", icon: Bell, exact: true },
       { href: "/admin/frauds",    label: "Fraud Check", icon: ShieldAlert, perm: "orders.manage" },
-      { href: "/admin/customers", label: "Users",      icon: Users,        perm: "users.manage" },
+      // The customer directory, not account admin — a moderator with
+      // `customers.view` needs it to answer the phone. Staff accounts live
+      // behind the page's own Team tab, which re-checks `users.manage`.
+      { href: "/admin/customers", label: "Customers",  icon: Users,        perm: "customers.view" },
       { href: "/admin/roles",     label: "Roles & PINs", icon: ShieldCheck, perm: "users.manage" },
     ],
   },

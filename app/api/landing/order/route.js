@@ -12,7 +12,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { normalizeBdPhone } from "@/lib/utils";
 import { priceOffer, priceCollection, priceAlacarte, landingShippingFee } from "@/lib/landing";
 import { applyPromotions } from "@/lib/landing-promotions";
-import { findOrCreateCustomer } from "@/lib/customer-link";
+import { resolveCustomerId } from "@/lib/customer-link";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { notifyEvent } from "@/lib/notifications";
@@ -116,8 +116,7 @@ export async function POST(request) {
     const session = await getServerSession(authOptions);
     let customerId = session?.user?.id || null;
     if (!customerId) {
-      const { user } = await findOrCreateCustomer({ name, phone, email, source: "landing_page" });
-      customerId = user._id;
+      customerId = await resolveCustomerId({ name, phone, email, source: "landing_page" });
     }
 
     const count = await Order.countDocuments();

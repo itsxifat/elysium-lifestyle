@@ -871,6 +871,12 @@ export default function AdminOrderDetailPage() {
                 {/* An order we cancelled, or whose return is already itemised,
                     is not looked up any more — nothing the courier reports can
                     move it, and a cancelled consignment is not ours to query. */}
+                {order.courier.unauthorizedAt && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1.5">
+                    Steadfast answers “401 Unauthorized Access” for this consignment — it is no longer on this account,
+                    so bulk syncs skip it. Checking from here still asks them.
+                  </p>
+                )}
                 {isCourierFinal(order.orderStatus) ? (
                   <p className="text-[11px] text-brand-tan pt-1 mt-1 border-t border-brand-tan/10">
                     No longer checked — this order is {orderStatusLabel(order.orderStatus).toLowerCase()}.
