@@ -45,3 +45,5 @@ public/tsconfig.json
 public/uploads/*
 /.claude
 .env.demo.local
+.env
+

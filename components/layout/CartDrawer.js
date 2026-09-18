@@ -64,13 +64,18 @@ export default function CartDrawer() {
                     </Link>
                     <p className="text-[11px] text-brand-tan mt-1 uppercase tracking-wider">Size: {item.size}</p>
                     <div className="flex items-center justify-between mt-3">
-                      <span className="text-[13px] font-medium text-brand-brown">{formatPrice(item.price * item.quantity)}</span>
+                      <span className="flex items-baseline gap-1.5">
+                        <span className={`text-[13px] font-medium ${item.regularPrice ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
+                        {item.regularPrice > item.price && (
+                          <span className="text-[11px] text-brand-tan line-through">{formatPrice(item.regularPrice * item.quantity)}</span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-1">
                         <button className="w-6 h-6 border border-brand-tan/40 flex items-center justify-center text-brand-brown hover:border-brand-terracotta transition-colors" onClick={() => updateQuantity(item.productId, item.size, item.quantity - 1)}>
                           <Minus size={9} />
                         </button>
                         <span className="w-7 text-center text-[12px] font-medium text-brand-brown">{item.quantity}</span>
-                        <button className="w-6 h-6 border border-brand-tan/40 flex items-center justify-center text-brand-brown hover:border-brand-terracotta transition-colors" onClick={() => updateQuantity(item.productId, item.size, item.quantity + 1)}>
+                        <button className="w-6 h-6 border border-brand-tan/40 flex items-center justify-center text-brand-brown hover:border-brand-terracotta transition-colors disabled:opacity-40 disabled:hover:border-brand-tan/40" disabled={typeof item.maxStock === "number" && item.quantity >= item.maxStock} onClick={() => updateQuantity(item.productId, item.size, item.quantity + 1)}>
                           <Plus size={9} />
                         </button>
                         <button className="ml-1 text-brand-tan/50 hover:text-red-500 transition-colors" onClick={() => removeItem(item.productId, item.size)}>

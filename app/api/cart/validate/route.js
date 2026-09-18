@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import Product from "@/models/Product";
-import { getActiveFlashSale, getFlashPriceMap } from "@/lib/flashSale";
+import { previewFlashPrices } from "@/lib/flashSale";
+import { formatPrice } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // What the cart is actually worth, according to the server.
@@ -36,14 +37,26 @@ export async function POST(request) {
       .lean();
     const byId = new Map(products.map((p) => [String(p._id), p]));
 
-    const flashMap = getFlashPriceMap(await getActiveFlashSale());
-
-    const lines = items.map((item) => {
-      const base = { productId: item.productId, size: item.size, requested: Number(item.quantity) || 0 };
+    // Charge what the order route would charge: each line priced by the flash
+    // offer checkout would claim for it, in the same order, whole lines only.
+    const resolved = items.map((item) => {
       const product = byId.get(String(item.productId));
+      const variant = product?.variants?.find((v) => v.size === item.size);
+      return { item, product, variant };
+    });
+    const plan = await previewFlashPrices(
+      resolved.map(({ item, variant }) => ({
+        productId: String(item.productId),
+        size: item.size,
+        quantity: Number(item.quantity) || 0,
+        regularPrice: variant ? variant.price : 0,
+      }))
+    );
+
+    const lines = resolved.map(({ item, product, variant }, k) => {
+      const base = { productId: item.productId, size: item.size, requested: Number(item.quantity) || 0 };
       if (!product) return { ...base, status: "gone", available: 0, reason: "This product is no longer available." };
 
-      const variant = product.variants?.find((v) => v.size === item.size);
       if (!variant)
         return {
           ...base,
@@ -53,15 +66,27 @@ export async function POST(request) {
           reason: `${product.name} no longer comes in size ${item.size}.`,
         };
 
-      // Charge what the order route would charge: the flash price while its
-      // allocation lasts and it actually undercuts the shelf price.
-      let price = variant.price;
-      const flash = flashMap.get(String(product._id));
-      if (flash && flash.remaining > 0 && flash.salePrice < variant.price) price = flash.salePrice;
+      const label = `${product.name} (${item.size})`;
+      const { offer, left, best } = plan[k];
+      const price = offer ? offer.price : variant.price;
+      const stock = Math.max(0, variant.stock || 0);
+      // A line on the flash price can only grow as far as the allocation it
+      // was priced from; past that the whole line would fall back to the shelf
+      // price, so the cart caps it there instead.
+      const available = offer ? Math.min(stock, left) : stock;
+      const stockStatus = stock === 0 ? "out" : base.requested > available ? "limited" : "ok";
 
-      const available = Math.max(0, variant.stock || 0);
-      const status =
-        available === 0 ? "out" : base.requested > available ? "limited" : "ok";
+      // Tell the customer when the price they were shown has moved.
+      const shown = Number(item.price);
+      const moved = Number.isFinite(shown) && Math.abs(shown - price) >= 1;
+      let reason;
+      if (stockStatus === "out") reason = `${label} is out of stock.`;
+      else if (stockStatus === "limited") reason = `Only ${available} left of ${label}.`;
+      else if (moved && price < shown) reason = `${label} is on flash sale — now ${formatPrice(price)}.`;
+      else if (moved && best && best.left < base.requested)
+        reason = `Only ${best.left} of ${label} left at the flash price (${formatPrice(best.offer.price)}) — lower the quantity to ${best.left} to keep it.`;
+      else if (moved && shown < variant.price) reason = `The flash deal on ${label} has ended — it's ${formatPrice(price)} now.`;
+      else if (moved) reason = `${label} is now ${formatPrice(price)}.`;
 
       return {
         ...base,
@@ -70,14 +95,11 @@ export async function POST(request) {
         image: product.images?.[0] || "",
         sku: variant.sku || "",
         price,
+        regularPrice: variant.price,
+        flash: offer ? { saleId: offer.saleId, slug: offer.slug, title: offer.title } : null,
         available,
-        status,
-        reason:
-          status === "out"
-            ? `${product.name} (${item.size}) is out of stock.`
-            : status === "limited"
-            ? `Only ${available} left of ${product.name} (${item.size}).`
-            : undefined,
+        status: stockStatus === "ok" && moved ? "repriced" : stockStatus,
+        reason,
       };
     });
 

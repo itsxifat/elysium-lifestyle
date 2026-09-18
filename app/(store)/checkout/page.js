@@ -422,6 +422,9 @@ export default function CheckoutPage() {
                       {item.sku && <p className="text-[10px] text-brand-tan/80">SKU: {item.sku}</p>}
                       <p className="text-xs font-semibold text-brand-brown mt-1">
                         {formatPrice(item.price * item.quantity)}
+                        {item.regularPrice > item.price && (
+                          <span className="ml-1.5 font-normal text-brand-tan line-through">{formatPrice(item.regularPrice * item.quantity)}</span>
+                        )}
                       </p>
                     </div>
                   </div>

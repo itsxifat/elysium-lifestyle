@@ -7,6 +7,7 @@ import { slugify, escapeRegExp } from "@/lib/utils";
 import { findCategory, getSubtreeIds } from "@/lib/categories";
 import { buildProductSearchFilter } from "@/lib/search";
 import { applySkuScheme, uniqueSlug } from "@/lib/sku-server";
+import { withFlashPricing } from "@/lib/flashSale";
 
 export async function GET(request) {
   try {
@@ -83,6 +84,9 @@ export async function GET(request) {
         .lean(),
       Product.countDocuments(query),
     ]);
+
+    // Products on a live flash sale carry their flash prices to the shop grid.
+    await withFlashPricing(products).catch((err) => console.error("flash pricing:", err.message));
 
     return NextResponse.json({
       products,

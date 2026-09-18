@@ -1,16 +1,18 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { getActiveFlashSalePublic } from "@/lib/flashSale";
+import { getPublicFlashSales, getPublicFlashSale } from "@/lib/flashSale";
 
-// Public: the live flash sale (with product details + remaining stock). Lets the
-// homepage section refresh "X left" without a full page reload.
-export async function GET() {
+// Public: the live flash sales (products, per-size prices, what is left), or
+// one campaign with ?slug=. Lets the storefront refresh "X left" without a
+// full page reload.
+export async function GET(request) {
+  const slug = new URL(request.url).searchParams.get("slug");
   try {
-    const sale = await getActiveFlashSalePublic();
-    return NextResponse.json({ sale: sale || null });
+    if (slug) return NextResponse.json({ sale: await getPublicFlashSale(slug) });
+    return NextResponse.json({ sales: await getPublicFlashSales() });
   } catch (err) {
     console.error("GET /api/flash-sale error:", err);
-    return NextResponse.json({ sale: null });
+    return NextResponse.json(slug ? { sale: null } : { sales: [] });
   }
 }

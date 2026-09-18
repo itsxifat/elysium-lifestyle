@@ -3,19 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, Zap } from "lucide-react";
 import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import QuickAddModal from "@/components/shop/QuickAddModal";
 
+// `product.flash` (lib/flashSale.js → withFlashPricing) is set when the product
+// is on a live flash sale: the card then shows the flash price, and quick-add
+// sells each size at its own flash price.
 export default function ProductCard({ product }) {
   const [showModal, setShowModal] = useState(false);
 
   const totalStock = product.variants?.reduce((s, v) => s + v.stock, 0) ?? 0;
   const isOutOfStock = totalStock === 0;
   const variants = product.variants || [];
-  const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
-  const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
+  const flash = product.flash || null;
+  const priceOf = (v) => flash?.sizes?.[v.size]?.price ?? v.price;
+  const minPrice = variants.length ? Math.min(...variants.map(priceOf)) : 0;
+  const maxPrice = variants.length ? Math.max(...variants.map(priceOf)) : 0;
   const hasPriceRange = minPrice !== maxPrice;
   const mainImage = product.images?.[0] || "/placeholder.jpg";
   const hoverImage = product.images?.[1];
@@ -50,9 +55,14 @@ export default function ProductCard({ product }) {
             />
           )}
 
-          <div className="absolute top-3 left-3 flex flex-col gap-1">
+          <div className="absolute top-3 left-3 flex flex-col items-start gap-1">
             {isOutOfStock && <Badge variant="out">Sold Out</Badge>}
-            {!isOutOfStock && product.isNewArrival && <Badge variant="new">New</Badge>}
+            {!isOutOfStock && flash && (
+              <span className="inline-flex items-center gap-1 bg-brand-terracotta text-white text-[10px] font-bold uppercase tracking-wide px-2 py-1">
+                <Zap size={10} fill="currentColor" /> -{flash.discount}%
+              </span>
+            )}
+            {!isOutOfStock && !flash && product.isNewArrival && <Badge variant="new">New</Badge>}
           </div>
 
           <button
@@ -70,12 +80,12 @@ export default function ProductCard({ product }) {
             {product.name}
           </h3>
           <div className="flex items-center gap-2 mt-1">
-            {hasPriceRange ? (
-              <span className="text-[13px] font-medium text-brand-brown">
-                From {formatPrice(minPrice)}
-              </span>
-            ) : (
-              <span className="text-[13px] font-medium text-brand-brown">{formatPrice(minPrice)}</span>
+            <span className={`text-[13px] font-medium ${flash ? "text-brand-terracotta" : "text-brand-brown"}`}>
+              {hasPriceRange ? "From " : ""}
+              {formatPrice(minPrice)}
+            </span>
+            {flash && flash.regularPrice > minPrice && (
+              <span className="text-[12px] text-brand-tan line-through">{formatPrice(flash.regularPrice)}</span>
             )}
           </div>
           {variants.length > 0 && (
@@ -94,7 +104,7 @@ export default function ProductCard({ product }) {
       </Link>
 
       {showModal && (
-        <QuickAddModal product={product} onClose={() => setShowModal(false)} />
+        <QuickAddModal product={product} flash={flash?.sizes} onClose={() => setShowModal(false)} />
       )}
     </>
   );

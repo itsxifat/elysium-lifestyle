@@ -186,6 +186,18 @@ export default function CategoryProductBrowser({
                     <div className="min-w-0 flex-1">
                       <p className="text-[12px] font-medium text-brand-brown truncate leading-tight">{p.name}</p>
                       {p.sku && <p className="text-[10px] text-brand-tan truncate">{p.sku}</p>}
+                      {/* Pickers that ask for variants get the live stock too. */}
+                      {Array.isArray(p.variants) && (() => {
+                        const stock = p.variants.reduce((n, v) => n + (v.stock || 0), 0);
+                        return (
+                          <p className={`text-[10px] truncate ${stock > 0 ? "text-emerald-700" : "text-red-500"}`}>
+                            {stock > 0 ? `${stock} in stock · ${p.variants.length} size${p.variants.length === 1 ? "" : "s"}` : "Out of stock"}
+                          </p>
+                        );
+                      })()}
+                      {p.isPublished === false && (
+                        <span className="inline-block mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-1 rounded">Draft</span>
+                      )}
                     </div>
                     <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isSel ? "bg-brand-terracotta text-white" : "bg-brand-cream-dark text-brand-tan group-hover:text-brand-brown"}`}>
                       {isSel ? <Check size={12} strokeWidth={3} /> : <Plus size={12} strokeWidth={2.5} />}

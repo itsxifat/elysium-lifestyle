@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ChevronRight, ChevronDown, X,
-  MessageCircle,
+  MessageCircle, Zap,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import ImageGallery from "@/components/product/ImageGallery";
 import VariantSelector from "@/components/product/VariantSelector";
 import AddToCartButton from "@/components/product/AddToCartButton";
 import ProductCard from "@/components/shop/ProductCard";
+import { CountdownText } from "@/components/flash/Countdown";
 import { track } from "@/lib/tracking/client";
 import { useSettings } from "@/context/SettingsContext";
 
@@ -101,6 +102,14 @@ export default function ProductDetailClient({ product, related = [], categoryPat
   const hasPriceRange = minPrice !== maxPrice;
   const displayPrice = selectedVariant ? selectedVariant.price : minPrice;
 
+  // Live flash sale on this product (lib/flash-pricing.js → productFlash):
+  // per-size prices, and the campaign it comes from.
+  const flash = product.flash || null;
+  const deal = selectedVariant ? flash?.sizes?.[selectedVariant.size] || null : null;
+  // Sizes can come from different campaigns; the strip follows the one the
+  // selected size is priced from.
+  const flashSale = deal?.sale || flash?.sale || null;
+
   const productId = product._id || product.id;
   // ViewContent — fires once per product view.
   useEffect(() => {
@@ -180,17 +189,66 @@ export default function ProductDetailClient({ product, related = [], categoryPat
               {product.name}
             </h1>
 
+            {/* Flash sale strip */}
+            {flashSale && (
+              <Link
+                href={`/flash-sale/${flashSale.slug}`}
+                className="flex items-center justify-between gap-3 bg-brand-terracotta text-white px-4 py-2.5 hover:bg-brand-terracotta-dark transition-colors"
+              >
+                <span className="flex items-center gap-2 text-[11px] uppercase tracking-[2px] font-semibold min-w-0">
+                  <Zap size={14} fill="currentColor" className="flex-shrink-0" />
+                  <span className="truncate">{flashSale.title}</span>
+                </span>
+                <span className="text-[11px] whitespace-nowrap">
+                  {flashSale.endsAt ? (
+                    <>Ends in <CountdownText key={flashSale._id} target={flashSale.endsAt} className="font-bold" /></>
+                  ) : (
+                    "Limited stock"
+                  )}
+                </span>
+              </Link>
+            )}
+
             {/* Price */}
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-semibold text-brand-brown tracking-tight">
-                {hasPriceRange && !selectedVariant
-                  ? `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
-                  : formatPrice(displayPrice)}
-              </span>
-              {hasPriceRange && !selectedVariant && (
-                <span className="text-[10px] text-brand-tan uppercase tracking-wider">varies by size</span>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              {deal ? (
+                <>
+                  <span className="text-2xl font-semibold text-brand-terracotta tracking-tight">{formatPrice(deal.price)}</span>
+                  <span className="text-base text-brand-tan line-through">{formatPrice(selectedVariant.price)}</span>
+                  <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">-{deal.discount}%</span>
+                </>
+              ) : flash && !selectedVariant ? (
+                <>
+                  <span className="text-2xl font-semibold text-brand-terracotta tracking-tight">
+                    {Object.keys(flash.sizes).length < (product.variants?.length || 0) || hasPriceRange ? "From " : ""}
+                    {formatPrice(flash.price)}
+                  </span>
+                  <span className="text-base text-brand-tan line-through">{formatPrice(flash.regularPrice)}</span>
+                  {flash.discount > 0 && (
+                    <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">Up to {flash.discount}% off</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl font-semibold text-brand-brown tracking-tight">
+                    {hasPriceRange && !selectedVariant
+                      ? `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
+                      : formatPrice(displayPrice)}
+                  </span>
+                  {hasPriceRange && !selectedVariant && (
+                    <span className="text-[10px] text-brand-tan uppercase tracking-wider">varies by size</span>
+                  )}
+                </>
               )}
             </div>
+            {deal && Math.min(deal.remaining, selectedVariant.stock) <= 10 && (
+              <p className="text-[12px] text-brand-terracotta font-medium -mt-2">
+                Only {Math.min(deal.remaining, selectedVariant.stock)} left at this price
+              </p>
+            )}
+            {flash && selectedVariant && !deal && (
+              <p className="text-[11px] text-brand-tan -mt-2">Size {selectedVariant.size} isn&apos;t part of the flash sale.</p>
+            )}
 
             {selectedVariant?.sku && (
               <p className="text-[11px] text-brand-tan tracking-wide">
@@ -207,6 +265,7 @@ export default function ProductDetailClient({ product, related = [], categoryPat
               onSizeChange={setSelectedSize}
               hasSizeChart={!!product.sizeChart}
               onSizeGuideClick={() => setShowSizeChart(true)}
+              flashSizes={flash?.sizes}
             />
 
             {/* Add to cart */}
@@ -214,6 +273,7 @@ export default function ProductDetailClient({ product, related = [], categoryPat
               product={product}
               selectedSize={selectedSize}
               selectedVariant={selectedVariant}
+              deal={deal}
             />
 
             {/* WhatsApp enquiry */}

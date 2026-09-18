@@ -8,6 +8,7 @@ import "@/models/SizeChart";
 import { serializeDoc, formatPrice, calculateDiscount } from "@/lib/utils";
 import { cdnAbsoluteUrl } from "@/lib/cdn";
 import { getAncestors } from "@/lib/categories";
+import { withFlashPricing } from "@/lib/flashSale";
 import ProductDetailClient from "./ProductDetailClient";
 
 async function getProduct(slug) {
@@ -32,6 +33,10 @@ async function getProduct(slug) {
   })
     .limit(4)
     .lean();
+
+  // A product on a live flash sale is shown — and added to the bag — at its
+  // flash price, size by size. Best effort: without it the page still works.
+  await withFlashPricing([product, ...related]).catch((err) => console.error("flash pricing:", err.message));
 
   return {
     product: serializeDoc(product),

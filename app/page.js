@@ -5,7 +5,7 @@ import Product from "@/models/Product";
 import Category from "@/models/Category";
 import Settings from "@/models/Settings";
 import { serializeDoc } from "@/lib/utils";
-import { getActiveFlashSalePublic } from "@/lib/flashSale";
+import { getPublicFlashSales, getFlashSaleIndex, withFlashPricing } from "@/lib/flashSale";
 import HeroSlider from "@/components/home/HeroSlider";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import FlashSaleSection from "@/components/home/FlashSaleSection";
@@ -62,7 +62,17 @@ async function getHomeData() {
       if (arrivals.length === 0) arrivals = recent.slice(8, 16);
     }
 
-    const flashSale = await getActiveFlashSalePublic();
+    // A flash sale is best effort on the homepage: if it can't be loaded the
+    // rest of the page still renders, just without it.
+    let flashSales = [];
+    try {
+      const index = await getFlashSaleIndex();
+      flashSales = await getPublicFlashSales({ homepage: true, live: index.sales });
+      // Products on a live sale show their flash price on every card.
+      await withFlashPricing([...featured, ...arrivals], index);
+    } catch (err) {
+      console.error("homepage flash sale error:", err);
+    }
 
     return {
       featuredProducts: serializeDoc(featured),
@@ -71,15 +81,15 @@ async function getHomeData() {
       heroSlides: serializeDoc(settings?.heroSlides || []),
       promoBanner: serializeDoc(settings?.promoBanner || null),
       testimonials: serializeDoc(settings?.testimonials || []),
-      flashSale: serializeDoc(flashSale),
+      flashSales: serializeDoc(flashSales),
     };
   } catch {
-    return { featuredProducts: [], newArrivals: [], categories: [], heroSlides: [], promoBanner: null, testimonials: [], flashSale: null };
+    return { featuredProducts: [], newArrivals: [], categories: [], heroSlides: [], promoBanner: null, testimonials: [], flashSales: [] };
   }
 }
 
 export default async function HomePage() {
-  const { featuredProducts, newArrivals, categories, heroSlides, promoBanner, testimonials, flashSale } = await getHomeData();
+  const { featuredProducts, newArrivals, categories, heroSlides, promoBanner, testimonials, flashSales } = await getHomeData();
 
   return (
     <>
@@ -87,7 +97,7 @@ export default async function HomePage() {
       <Navbar />
       <main className="pt-[100px] lg:pt-[146px]">
         <HeroSlider slides={heroSlides} />
-        <FlashSaleSection sale={flashSale} />
+        <FlashSaleSection sales={flashSales} />
         <CategoryGrid categories={categories} />
         <FeaturedProducts products={featuredProducts} />
         <PromoBanner promoBanner={promoBanner} />

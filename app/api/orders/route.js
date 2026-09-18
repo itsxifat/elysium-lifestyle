@@ -7,12 +7,13 @@ import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import "@/models/User"; // ensure User schema is registered for .populate("user")
 import { sendEmail, orderConfirmationTemplate } from "@/lib/email";
-import { escapeRegExp, normalizeBdPhone } from "@/lib/utils";
+import { escapeRegExp, normalizeBdPhone, formatPrice } from "@/lib/utils";
 import { resolveCustomerId } from "@/lib/customer-link";
 import { trackPurchaseFromOrder } from "@/lib/tracking/server";
 import { runFraudCheckForOrder } from "@/lib/fraud";
 import { priceCartItems, applyDiscounts, recordDiscountUsage } from "@/lib/discountService";
-import { getActiveFlashSale, getFlashPriceMap, claimFlashUnits, releaseFlashUnits } from "@/lib/flashSale";
+import { getFlashSaleIndex, claimFlashOffer, releaseFlashUnits } from "@/lib/flashSale";
+import { rankOffers } from "@/lib/flash-pricing";
 import { notifyEvent } from "@/lib/notifications";
 import { reserveStock, releaseStock } from "@/lib/stock";
 import { createOrderWithNumber } from "@/lib/order-number";
@@ -69,6 +70,13 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  // Flash-sale units this request has claimed, and whether they now belong to
+  // a written order. Declared out here so the catch-all below can hand them
+  // back — an unexpected error between the claim and the order would otherwise
+  // keep them out of the sale for ever.
+  const claims = [];
+  let orderCreated = false;
+
   try {
     await connectDB();
     const session = await getServerSession(authOptions);
@@ -112,14 +120,9 @@ export async function POST(request) {
     const products = await Product.find({ _id: { $in: productIds }, isPublished: true }).lean();
     const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
 
-    // Active flash sale → special price + limited stock, enforced here (never
-    // trust the client's price). soldByProduct records what each line actually
-    // managed to claim, so a failed order can hand it back.
-    const flashSale = await getActiveFlashSale();
-    const flashMap = getFlashPriceMap(flashSale);
-    const soldByProduct = {};
-
-    const orderItems = [];
+    // Every line must still be buyable before anything is claimed, so a refusal
+    // here leaves nothing to hand back.
+    const lines = [];
     for (const item of data.items) {
       const product = productMap[item.productId];
       // Report these as structured lines rather than a bare message: the cart
@@ -148,19 +151,43 @@ export async function POST(request) {
         );
       }
 
-      // Claim the flash allocation here rather than after the order is written.
-      // The claim is atomic and covers the full quantity, so the sale price is
-      // only charged for units the allocation actually still has. If it cannot
-      // cover them the customer simply pays the shelf price — an exhausted
-      // promotion is not a reason to refuse the sale.
+      lines.push({ item, product, variant });
+    }
+
+    // ── Flash sales ──────────────────────────────────────────────────────────
+    // Several campaigns can run at once and price the same size differently.
+    // Each line claims the best live offer that still covers its WHOLE
+    // quantity (lib/flash-pricing.js → rankOffers), atomically, before the
+    // order is written — so the sale price is only charged for units an
+    // allocation genuinely still had. A line no offer covers pays the shelf
+    // price. The cart previews exactly these choices (planFlashLines).
+    const flashIndex = await getFlashSaleIndex();
+    const repriced = [];
+    const orderItems = [];
+    for (const { item, product, variant } of lines) {
       let unitPrice = variant.price;
-      const flash = flashMap.get(String(product._id));
-      if (flash && flash.salePrice < variant.price) {
-        const claimed = await claimFlashUnits(flashSale?._id, product._id, item.quantity, flash.stockLimit);
-        if (claimed) {
-          unitPrice = flash.salePrice;
-          soldByProduct[String(product._id)] = (soldByProduct[String(product._id)] || 0) + item.quantity;
+      let flashSale = null;
+      for (const offer of rankOffers(flashIndex.offersFor(String(product._id), item.size), variant.price)) {
+        if (await claimFlashOffer(offer, product._id, item.size, item.quantity)) {
+          unitPrice = offer.price;
+          flashSale = offer.saleId;
+          claims.push({ flashSale, product: product._id, size: item.size, quantity: item.quantity });
+          break;
         }
+      }
+
+      // The customer was shown a price. If the flash deal they saw ran out (or
+      // the price moved) between their cart and this request, stop and tell
+      // them rather than quietly charging more than they agreed to.
+      const shown = Number(item.price);
+      if (Number.isFinite(shown) && unitPrice > shown + 0.5) {
+        repriced.push({
+          product: String(product._id),
+          name: product.name,
+          size: item.size,
+          price: unitPrice,
+          wasFlash: shown < variant.price,
+        });
       }
 
       orderItems.push({
@@ -171,7 +198,22 @@ export async function POST(request) {
         size: item.size,
         price: unitPrice,
         quantity: item.quantity,
+        ...(flashSale ? { flashSale } : {}),
       });
+    }
+
+    if (repriced.length) {
+      await releaseFlashUnits(claims.splice(0)).catch(() => {});
+      const first = repriced[0];
+      return NextResponse.json(
+        {
+          error: first.wasFlash
+            ? `The flash price for ${first.name} (${first.size}) is no longer available — it's ${formatPrice(first.price)} now. Please review your bag and place the order again.`
+            : `The price of ${first.name} (${first.size}) has changed to ${formatPrice(first.price)}. Please review your bag and place the order again.`,
+          unavailable: repriced.map((r) => ({ product: r.product, name: r.name, size: r.size, price: r.price, reason: "price" })),
+        },
+        { status: 409 }
+      );
     }
 
     const subtotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -197,11 +239,18 @@ export async function POST(request) {
     let discountCodes = [];
     let appliedDiscounts = [];
     try {
-      const engineItems = await priceCartItems(data.items);
-      // Keep the discount engine consistent with the flash price we charged.
+      // The engine prices each line at what this order actually charges for
+      // it, flash price included — not at a fresh guess that could disagree.
+      const engineItems = await priceCartItems(data.items, { flash: false });
+      const charged = new Map();
+      for (const oi of orderItems) {
+        const k = `${oi.product}|${oi.size}`;
+        if (!charged.has(k)) charged.set(k, []);
+        charged.get(k).push(oi.price);
+      }
       for (const ei of engineItems) {
-        const flash = flashMap.get(String(ei.productId));
-        if (flash && flash.remaining > 0 && flash.salePrice < ei.price) ei.price = flash.salePrice;
+        const queue = charged.get(`${ei.productId}|${ei.size}`);
+        if (queue?.length) ei.price = queue.shift();
       }
       const dres = await applyDiscounts({
         items: engineItems,
@@ -254,6 +303,8 @@ export async function POST(request) {
     // already spoken for.
     const reservation = await reserveStock(Product, orderItems);
     if (!reservation.ok) {
+      // No order, so no claim on the sale either.
+      await releaseFlashUnits(claims.splice(0)).catch(() => {});
       const first = reservation.unavailable[0];
       return NextResponse.json(
         {
@@ -290,12 +341,11 @@ export async function POST(request) {
     } catch (err) {
       // The units are already out of inventory; if the order never made it,
       // they have to go back or they are lost to a document that got away.
+      // (The flash claims go back in the catch-all below.)
       await releaseStock(Product, orderItems);
-      for (const [pid, qty] of Object.entries(soldByProduct)) {
-        await releaseFlashUnits(flashSale?._id, pid, qty).catch(() => {});
-      }
       throw err;
     }
+    orderCreated = true;
     const orderNumber = order.orderNumber;
 
     // Count the usage now that the order exists.
@@ -343,6 +393,7 @@ export async function POST(request) {
     return NextResponse.json({ orderId: order._id.toString() }, { status: 201 });
   } catch (err) {
     console.error("POST /api/orders error:", err);
+    if (!orderCreated && claims.length) await releaseFlashUnits(claims.splice(0)).catch(() => {});
     return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
   }
 }

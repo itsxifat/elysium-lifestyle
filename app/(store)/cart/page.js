@@ -22,9 +22,9 @@ export default function CartPage() {
     syncWithServer().then(({ changed }) => {
       if (cancelled || !changed.length) return;
       const gone = changed.filter((c) => c.status === "gone" || c.available === 0);
-      const trimmed = changed.filter((c) => c.status === "limited");
+      const trimmed = changed.filter((c) => c.status === "limited" || c.status === "repriced");
       if (gone.length) toast(`${gone.length === 1 ? gone[0].name || "An item" : `${gone.length} items`} sold out and left your bag.`);
-      for (const t of trimmed) toast(t.reason);
+      for (const t of trimmed) if (t.reason) toast(t.reason);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,7 +96,12 @@ export default function CartPage() {
                         </button>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="font-medium text-brand-brown text-[14px]">{formatPrice(item.price * item.quantity)}</span>
+                        <span className="flex items-baseline gap-2">
+                          {item.regularPrice > item.price && (
+                            <span className="text-[12px] text-brand-tan line-through">{formatPrice(item.regularPrice * item.quantity)}</span>
+                          )}
+                          <span className={`font-medium text-[14px] ${item.regularPrice > item.price ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
+                        </span>
                         <button className="text-brand-tan/50 hover:text-red-500 transition-colors" onClick={() => removeItem(item.productId, item.size)}>
                           <Trash2 size={14} />
                         </button>

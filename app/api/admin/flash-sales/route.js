@@ -4,52 +4,31 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import FlashSale from "@/models/FlashSale";
 import { requireAdmin } from "@/lib/auth";
+import { buildSaleDoc, summariseSale } from "@/lib/flash-admin";
 
-// Normalize a payload into the FlashSale schema shape. `preserveSold` keeps the
-// stored soldCount (edits must never reset how many have already been claimed).
-export function sanitize(data, existingById = {}) {
-  return {
-    title: (data.title || "Flash Sale").trim(),
-    subtitle: (data.subtitle || "").trim(),
-    enabled: !!data.enabled,
-    startsAt: data.startsAt ? new Date(data.startsAt) : null,
-    endsAt: data.endsAt ? new Date(data.endsAt) : null,
-    items: (Array.isArray(data.items) ? data.items : [])
-      .filter((it) => it && it.product)
-      .map((it) => {
-        const pid = String(it.product);
-        const prevSold = existingById[pid]?.soldCount ?? 0;
-        return {
-          product: pid,
-          salePrice: Math.max(0, Number(it.salePrice) || 0),
-          stockLimit: Math.max(0, Math.floor(Number(it.stockLimit) || 0)),
-          // Never trust a client-sent soldCount; carry the stored value.
-          soldCount: Math.max(0, Math.floor(prevSold)),
-        };
-      }),
-  };
-}
-
+// The admin list: every sale with its status and headline numbers, computed
+// against live stock.
 export async function GET() {
   const { error } = await requireAdmin("content.manage");
   if (error) return error;
 
   await connectDB();
   const sales = await FlashSale.find()
-    .populate("items.product", "name images variants slug skuBase")
+    .populate("items.product", "name images variants")
     .sort({ createdAt: -1 })
     .lean();
-  return NextResponse.json({ sales });
+  const now = Date.now();
+  return NextResponse.json({ sales: sales.map((s) => summariseSale(s, now)) });
 }
 
 export async function POST(request) {
   const { error } = await requireAdmin("content.manage");
   if (error) return error;
 
-  const doc = sanitize(await request.json());
-  if (!doc.title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
-
   await connectDB();
+  const { doc, errors } = await buildSaleDoc(await request.json());
+  if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
+
   try {
     const created = await FlashSale.create(doc);
     return NextResponse.json(created, { status: 201 });

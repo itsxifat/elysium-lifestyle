@@ -23,11 +23,20 @@ function cartReducer(state, action) {
       const existing = state.items.find((i) => `${i.productId}-${i.size}` === key);
       if (existing) {
         const limit = typeof maxStock === "number" ? maxStock : existing.maxStock;
+        // The newest add knows the current price (a flash deal may have started
+        // or ended since the line was created); the server has the final word.
+        const price = typeof product.price === "number" ? product.price : existing.price;
         return {
           ...state,
           items: state.items.map((i) =>
             `${i.productId}-${i.size}` === key
-              ? { ...i, quantity: capped(i.quantity + quantity, limit), maxStock: limit }
+              ? {
+                  ...i,
+                  price,
+                  regularPrice: product.regularPrice > price ? product.regularPrice : undefined,
+                  quantity: capped(i.quantity + quantity, limit),
+                  maxStock: limit,
+                }
               : i
           ),
         };
@@ -36,7 +45,13 @@ function cartReducer(state, action) {
         ...state,
         items: [
           ...state.items,
-          { productId: product.id, slug: product.slug, name: product.name, image: product.image, price: product.price, sku: product.sku || "", size, quantity: capped(quantity, maxStock), maxStock },
+          {
+            productId: product.id, slug: product.slug, name: product.name, image: product.image,
+            price: product.price,
+            // The shelf price, when `price` is a flash price below it — shown struck through.
+            regularPrice: product.regularPrice > product.price ? product.regularPrice : undefined,
+            sku: product.sku || "", size, quantity: capped(quantity, maxStock), maxStock,
+          },
         ],
       };
     }
@@ -67,12 +82,14 @@ function cartReducer(state, action) {
         const line = byKey.get(`${i.productId}-${i.size}`);
         if (!line) { items.push(i); continue; }          // not reported on, leave as is
         if (line.status === "gone" || line.available === 0) continue;  // unbuyable, drop
+        const price = typeof line.price === "number" ? line.price : i.price;
         items.push({
           ...i,
           name: line.name ?? i.name,
           image: line.image || i.image,
           sku: line.sku ?? i.sku,
-          price: typeof line.price === "number" ? line.price : i.price,
+          price,
+          regularPrice: typeof line.regularPrice === "number" && line.regularPrice > price ? line.regularPrice : undefined,
           maxStock: line.available,
           quantity: capped(i.quantity, line.available),
         });
@@ -122,7 +139,10 @@ export function CartProvider({ children }) {
       const res = await fetch("/api/cart/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: current.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity })) }),
+        // `price` is what the customer is being shown, so the server can say
+        // when it has moved (a flash deal ending, say) instead of silently
+        // changing the total under them.
+        body: JSON.stringify({ items: current.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity, price: i.price })) }),
       });
       if (!res.ok) return { changed: [] };
       const { lines = [] } = await res.json();

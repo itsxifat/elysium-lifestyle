@@ -15,6 +15,9 @@ const orderItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 1 },
   // Quantity of this line that was returned (partial delivery / full return).
   returnedQuantity: { type: Number, default: 0, min: 0 },
+  // The flash sale whose allocation this line was charged against, if any. A
+  // cancellation hands the units back to that sale (lib/flashSale.js).
+  flashSale: { type: mongoose.Schema.Types.ObjectId, ref: "FlashSale" },
 });
 
 const shippingAddressSchema = new mongoose.Schema({

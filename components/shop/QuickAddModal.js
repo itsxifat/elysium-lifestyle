@@ -1,28 +1,44 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Minus, Plus, ShoppingBag } from "lucide-react";
+import { X, Minus, Plus, ShoppingBag, Zap } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatPrice, cn, shouldUnoptimizeImage } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import toast from "react-hot-toast";
 
-export default function QuickAddModal({ product, onClose, flashPrice = null, flashStock = null }) {
+// `flash` prices sizes individually: an array of { size, price, remaining } or
+// a map { [size]: { price, remaining } }. A size in it sells at its flash price
+// while it has units left; every other size sells at its normal price.
+function flashMap(flash) {
+  if (!flash) return {};
+  if (Array.isArray(flash)) return Object.fromEntries(flash.map((f) => [f.size, f]));
+  return flash;
+}
+
+export default function QuickAddModal({ product, onClose, flash = null }) {
   const { addItem } = useCart();
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
 
-  // Flash sale: a single special price replaces the per-variant price, and the
-  // remaining flash allocation caps how many can be added at that price.
-  const isFlash = flashPrice != null && flashPrice >= 0;
+  const deals = flashMap(flash);
+  const dealFor = (size) => {
+    const d = deals[size];
+    return d && d.remaining > 0 ? d : null;
+  };
+
   const variants = product.variants || [];
   const selectedVariant = variants.find((v) => v.size === selectedSize);
-  const unitPrice = isFlash ? flashPrice : selectedVariant?.price;
-  const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
-  const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
-  const hasPriceRange = minPrice !== maxPrice;
-  const image = product.images?.[0] || "/placeholder.jpg";
+  const selectedDeal = selectedVariant ? dealFor(selectedVariant.size) : null;
+  const unitPrice = selectedDeal ? selectedDeal.price : selectedVariant?.price;
+  const priceOf = (v) => dealFor(v.size)?.price ?? v.price;
+  const prices = variants.map(priceOf);
+  const minPrice = prices.length ? Math.min(...prices) : 0;
+  const maxPrice = prices.length ? Math.max(...prices) : 0;
+  const hasDeals = variants.some((v) => dealFor(v.size));
+  const cheapest = variants.find((v) => priceOf(v) === minPrice);
+  const image = product.images?.[0] || "";
 
   useEffect(() => {
     const handle = (e) => { if (e.key === "Escape") onClose(); };
@@ -34,37 +50,44 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
     };
   }, [onClose]);
 
+  // A flash line can only hold what the deal has left — past that the whole
+  // line would be charged the normal price at checkout.
+  const lineCap = selectedVariant
+    ? Math.min(selectedVariant.stock, selectedDeal ? selectedDeal.remaining : Infinity)
+    : 0;
+  const maxQty = selectedVariant ? Math.min(lineCap, 10) : 10;
+
   const handleAdd = () => {
     if (!selectedSize) { toast.error("Please select a size"); return; }
     if (!selectedVariant || selectedVariant.stock === 0) { toast.error("This size is out of stock"); return; }
     addItem(
-      { id: product._id, slug: product.slug, name: product.name, image: product.images?.[0], price: unitPrice },
+      {
+        id: product._id,
+        slug: product.slug,
+        name: product.name,
+        image: product.images?.[0],
+        price: unitPrice,
+        regularPrice: selectedVariant.price,
+        sku: selectedVariant.sku || "",
+      },
       selectedSize,
       quantity,
-      selectedVariant.stock   // caps the cart line, not just this one add
+      lineCap // caps the cart line, not just this one add
     );
     toast.success(`${product.name} added to bag!`);
     onClose();
   };
 
-  // Cap quantity by the size's real stock, the flash allocation (if any), and 10.
-  const maxQty = selectedVariant
-    ? Math.min(selectedVariant.stock, isFlash && flashStock != null ? flashStock : Infinity, 10)
-    : 10;
-
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal panel */}
-      <div className="relative bg-white w-full sm:max-w-[420px] sm:mx-auto shadow-2xl animate-slide-up sm:animate-none">
-        {/* Close button */}
+      <div role="dialog" aria-modal="true" aria-label={product.name} className="relative bg-white w-full sm:max-w-[440px] sm:mx-auto shadow-2xl animate-slide-up sm:animate-none max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center text-brand-tan hover:text-brand-brown transition-colors"
         >
           <X size={18} strokeWidth={1.5} />
@@ -73,38 +96,35 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
         {/* Product header */}
         <div className="flex gap-4 p-5 border-b border-brand-tan/15">
           <Link href={`/shop/${product.slug}`} onClick={onClose} className="relative w-[60px] h-[76px] flex-shrink-0 bg-brand-cream-dark overflow-hidden block">
-            <Image
-              src={image}
-              alt={product.name}
-              fill
-              unoptimized={shouldUnoptimizeImage(image)}
-              className="object-cover"
-              sizes="60px"
-            />
+            {image && (
+              <Image src={image} alt={product.name} fill unoptimized={shouldUnoptimizeImage(image)} className="object-cover" sizes="60px" />
+            )}
           </Link>
           <div className="flex-1 min-w-0 pr-8">
+            {hasDeals && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[2px] text-brand-terracotta mb-1">
+                <Zap size={10} fill="currentColor" /> Flash deal
+              </span>
+            )}
             <Link href={`/shop/${product.slug}`} onClick={onClose} className="block">
               <h3 className="text-[13px] font-semibold text-brand-brown leading-snug line-clamp-2 hover:text-brand-terracotta transition-colors">
                 {product.name}
               </h3>
             </Link>
             <div className="mt-1.5">
-              {isFlash ? (
+              {selectedVariant ? (
                 <span className="flex items-baseline gap-2">
-                  <span className="text-base font-bold text-brand-terracotta">{formatPrice(flashPrice)}</span>
-                  {minPrice > flashPrice && <span className="text-[12px] text-brand-tan line-through">{formatPrice(minPrice)}</span>}
+                  <span className={cn("text-base font-bold", selectedDeal ? "text-brand-terracotta" : "text-brand-brown")}>{formatPrice(unitPrice)}</span>
+                  {selectedDeal && <span className="text-[12px] text-brand-tan line-through">{formatPrice(selectedVariant.price)}</span>}
                 </span>
-              ) : selectedVariant ? (
-                <span className="text-base font-bold text-brand-terracotta">
-                  {formatPrice(selectedVariant.price)}
-                </span>
-              ) : hasPriceRange ? (
+              ) : minPrice !== maxPrice ? (
                 <span className="text-sm text-brand-tan">
                   {formatPrice(minPrice)} – {formatPrice(maxPrice)}
                 </span>
               ) : (
-                <span className="text-base font-bold text-brand-brown">
-                  {formatPrice(minPrice)}
+                <span className="flex items-baseline gap-2">
+                  <span className={cn("text-base font-bold", hasDeals ? "text-brand-terracotta" : "text-brand-brown")}>{formatPrice(minPrice)}</span>
+                  {cheapest && dealFor(cheapest.size) && <span className="text-[12px] text-brand-tan line-through">{formatPrice(cheapest.price)}</span>}
                 </span>
               )}
             </div>
@@ -115,9 +135,7 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
           {/* Size selector */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[2px] text-brand-brown">
-                Select Size
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[2px] text-brand-brown">Select Size</p>
               {selectedSize && selectedVariant && (
                 <span className="text-[11px] text-brand-tan">
                   {selectedSize} · {formatPrice(unitPrice)}
@@ -129,6 +147,8 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
               {variants.map((v) => {
                 const available = v.stock > 0;
                 const isSelected = selectedSize === v.size;
+                const deal = dealFor(v.size);
+                const dealGone = !deal && deals[v.size];
                 return (
                   <button
                     key={v.size}
@@ -136,21 +156,36 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
                     onClick={() => { if (available) { setSelectedSize(v.size); setQuantity(1); } }}
                     disabled={!available}
                     className={cn(
-                      "relative flex flex-col items-center px-3 py-2 border transition-all duration-150 min-w-[58px] text-center",
+                      "relative flex flex-col items-center px-3 py-2 border transition-all duration-150 min-w-[64px] text-center",
                       isSelected
                         ? "bg-brand-brown text-brand-cream border-brand-brown"
                         : available
-                        ? "border-brand-tan/40 text-brand-brown hover:border-brand-brown"
+                        ? deal
+                          ? "border-brand-terracotta/50 text-brand-brown hover:border-brand-terracotta"
+                          : "border-brand-tan/40 text-brand-brown hover:border-brand-brown"
                         : "border-brand-tan/20 text-brand-tan/30 cursor-not-allowed"
                     )}
                   >
+                    {deal && available && (
+                      <Zap size={9} fill="currentColor" className={cn("absolute top-1 right-1", isSelected ? "text-brand-cream/80" : "text-brand-terracotta")} />
+                    )}
                     <span className="text-[12px] font-medium leading-tight">{v.size}</span>
                     <span className={cn(
                       "text-[10px] mt-0.5 leading-tight",
-                      isSelected ? "text-brand-cream/70" : "text-brand-tan"
+                      isSelected ? "text-brand-cream/80" : deal ? "text-brand-terracotta font-semibold" : "text-brand-tan"
                     )}>
-                      {formatPrice(isFlash ? flashPrice : v.price)}
+                      {formatPrice(deal ? deal.price : v.price)}
                     </span>
+                    {deal && (
+                      <span className={cn("text-[9px] line-through leading-tight", isSelected ? "text-brand-cream/50" : "text-brand-tan/70")}>
+                        {formatPrice(v.price)}
+                      </span>
+                    )}
+                    {!deal && hasDeals && available && (
+                      <span className={cn("text-[8px] uppercase tracking-wide leading-tight mt-0.5", isSelected ? "text-brand-cream/60" : "text-brand-tan/70")}>
+                        {dealGone ? "Deal gone" : "Regular"}
+                      </span>
+                    )}
                     {!available && (
                       <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <span className="w-full h-px bg-brand-tan/30 rotate-45 absolute" />
@@ -165,6 +200,10 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
               <p className="text-[11px] mt-2">
                 {selectedVariant.stock === 0 ? (
                   <span className="text-red-500">Out of stock</span>
+                ) : selectedDeal && selectedDeal.remaining <= 10 ? (
+                  <span className="text-brand-terracotta font-medium">
+                    Only {Math.min(selectedDeal.remaining, selectedVariant.stock)} left at the flash price
+                  </span>
                 ) : selectedVariant.stock <= 3 ? (
                   <span className="text-amber-600">Only {selectedVariant.stock} left!</span>
                 ) : selectedVariant.stock <= 8 ? (
@@ -184,17 +223,17 @@ export default function QuickAddModal({ product, onClose, flashPrice = null, fla
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 disabled={quantity <= 1}
+                aria-label="Decrease quantity"
                 className="w-9 h-9 border border-brand-tan/40 flex items-center justify-center text-brand-brown hover:border-brand-brown transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Minus size={13} />
               </button>
-              <span className="text-base font-semibold text-brand-brown w-8 text-center tabular-nums">
-                {quantity}
-              </span>
+              <span className="text-base font-semibold text-brand-brown w-8 text-center tabular-nums">{quantity}</span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.min(maxQty, q + 1))}
                 disabled={!selectedVariant || quantity >= maxQty}
+                aria-label="Increase quantity"
                 className="w-9 h-9 border border-brand-tan/40 flex items-center justify-center text-brand-brown hover:border-brand-brown transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Plus size={13} />
