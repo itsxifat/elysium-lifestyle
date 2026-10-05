@@ -24,6 +24,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run check:no-database
       - run: npm run lint
+      - run: npm test
       - run: npm run build
         env:
           NEXT_PUBLIC_SITE_URL: https://demo.elysium-lifestyle.bd

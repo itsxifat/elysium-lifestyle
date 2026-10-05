@@ -63,7 +63,7 @@ cp .env.example .env.local        # ERP_API_URL=http://localhost:3000, the key, 
 npm run dev                       # http://localhost:3000 — use -p 3100 if the ERP holds 3000
 ```
 
-Scripts: `npm run build`, `npm run lint`, `npm run check:no-database`.
+Scripts: `npm run build`, `npm run lint`, `npm test` (the ERP client: signatures, the read cache, errors, retries), `npm run check:no-database`.
 
 ## End-to-end tests
 
