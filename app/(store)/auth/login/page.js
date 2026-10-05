@@ -34,7 +34,9 @@ const GoogleIcon = () => (
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  // Only a path on this site: a sign-in link must not send a shopper elsewhere.
+  const asked = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = asked.startsWith("/") && !asked.startsWith("//") && !asked.startsWith("/\\") ? asked : "/";
   const verified = searchParams.get("verified");
   const failed = searchParams.get("error");
   const { settings } = useSettings();
