@@ -12,8 +12,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const stateDir = path.join(here, ".state");
 mkdirSync(stateDir, { recursive: true });
 
-export const API = (process.env.ERP_CONSOLE_API || "http://localhost:3300").replace(/\/+$/, "");
-export const ORIGIN = (process.env.ERP_CONSOLE_ORIGIN || "http://localhost:5373").replace(/\/+$/, "");
+export const API = (process.env.ERP_CONSOLE_API || "http://localhost:3000").replace(/\/+$/, "");
+export const ORIGIN = (process.env.ERP_CONSOLE_ORIGIN || "http://localhost:5173").replace(/\/+$/, "");
 const CREDENTIALS = process.env.ERP_PREVIEW_CREDENTIALS;
 const BRAND = process.env.ERP_BRAND_SLUG || "elysium-lifestyle-bd";
 

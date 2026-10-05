@@ -17,7 +17,7 @@
 // Only for a preview database (`pnpm preview:local` in the ERP repo): never point
 // it at a real brand. Usage:
 //
-//   ERP_CONSOLE_API=http://localhost:3300 ERP_CONSOLE_ORIGIN=http://localhost:5373 \
+//   ERP_CONSOLE_API=http://localhost:3000 ERP_CONSOLE_ORIGIN=http://localhost:5173 \
 //   ERP_PREVIEW_CREDENTIALS=../elysium-erp/preview-credentials.local.md node e2e/erp-setup.mjs
 
 import { mkdirSync, writeFileSync } from "node:fs";

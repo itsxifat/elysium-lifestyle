@@ -1,7 +1,7 @@
 # Elysium Scanner (Android app)
 
-A tiny native scanner for warehouse packing. Staff sign in with their **admin
-account**, scan the barcode on a shipping label, and instantly see the full
+A tiny native scanner for warehouse packing. Staff sign in with their **ERP
+account** (the brand ERP at `erp.elysium-lifestyle.bd`), scan the barcode on a shipping label, and instantly see the full
 **packing list** for that shipment (every item with its size, quantity, colour
 and SKU) — tap each one to check it off.
 
@@ -11,7 +11,9 @@ the phone's Chrome/browser camera (which is what was failing on the web page).
 - **Tech:** [Capacitor](https://capacitorjs.com) 6 + `@capacitor-mlkit/barcode-scanning`
 - **App id:** `cloud.enfinito.elyscanner`
 - **Web assets:** `www/` (plain HTML/JS/CSS — no build step)
-- **Talks to:** `POST /api/admin/scanner/login` and `GET /api/admin/scanner/shipment` on your site
+- **Talks to:** the brand ERP: `POST /v1/scanner/sign-in` and `GET /v1/scanner/shipment?code=` (M35b), default
+  server `https://erp.elysium-lifestyle.bd`. The website no longer has staff sign-in or scanner routes (M36).
+  A new APK build is needed to ship this change; the response shapes are checked when M35b lands.
 
 ## Build the APK
 

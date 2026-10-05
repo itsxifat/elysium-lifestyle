@@ -111,7 +111,7 @@ test("/admin and everything under it go to the ERP's console", async ({ request 
   for (const path of ["/admin", "/admin/orders", "/admin/products/new"]) {
     const res = await request.get(path, { maxRedirects: 0 });
     expect(res.status()).toBe(308);
-    expect(res.headers().location).toBe(`${process.env.ERP_ADMIN_URL || "http://localhost:5373"}/`);
+    expect(res.headers().location).toBe(`${process.env.ERP_ADMIN_URL}/`);
   }
 });
 

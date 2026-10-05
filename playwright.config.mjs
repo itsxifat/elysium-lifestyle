@@ -1,4 +1,16 @@
+import { existsSync, readFileSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+// What e2e/erp-setup.mjs wrote (the ERP's address, the website key, the admin
+// URL): the specs read ERP_ADMIN_URL from it.
+if (existsSync(".env.e2e.local")) {
+  for (const line of readFileSync(".env.e2e.local", "utf8").split(/\r?\n/)) {
+    const at = line.indexOf("=");
+    if (at > 0 && !line.startsWith("#") && process.env[line.slice(0, at)] === undefined) {
+      process.env[line.slice(0, at)] = line.slice(at + 1);
+    }
+  }
+}
 
 // The website's end-to-end run against a local *preview* brand ERP:
 //   1. the ERP: `pnpm preview:local --brand elysium-lifestyle-bd` in the ERP repo
@@ -37,7 +49,7 @@ export default defineConfig({
   },
   webServer: {
     command: "node e2e/start-site.mjs",
-    url: `http://localhost:${port}/api/categories`,
+    url: `http://localhost:${port}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: { E2E_SITE_PORT: port },

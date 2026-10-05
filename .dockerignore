@@ -1,0 +1,15 @@
+.git
+.github
+.next
+node_modules
+.env
+.env.*
+!.env.example
+e2e/.state
+e2e/.mail-sink
+e2e/.report
+e2e/.results
+scanner-app
+docs
+*.md
+!README.md

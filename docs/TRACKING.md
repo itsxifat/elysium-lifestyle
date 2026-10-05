@@ -1,5 +1,17 @@
 # First-Party Server-Side Tracking
 
+> **Changed in M36 (2026-10-05): tracking moves to the brand ERP.** The website has no
+> database and no `/admin/tracking`: the Meta pixel / Conversions API and GA4 settings,
+> the server-side dispatch and the event log move to the ERP's **Website → Tracking**
+> (M35b). What stays on the website: the browser helper (`lib/tracking/client.js`), the
+> first-party proxy paths (`docs/nginx-tracking.conf`, an include in
+> `deploy/nginx/demo.elysium-lifestyle.bd.conf`), `GET /api/tracking/config` (now read
+> from the ERP's `/storefront/v1/tracking/config`) and `POST /api/events` (forwarded to
+> the ERP's `/storefront/v1/events` with the shopper's address). Until M35b ships those
+> routes, tracking is off and events are dropped quietly. The rest of this page describes
+> the old in-website implementation, kept as the reference M35b ports from.
+
+
 Unblockable, first-party event tracking to **Meta Conversions API** and **GA4
 Measurement Protocol**, with a browser pixel/gtag layer for deduplicated
 client+server coverage. All config and logs live in MongoDB and are managed at

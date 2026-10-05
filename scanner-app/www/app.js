@@ -14,6 +14,18 @@ const CapApp = Plugins.App;            // receives the elyscanner:// deep link b
 
 const state = { server: "", token: "", name: "", role: "", result: null, packed: new Set() };
 
+/* The scanner talks to the brand ERP, not the website (M36): the website has no
+   admin panel or staff sign-in any more. Staff sign in with their ERP account;
+   the ERP's scanner routes (/v1/scanner/*) arrive with M35b. A phone that was
+   set up against the old website forgets that address and signs in again. */
+const DEFAULT_SERVER = "https://erp.elysium-lifestyle.bd";
+const API_VERSION = "erp-v1";
+const PATHS = {
+  signIn: "/v1/scanner/sign-in",
+  shipment: "/v1/scanner/shipment",
+  connect: "/scanner-connect",
+};
+
 /* ── storage (Preferences on device, localStorage in a browser) ───────── */
 const store = {
   async get(k) { try { return Pref ? (await Pref.get({ key: k })).value : localStorage.getItem(k); } catch { return null; } },
@@ -41,7 +53,7 @@ async function haptic(kind) {
 function base() { return state.server.replace(/\/+$/, ""); }
 
 async function apiLogin(server, email, password) {
-  const res = await fetch(server.replace(/\/+$/, "") + "/api/admin/scanner/login", {
+  const res = await fetch(server.replace(/\/+$/, "") + PATHS.signIn, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
@@ -51,7 +63,7 @@ async function apiLogin(server, email, password) {
 }
 
 async function apiShipment(code) {
-  const res = await fetch(base() + "/api/admin/scanner/shipment?code=" + encodeURIComponent(code), {
+  const res = await fetch(base() + PATHS.shipment + "?code=" + encodeURIComponent(code), {
     headers: { Authorization: "Bearer " + state.token },
   });
   if (res.status === 401) { await logout(); throw new Error("Session expired — please sign in again."); }
@@ -121,7 +133,7 @@ async function webLogin() {
   if (!server) { showLoginError("Enter the server address first."); return; }
   state.server = server.replace(/\/+$/, "");
   await store.set("server", state.server);
-  const url = state.server + "/scanner-connect";
+  const url = state.server + PATHS.connect;
   try {
     if (Browser && Browser.open) await Browser.open({ url, presentationStyle: "popover" });
     else window.location.href = url;
@@ -300,10 +312,14 @@ $("btn-back").addEventListener("click", () => show("scan"));
 
 /* ── Boot ─────────────────────────────────────────────────────────────── */
 (async function boot() {
+  if ((await store.get("apiVersion")) !== API_VERSION) {
+    for (const key of ["server", "token", "name", "role"]) await store.del(key);
+    await store.set("apiVersion", API_VERSION);
+  }
   state.server = (await store.get("server")) || "";
   state.token = (await store.get("token")) || "";
   state.name = (await store.get("name")) || "";
   state.role = (await store.get("role")) || "";
-  if (state.server) $("in-server").value = state.server;
+  $("in-server").value = state.server || DEFAULT_SERVER;
   if (state.token) enterScan(); else show("login");
 })();

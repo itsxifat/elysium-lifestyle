@@ -1,5 +1,16 @@
 # Elysium Scanner — native Android packing app
 
+> **Changed in M36 (2026-10-05): the server side is the brand ERP now.** The website
+> has no admin panel, no staff sign-in and no scanner routes: `/api/admin/scanner/*`
+> and `/scanner-connect` were removed with it. The app's default server is
+> `https://erp.elysium-lifestyle.bd`, it signs in at `POST /v1/scanner/sign-in` and
+> looks parcels up at `GET /v1/scanner/shipment?code=` — routes the ERP gains in M35b
+> (with its own sign-in page for the Google button, its Scan page and the APK's
+> install link). Until M35b lands the app cannot sign in. The sections below describe
+> the old website-hosted set-up and are kept for the APK build and signing steps; where
+> they say "admin site", "YOUR-DOMAIN" or "roles/users", read the ERP.
+
+
 The warehouse scanner that staff **install on their phones**, so it no longer
 depends on the browser camera (which was being blocked). It scans the barcode on
 a shipping label and shows the **full packing list** for that shipment — every

@@ -1,0 +1,45 @@
+# demo.elysium-lifestyle.bd on the brands server (103.129.209.29), beside the
+# brand ERPs. See docs/deploy-demo.md.
+#
+#   docker compose -f deploy/compose.demo.yml --env-file /etc/elysium-web/demo.env up -d --build
+#
+# Host networking, bound to 127.0.0.1 only: nginx is the only way in, and the
+# site reaches Elysium's ERP API over loopback (127.0.0.1:3501, where the ERP's
+# compose publishes it) without leaving the machine.
+
+name: elysium-web-demo
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://demo.elysium-lifestyle.bd}
+        ERP_MEDIA_ORIGINS: ${ERP_MEDIA_ORIGINS:-https://erp.elysium-lifestyle.bd}
+    image: elysium-web:demo
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - ${WEB_ENV_FILE:-/etc/elysium-web/demo.env}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 127.0.0.1
+      PORT: ${WEB_PORT:-3601}
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - image-cache:/app/.next/cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  image-cache:
