@@ -47,3 +47,11 @@ public/uploads/*
 .env.demo.local
 .env
 
+
+# end-to-end run (local state, mail sink certificate, reports)
+/e2e/.state/
+/e2e/.mail-sink/
+/e2e/.report/
+/e2e/.results/
+/e2e/.*.sh
+.env.e2e.local

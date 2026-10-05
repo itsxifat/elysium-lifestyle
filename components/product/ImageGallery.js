@@ -10,7 +10,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { shouldUnoptimizeImage } from "@/lib/utils";
+import { shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
@@ -39,7 +39,7 @@ export default function ImageGallery({ images = [], name }) {
   const touchStartRef = useRef(null);
   const lastTapRef = useRef(0);
 
-  const displayImages = images.length > 0 ? images : [];
+  const displayImages = images.length > 0 ? images : [PLACEHOLDER_IMAGE];
   const src = displayImages[activeIndex];
 
   const resetZoom = useCallback(() => {

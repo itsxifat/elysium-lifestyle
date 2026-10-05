@@ -4,37 +4,35 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Zap } from "lucide-react";
-import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import QuickAddModal from "@/components/shop/QuickAddModal";
 
-// `product.flash` (lib/flashSale.js → withFlashPricing) is set when the product
-// is on a live flash sale: the card then shows the flash price, and quick-add
-// sells each size at its own flash price.
+// A product card from the ERP's list (lib/storefront.js → mapCard): its price
+// range, sizes and whether any size is in stock. `product.flash` is set when a
+// live flash sale covers it: the card then shows the flash price. Quick add
+// loads the sizes with their stock and prices when it opens.
 export default function ProductCard({ product }) {
   const [showModal, setShowModal] = useState(false);
 
-  const totalStock = product.variants?.reduce((s, v) => s + v.stock, 0) ?? 0;
-  const isOutOfStock = totalStock === 0;
-  const variants = product.variants || [];
+  const isOutOfStock = !product.inStock;
   const flash = product.flash || null;
-  const priceOf = (v) => flash?.sizes?.[v.size]?.price ?? v.price;
-  const minPrice = variants.length ? Math.min(...variants.map(priceOf)) : 0;
-  const maxPrice = variants.length ? Math.max(...variants.map(priceOf)) : 0;
-  const hasPriceRange = minPrice !== maxPrice;
-  const mainImage = product.images?.[0] || "/placeholder.jpg";
+  const minPrice = flash ? Math.min(flash.price, product.minPrice) : product.minPrice;
+  const hasPriceRange = product.minPrice !== product.maxPrice;
+  const mainImage = product.images?.[0] || PLACEHOLDER_IMAGE;
   const hoverImage = product.images?.[1];
+  const sizes = product.sizes || [];
 
   const handleQuickAdd = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOutOfStock || !variants.length) return;
+    if (isOutOfStock) return;
     setShowModal(true);
   };
 
   return (
     <>
-      <Link href={`/shop/${product.slug}`} className="group block">
+      <Link href={`/shop/${product.slug}`} className="group block" data-testid="product-card">
         <div className="relative overflow-hidden bg-brand-cream-dark aspect-[3/4]">
           <Image
             src={mainImage}
@@ -81,21 +79,21 @@ export default function ProductCard({ product }) {
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <span className={`text-[13px] font-medium ${flash ? "text-brand-terracotta" : "text-brand-brown"}`}>
-              {hasPriceRange ? "From " : ""}
+              {hasPriceRange || (flash && flash.price !== product.minPrice) ? "From " : ""}
               {formatPrice(minPrice)}
             </span>
             {flash && flash.regularPrice > minPrice && (
               <span className="text-[12px] text-brand-tan line-through">{formatPrice(flash.regularPrice)}</span>
             )}
           </div>
-          {variants.length > 0 && (
+          {sizes.length > 0 && (
             <div className="flex gap-1 mt-2 flex-wrap">
-              {variants.slice(0, 6).map((v) => (
+              {sizes.slice(0, 6).map((size) => (
                 <span
-                  key={v.size}
-                  className={`text-[10px] px-1.5 py-0.5 border ${v.stock > 0 ? "border-brand-tan/40 text-brand-tan" : "border-brand-tan/20 text-brand-tan/30 line-through"}`}
+                  key={size}
+                  className={`text-[10px] px-1.5 py-0.5 border ${!isOutOfStock ? "border-brand-tan/40 text-brand-tan" : "border-brand-tan/20 text-brand-tan/30 line-through"}`}
                 >
-                  {v.size}
+                  {size}
                 </span>
               ))}
             </div>
@@ -103,9 +101,7 @@ export default function ProductCard({ product }) {
         </div>
       </Link>
 
-      {showModal && (
-        <QuickAddModal product={product} flash={flash?.sizes} onClose={() => setShowModal(false)} />
-      )}
+      {showModal && <QuickAddModal product={product} onClose={() => setShowModal(false)} />}
     </>
   );
 }

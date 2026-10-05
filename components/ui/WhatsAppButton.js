@@ -4,7 +4,9 @@ import { useSettings } from "@/context/SettingsContext";
 
 export default function WhatsAppButton() {
   const { settings } = useSettings();
-  const number = settings?.siteInfo?.whatsappNumber || "8801700000000";
+  // The number staff set on the ERP's Website → Settings (digits only).
+  const number = settings?.siteInfo?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+  if (!number) return null;
 
   return (
     <a

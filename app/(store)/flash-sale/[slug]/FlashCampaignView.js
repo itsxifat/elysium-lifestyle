@@ -15,15 +15,17 @@ const SORTS = [
   { value: "price-asc", label: "Price: low to high" },
   { value: "price-desc", label: "Price: high to low" },
   { value: "almost-gone", label: "Almost gone" },
-  { value: "popular", label: "Best selling" },
 ];
 
+// A deal with no unit limit (`remaining` null) is never "almost gone"; a sale
+// that has not started has no price yet, so it sorts by the shelf price.
+const left = (item) => (item.remaining === null ? Number.MAX_SAFE_INTEGER : item.remaining);
+const priceOf = (item) => item.price ?? item.regularPrice ?? 0;
 const COMPARE = {
   discount: (a, b) => b.maxDiscount - a.maxDiscount,
-  "price-asc": (a, b) => a.price - b.price,
-  "price-desc": (a, b) => b.price - a.price,
-  "almost-gone": (a, b) => a.remaining - b.remaining,
-  popular: (a, b) => b.sold - a.sold,
+  "price-asc": (a, b) => priceOf(a) - priceOf(b),
+  "price-desc": (a, b) => priceOf(b) - priceOf(a),
+  "almost-gone": (a, b) => left(a) - left(b),
 };
 
 // How often a live sale re-reads what is left, while the tab is in view.
@@ -130,7 +132,7 @@ export default function FlashCampaignView({ sale: initial, others = [], preview 
 
   const items = useMemo(() => {
     let list = sale.items;
-    if (size) list = list.filter((it) => it.sizes.some((s) => s.size === size && (s.remaining > 0 || status !== "live")));
+    if (size) list = list.filter((it) => it.sizes.some((s) => s.size === size && (s.remaining === null || s.remaining > 0 || status !== "live")));
     if (hideSoldOut) list = list.filter((it) => !it.soldOut);
     const compare = COMPARE[sort];
     const sorted = compare ? [...list].sort(compare) : [...list];

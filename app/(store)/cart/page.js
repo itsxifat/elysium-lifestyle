@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
-import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, subtotal, syncWithServer, mounted } = useCart();
@@ -31,11 +31,33 @@ export default function CartPage() {
   }, [mounted]);
   const { settings } = useSettings();
 
-  const freeShippingThreshold = settings?.siteInfo?.freeShippingThreshold || 1500;
-  const shippingFee = settings?.siteInfo?.shippingFee || 80;
-  const shipping = subtotal >= freeShippingThreshold ? 0 : shippingFee;
-  const total = subtotal + shipping;
-  const remaining = Math.max(0, freeShippingThreshold - subtotal);
+  // The ERP prices the bag (items and any automatic discount); delivery needs
+  // an address, so it is worked out at checkout.
+  const [quote, setQuote] = useState(null);
+  const lines = useMemo(() => items.map((i) => ({ skuId: i.skuId, qty: i.quantity })), [items]);
+  useEffect(() => {
+    if (!lines.length) { setQuote(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetch("/api/cart/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (!cancelled && d) setQuote(d.quote); })
+        .catch(() => {});
+    }, 200);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [lines]);
+
+  const itemsTotal = quote ? Number(quote.items.taka) : subtotal;
+  const discount = quote ? Number(quote.discount.taka) : 0;
+  const total = quote ? Number(quote.total.taka) : subtotal;
+  const shippingRule = settings?.shipping || {};
+  const freeShippingThreshold = shippingRule.freeShippingEnabled ? shippingRule.freeShippingThreshold : null;
+  const freeShipping = shippingRule.freeShippingEnabled && (!freeShippingThreshold || itemsTotal >= freeShippingThreshold);
+  const remaining = freeShippingThreshold ? Math.max(0, freeShippingThreshold - itemsTotal) : 0;
 
   return (
     <div className="bg-brand-cream min-h-screen py-12">
@@ -52,17 +74,17 @@ export default function CartPage() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2 space-y-4">
-              {remaining > 0 && (
+              {freeShippingThreshold > 0 && remaining > 0 && (
                 <div className="bg-white border border-brand-tan/10 p-4">
                   <p className="text-[12px] text-brand-brown mb-2">
                     Add <strong className="text-brand-terracotta">{formatPrice(remaining)}</strong> more for free shipping
                   </p>
                   <div className="w-full bg-brand-cream-dark h-0.5">
-                    <div className="bg-brand-terracotta h-0.5 transition-all duration-500" style={{ width: `${Math.min(100, (subtotal / freeShippingThreshold) * 100)}%` }} />
+                    <div className="bg-brand-terracotta h-0.5 transition-all duration-500" style={{ width: `${Math.min(100, (itemsTotal / freeShippingThreshold) * 100)}%` }} />
                   </div>
                 </div>
               )}
-              {remaining === 0 && (
+              {freeShipping && (
                 <div className="bg-emerald-50 border border-emerald-100 p-3 text-[12px] text-emerald-700 uppercase tracking-widest">
                   Free shipping unlocked
                 </div>
@@ -72,10 +94,11 @@ export default function CartPage() {
                 <div key={`${item.productId}-${item.size}`} className="bg-white border border-brand-tan/10 p-5 flex gap-5">
                   <div className="relative w-20 h-28 flex-shrink-0 overflow-hidden bg-brand-cream-dark">
                     <Image
-                      src={item.image || "/placeholder.jpg"}
+                      src={item.image || PLACEHOLDER_IMAGE}
                       alt={item.name}
                       fill
-                      unoptimized={shouldUnoptimizeImage(item.image)}
+                      unoptimized={shouldUnoptimizeImage(item.image || PLACEHOLDER_IMAGE)}
+                      sizes="80px"
                       className="object-cover"
                     />
                   </div>
@@ -118,12 +141,18 @@ export default function CartPage() {
                 <div className="space-y-3 text-[13px]">
                   <div className="flex justify-between">
                     <span className="text-brand-tan">Subtotal</span>
-                    <span className="text-brand-brown">{formatPrice(subtotal)}</span>
+                    <span className="text-brand-brown" data-testid="cart-subtotal">{formatPrice(itemsTotal)}</span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-brand-tan">Discount</span>
+                      <span className="text-green-600">− {formatPrice(discount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-brand-tan">Shipping</span>
-                    <span className={shipping === 0 ? "text-emerald-600 font-medium" : "text-brand-brown"}>
-                      {shipping === 0 ? "Free" : formatPrice(shipping)}
+                    <span className={freeShipping ? "text-emerald-600 font-medium" : "text-brand-tan"}>
+                      {freeShipping ? "Free" : "At checkout"}
                     </span>
                   </div>
                   <div className="h-px bg-brand-tan/10" />

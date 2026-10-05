@@ -21,7 +21,7 @@ function rowClamp(index, rows) {
 
 /**
  * Flash deals in a responsive grid, each buyable in place through the quick-add
- * modal at its per-size flash prices. `maxRows` caps the grid (the homepage and
+ * modal at its per-size flash prices (read from the ERP when it opens). `maxRows` caps the grid (the homepage and
  * the flash-sale hub use 2); without it every item is shown. `mode` other than
  * "live" shows the deals without letting them be bought (FlashDealCard).
  */
@@ -44,7 +44,7 @@ export default function FlashDealGrid({ items = [], maxRows = null, mode = "live
       </div>
 
       {active && (
-        <QuickAddModal product={active.product} flash={active.sizes} onClose={() => setActive(null)} />
+        <QuickAddModal product={active.product} onClose={() => setActive(null)} />
       )}
     </>
   );

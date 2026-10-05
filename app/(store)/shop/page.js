@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { SlidersHorizontal, X, Sparkles } from "lucide-react";
 import ProductCard from "@/components/shop/ProductCard";
 import FilterSidebar from "@/components/shop/FilterSidebar";
@@ -18,6 +18,7 @@ const SORT_OPTIONS = [
 
 function ShopContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [products, setProducts] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -31,6 +32,11 @@ function ShopContent() {
   // Custom-URL (?cu=) highlighted products, pinned above the listing.
   const campaign = useCustomCampaign(searchParams.get("cu"));
   const highlights = campaign?.highlightProducts || [];
+
+  // "On sale" is the flash sales: the products whose price a live sale has cut.
+  useEffect(() => {
+    if (searchParams.get("onSale") === "true") router.replace("/flash-sale");
+  }, [searchParams, router]);
 
   useEffect(() => {
     fetch("/api/categories")

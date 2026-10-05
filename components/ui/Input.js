@@ -6,15 +6,18 @@ const Input = forwardRef(function Input(
   { label, error, className, type = "text", ...props },
   ref
 ) {
+  // Tie the label to the field so it is the field's accessible name.
+  const id = props.id || (props.name ? `field-${props.name}` : undefined);
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-brand-brown mb-1">
+        <label htmlFor={id} className="block text-sm font-medium text-brand-brown mb-1">
           {label}
         </label>
       )}
       <input
         ref={ref}
+        id={id}
         type={type}
         className={cn(
           "w-full border bg-white px-4 py-3 text-brand-brown placeholder-brand-tan focus:outline-none transition-colors duration-200 text-sm",

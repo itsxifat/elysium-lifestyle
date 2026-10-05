@@ -83,7 +83,7 @@ export default function Footer() {
                 {[
                   { label: "Shop All", href: "/shop" },
                   { label: "New Arrivals", href: "/shop?newArrival=true" },
-                  { label: "On Sale", href: "/shop?onSale=true" },
+                  { label: "On Sale", href: "/flash-sale" },
                 ].map((link) => (
                   <li key={link.href}>
                     <Link

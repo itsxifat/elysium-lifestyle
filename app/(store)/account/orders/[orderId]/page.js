@@ -2,24 +2,29 @@ export const dynamic = "force-dynamic";
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { connectDB } from "@/lib/mongoose";
-import Order from "@/models/Order";
-import { serializeDoc, formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { getShopperOrder } from "@/lib/storefront";
+import { formatPrice } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import Badge from "@/components/ui/Badge";
 import OrderStateNotice, { needsStateNotice } from "@/components/ui/OrderStateNotice";
-import { ArrowLeft, MapPin, CreditCard, Package } from "lucide-react";
-import { CUSTOMER_HIDDEN } from "@/lib/orders";
+import PaymentFollowUp from "@/components/checkout/PaymentFollowUp";
+import { ArrowLeft, MapPin, CreditCard, Package, Truck } from "lucide-react";
 
 const statusSteps = ["pending", "processing", "shipped", "delivered"];
-const stepLabels = ["Pending", "Processing", "Shipped", "Delivered"];
+const stepLabels = ["Placed", "Processing", "Shipped", "Delivered"];
 
-function StatusTracker({ status }) {
-  // A cancelled order, or one coming back, has left the delivery run — four
-  // dots reading "pending → delivered" cannot say anything true about it.
-  if (needsStateNotice(status)) return <OrderStateNotice status={status} />;
+const PAYMENT_WORDS = {
+  cash_on_delivery: "Cash on delivery",
+  awaiting_payment: "Awaiting payment",
+  paid: "Paid",
+  refund_due: "Refund due",
+};
+
+function StatusTracker({ status, label }) {
+  // A cancelled order, or one that came back, has left the delivery run — four
+  // dots reading "placed → delivered" cannot say anything true about it.
+  if (needsStateNotice(status)) return <OrderStateNotice status={status} label={label} />;
 
   const current = statusSteps.indexOf(status);
 
@@ -44,9 +49,9 @@ function StatusTracker({ status }) {
         ))}
       </div>
       <div className="flex justify-between mt-2.5">
-        {stepLabels.map((label, i) => (
+        {stepLabels.map((stepLabel, i) => (
           <span
-            key={label}
+            key={stepLabel}
             className={`text-[10px] uppercase tracking-[1.5px] ${
               i === current
                 ? "text-brand-terracotta font-semibold"
@@ -55,7 +60,7 @@ function StatusTracker({ status }) {
                 : "text-stone-300"
             }`}
           >
-            {label}
+            {stepLabel}
           </span>
         ))}
       </div>
@@ -63,22 +68,20 @@ function StatusTracker({ status }) {
   );
 }
 
-async function getOrder(orderId, userId) {
-  await connectDB();
-  const order = await Order.findById(orderId).select(CUSTOMER_HIDDEN).lean();
-  if (!order) return null;
-  if (order.user?.toString() !== userId) return null;
-  return serializeDoc(order);
-}
-
+// One of the shopper's own website orders, read from the brand ERP
+// (GET /storefront/v1/accounts/{id}/orders/{orderNo}); another shopper's order,
+// or a desk order, is simply not found.
 export default async function OrderDetailPage({ params }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/auth/login");
 
-  const order = await getOrder(params.orderId, session.user.id);
+  const orderNo = decodeURIComponent(String(params.orderId || "")).toUpperCase();
+  const order = await getShopperOrder(orderNo, { accountId: session.user.id });
   if (!order) notFound();
 
-  const paymentLabel = order.paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment";
+  const paymentLabel = order.paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment (SSLCommerz)";
+  const online = order.paymentMethod === "sslcommerz";
+  const cancelled = order.orderStatus === "cancelled";
 
   return (
     <div className="space-y-4">
@@ -107,7 +110,7 @@ export default async function OrderDetailPage({ params }) {
           </div>
           <div className="flex items-center gap-2.5">
             <Badge variant={order.paymentStatus}>
-              {order.paymentMethod === "cod" ? "COD" : order.paymentStatus}
+              {order.paymentMethod === "cod" ? "COD" : PAYMENT_WORDS[order.paymentState] || "Online"}
             </Badge>
           </div>
         </div>
@@ -115,50 +118,44 @@ export default async function OrderDetailPage({ params }) {
         {/* Status tracker */}
         <div className="mt-8 pt-6 border-t border-stone-100">
           <p className="text-[10px] uppercase tracking-[2.5px] text-brand-tan mb-5">Order Status</p>
-          <StatusTracker status={order.orderStatus} />
+          <StatusTracker status={order.orderStatus} label={order.statusLabel?.en} />
+          {order.tracking?.trackingCode && (
+            <p className="text-[12px] text-brand-tan mt-5 flex items-center gap-2">
+              <Truck size={13} strokeWidth={1.5} />
+              {order.tracking.courier} · <span className="text-brand-brown font-medium">{order.tracking.trackingCode}</span>
+            </p>
+          )}
         </div>
       </div>
+
+      {online && !cancelled && order.paymentState === "awaiting_payment" && (
+        <PaymentFollowUp orderNo={order.orderNumber} canPay />
+      )}
 
       {/* Items */}
       <div className="bg-white p-6 sm:p-8">
         <div className="flex items-center gap-2.5 mb-6 pb-5 border-b border-stone-100">
           <Package size={14} strokeWidth={1.5} className="text-brand-tan" />
           <span className="text-[10px] uppercase tracking-[2.5px] text-brand-tan">
-            Items · {order.items.length}
+            Items · {order.itemCount}
           </span>
         </div>
 
         <div className="space-y-5">
           {order.items.map((item, i) => (
             <div key={i} className="flex gap-4">
-              <div className="w-16 h-20 bg-stone-50 shrink-0 relative overflow-hidden">
-                {item.image ? (
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    className="object-cover"
-                    unoptimized={shouldUnoptimizeImage(item.image)}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-stone-100 flex items-center justify-center">
-                    <Package size={18} className="text-stone-300" strokeWidth={1} />
-                  </div>
-                )}
+              <div className="w-16 h-20 bg-stone-100 shrink-0 flex items-center justify-center">
+                <Package size={18} className="text-stone-300" strokeWidth={1} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-brand-brown text-[13px] leading-snug">{item.name}</p>
                 <div className="flex gap-3 mt-1.5 flex-wrap">
-                  <span className="text-[11px] text-brand-tan">Size: {item.size}</span>
-                  {item.color && <span className="text-[11px] text-brand-tan">Color: {item.color}</span>}
                   <span className="text-[11px] text-brand-tan">Qty: {item.quantity}</span>
                   {item.sku && <span className="text-[11px] text-brand-tan">SKU: {item.sku}</span>}
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="font-medium text-brand-brown text-[13px]">
-                  {formatPrice(item.price * item.quantity)}
-                </p>
+                <p className="font-medium text-brand-brown text-[13px]">{formatPrice(item.lineTotal)}</p>
                 {item.quantity > 1 && (
                   <p className="text-[11px] text-brand-tan mt-0.5">{formatPrice(item.price)} each</p>
                 )}
@@ -173,6 +170,12 @@ export default async function OrderDetailPage({ params }) {
             <span className="text-brand-tan">Subtotal</span>
             <span className="text-brand-brown">{formatPrice(order.subtotal)}</span>
           </div>
+          {order.discount > 0 && (
+            <div className="flex justify-between text-[12px]">
+              <span className="text-brand-tan">Discount</span>
+              <span className="text-green-600">− {formatPrice(order.discount)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-[12px]">
             <span className="text-brand-tan">Shipping</span>
             <span className="text-brand-brown">
@@ -183,6 +186,18 @@ export default async function OrderDetailPage({ params }) {
             <span className="font-semibold text-brand-brown">Total</span>
             <span className="font-semibold text-brand-brown">{formatPrice(order.totalAmount)}</span>
           </div>
+          {order.paid > 0 && (
+            <div className="flex justify-between text-[12px]">
+              <span className="text-brand-tan">Paid online</span>
+              <span className="text-brand-brown">{formatPrice(order.paid)}</span>
+            </div>
+          )}
+          {!cancelled && order.dueOnDelivery > 0 && (
+            <div className="flex justify-between text-[12px]">
+              <span className="text-brand-tan">To pay on delivery</span>
+              <span className="text-brand-brown">{formatPrice(order.dueOnDelivery)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -198,10 +213,8 @@ export default async function OrderDetailPage({ params }) {
             <p className="text-[12px] text-brand-tan">{order.shippingAddress.phone}</p>
             <p className="text-[12px] text-brand-tan">{order.shippingAddress.street}</p>
             <p className="text-[12px] text-brand-tan">
-              {order.shippingAddress.city}
-              {order.shippingAddress.postalCode && ` – ${order.shippingAddress.postalCode}`}
+              {[order.shippingAddress.city, order.shippingAddress.state].filter(Boolean).join(", ")}
             </p>
-            <p className="text-[12px] text-brand-tan">{order.shippingAddress.country}</p>
           </div>
         </div>
 
@@ -217,24 +230,11 @@ export default async function OrderDetailPage({ params }) {
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[2px] text-brand-tan mb-1">Status</p>
-              <Badge variant={order.paymentStatus}>{order.paymentStatus}</Badge>
+              <Badge variant={order.paymentStatus}>{PAYMENT_WORDS[order.paymentState] || order.paymentStatus}</Badge>
             </div>
-            {order.transactionId && (
-              <div>
-                <p className="text-[10px] uppercase tracking-[2px] text-brand-tan mb-1">Transaction ID</p>
-                <p className="text-[12px] text-brand-brown font-mono">{order.transactionId}</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
-
-      {order.notes && (
-        <div className="bg-white p-6 sm:p-8">
-          <p className="text-[10px] uppercase tracking-[2.5px] text-brand-tan mb-3">Order Notes</p>
-          <p className="text-[13px] text-brand-brown/80 leading-relaxed">{order.notes}</p>
-        </div>
-      )}
     </div>
   );
 }

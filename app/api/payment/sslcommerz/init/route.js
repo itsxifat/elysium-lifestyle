@@ -1,61 +1,28 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongoose";
-import Order from "@/models/Order";
-import Settings from "@/models/Settings";
-import {
-  buildSSLCommerzPayload,
-  initiateSSLCommerz,
-} from "@/lib/sslcommerz";
+import { erpPath, erpPost } from "@/lib/erp";
+import { erpFailure, jsonBody } from "@/lib/http";
+import { getShopper } from "@/lib/session";
+import { isOrderNo, rememberedOrderToken } from "@/lib/order-token";
 
+// Open an SSLCommerz payment page for an order just placed (or still unpaid):
+// the brand ERP opens the session with SSLCommerz (waiting up to 15 seconds) and
+// answers with the gateway's page, where the shopper is sent next. The order is
+// named by this browser's view token for it, or by the signed-in account.
 export async function POST(request) {
+  const body = await jsonBody(request);
+  const orderNo = String(body?.orderNo || "");
+  if (!isOrderNo(orderNo)) return NextResponse.json({ error: "No such order." }, { status: 404 });
+
+  const shopper = await getShopper();
+  const token = rememberedOrderToken(orderNo);
+  if (!token && !shopper) return NextResponse.json({ error: "No such order." }, { status: 404 });
+  const ask = token ? { orderNo, token } : { orderNo, accountId: shopper.accountId };
   try {
-    await connectDB();
-    const { orderId } = await request.json();
-
-    const [order, settings] = await Promise.all([
-      Order.findById(orderId).lean(),
-      Settings.findOne({}).lean(),
-    ]);
-
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    const sslConfig = settings?.paymentGateways?.sslcommerz;
-    if (!sslConfig?.enabled || !sslConfig.storeId || !sslConfig.storePassword) {
-      return NextResponse.json(
-        { error: "SSLCommerz is not configured" },
-        { status: 400 }
-      );
-    }
-
-    const payload = buildSSLCommerzPayload(
-      order,
-      sslConfig.storeId,
-      sslConfig.storePassword,
-      sslConfig.isLive || false
-    );
-
-    const apiResponse = await initiateSSLCommerz(
-      payload,
-      sslConfig.storeId,
-      sslConfig.storePassword,
-      sslConfig.isLive || false
-    );
-
-    if (!apiResponse?.GatewayPageURL) {
-      return NextResponse.json(
-        { error: "Failed to initiate payment" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ GatewayPageURL: apiResponse.GatewayPageURL });
+    const { body: answer } = await erpPost(erpPath("/payments/sslcommerz/init"), ask, { timeoutMs: 25_000 });
+    return NextResponse.json({ gatewayUrl: answer.payment.gatewayUrl, expiresAt: answer.payment.expiresAt }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    console.error("SSLCommerz init error:", error);
-    return NextResponse.json(
-      { error: "Payment initiation failed" },
-      { status: 500 }
-    );
+    return erpFailure(error);
   }
 }

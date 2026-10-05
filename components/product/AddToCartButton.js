@@ -33,6 +33,7 @@ export default function AddToCartButton({ product, selectedSize, selectedVariant
     addItem(
       {
         id: product._id,
+        skuId: selectedVariant.skuId,
         slug: product.slug,
         name: product.name,
         image: product.images?.[0],

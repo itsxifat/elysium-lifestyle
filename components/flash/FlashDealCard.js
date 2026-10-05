@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Flame, Clock, Eye } from "lucide-react";
-import { formatPrice, shouldUnoptimizeImage, cn } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, cn, PLACEHOLDER_IMAGE } from "@/lib/utils";
 
 // Why a card can't be bought from, when it can't: a sneak peek of a sale that
 // has not started, a sale that has just ended, or a staff preview of a draft.
@@ -13,16 +13,18 @@ const CLOSED = {
   preview: { label: "Preview only", icon: Eye },
 };
 
-// One product in a flash sale (lib/flashSale.js → toPublicSale). `mode` is
-// "live", or one of CLOSED — prices stay visible, buying is disabled.
+// One product in a flash sale (lib/storefront.js → mapSale). `mode` is "live",
+// or one of CLOSED — buying is disabled. A sale that has not started shows no
+// sale price yet (the ERP keeps it back until the start, D-538); `remaining` is
+// null when the deal has no unit limit.
 export default function FlashDealCard({ item, onBuy, mode = "live", className }) {
   const { product, price, regularPrice, minPrice, maxPrice, maxDiscount, remaining, sold, soldPct, soldOut, sizes } = item;
-  const image = product.images?.[0] || "";
+  const image = product.images?.[0] || PLACEHOLDER_IMAGE;
   const hover = product.images?.[1];
   const ranged = minPrice != null && maxPrice != null && minPrice !== maxPrice;
   const offs = (sizes || []).map((s) => s.discount || 0);
   const offVaries = offs.length > 1 && Math.min(...offs) !== Math.max(...offs);
-  const urgent = !soldOut && remaining > 0 && remaining <= 5;
+  const urgent = !soldOut && remaining !== null && remaining > 0 && remaining <= 5;
   const closed = CLOSED[mode] || null;
   const ButtonIcon = closed ? closed.icon : ShoppingBag;
 
@@ -78,11 +80,20 @@ export default function FlashDealCard({ item, onBuy, mode = "live", className })
         </Link>
 
         <div className="flex items-baseline flex-wrap gap-x-2 mt-1">
-          <span className="text-[15px] font-bold text-brand-terracotta">
-            {ranged && <span className="text-[11px] font-medium mr-0.5">From</span>}
-            {formatPrice(price)}
-          </span>
-          {regularPrice > price && <span className="text-[12px] text-brand-tan line-through">{formatPrice(regularPrice)}</span>}
+          {price === null ? (
+            <>
+              <span className="text-[15px] font-bold text-brand-brown">{formatPrice(regularPrice)}</span>
+              <span className="text-[11px] text-brand-terracotta font-medium">Sale price at launch</span>
+            </>
+          ) : (
+            <>
+              <span className="text-[15px] font-bold text-brand-terracotta">
+                {ranged && <span className="text-[11px] font-medium mr-0.5">From</span>}
+                {formatPrice(price)}
+              </span>
+              {regularPrice > price && <span className="text-[12px] text-brand-tan line-through">{formatPrice(regularPrice)}</span>}
+            </>
+          )}
         </div>
 
         {/* The sizes the deal covers; a size whose deal is gone is struck out. */}
@@ -93,7 +104,7 @@ export default function FlashDealCard({ item, onBuy, mode = "live", className })
                 key={s.size}
                 className={cn(
                   "text-[10px] leading-none px-1.5 py-1 border rounded-sm",
-                  s.remaining > 0 ? "border-brand-tan/35 text-brand-brown/80" : "border-brand-tan/15 text-brand-tan/40 line-through"
+                  s.remaining === null || s.remaining > 0 ? "border-brand-tan/35 text-brand-brown/80" : "border-brand-tan/15 text-brand-tan/40 line-through"
                 )}
               >
                 {s.size}
@@ -103,9 +114,14 @@ export default function FlashDealCard({ item, onBuy, mode = "live", className })
           </div>
         )}
 
-        {/* Stock urgency */}
-        {!closed && (
+        {/* Stock urgency. A deal with no unit limit sells while the shelf lasts:
+            there is no allowance to draw a bar against. */}
+        {!closed && remaining === null && (
+          <p className="text-[11px] mt-2.5 font-medium text-brand-tan">While stocks last</p>
+        )}
+        {!closed && remaining !== null && (
           <div className="mt-2.5">
+            {soldPct !== null && (
             <div className="h-1.5 bg-brand-cream-dark rounded-full overflow-hidden">
               <div
                 className={cn(
@@ -115,6 +131,7 @@ export default function FlashDealCard({ item, onBuy, mode = "live", className })
                 style={{ width: `${soldOut ? 100 : Math.max(soldPct, 6)}%` }}
               />
             </div>
+            )}
             <p className="flex justify-between gap-2 text-[11px] mt-1.5 font-medium">
               {soldOut ? (
                 <span className="text-brand-tan">Sold out at this price</span>
@@ -124,7 +141,7 @@ export default function FlashDealCard({ item, onBuy, mode = "live", className })
                 <span className="text-amber-600">Hurry — {remaining} left</span>
               ) : (
                 <>
-                  <span className="text-brand-tan">{sold > 0 ? `${sold} sold` : "Just dropped"}</span>
+                  <span className="text-brand-tan">{sold > 0 ? `${sold} sold` : "Limited stock"}</span>
                   <span className="text-brand-tan">{remaining} left</span>
                 </>
               )}

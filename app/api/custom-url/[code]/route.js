@@ -1,44 +1,34 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongoose";
-import CustomUrl from "@/models/CustomUrl";
-import { buildBasePath } from "@/lib/customUrl";
+import { ErpError, erpGet, erpPath } from "@/lib/erp";
 
-// Public: the storefront resolves a ?cu=<code> suffix to its campaign config —
-// highlight products (in order), the top banner, and the modal notification.
-export async function GET(_, { params }) {
+// A campaign link's experience (?cu=<code>): the banner, the pop-up and the
+// products it highlights, from the brand ERP's Website → Campaign links
+// (GET /storefront/v1/custom-links/{code}, M35b).
+//
+// WAITING FOR M35b: until the ERP serves that route it answers 404, so no
+// campaign shows and the shop behaves exactly as without `?cu=`. When it lands,
+// map its answer onto { code, title, basePath, banner, modal, highlightProducts }
+// (what hooks/useCustomCampaign.js and CustomUrlExperience draw).
+export async function GET(_request, { params }) {
+  const code = String(params.code || "").trim();
+  if (!/^\d{4,6}$/.test(code)) return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   try {
-    await connectDB();
-    const code = String(params.code || "").trim();
-    if (!/^\d{4,6}$/.test(code)) {
-      return NextResponse.json({ error: "Invalid code" }, { status: 400 });
-    }
-
-    const doc = await CustomUrl.findOne({ code, isActive: true })
-      .populate("category", "name slug")
-      .populate({
-        path: "highlightProducts",
-        match: { isPublished: true },
-        select: "name slug images variants isNewArrival",
-      })
-      .lean();
-
-    if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    // Count the visit without blocking the response.
-    CustomUrl.updateOne({ _id: doc._id }, { $inc: { views: 1 } }).catch(() => {});
-
+    const answer = await erpGet(erpPath(`/custom-links/${code}`));
+    const link = answer.customLink || answer.link || answer;
     return NextResponse.json({
-      code: doc.code,
-      title: doc.title,
-      basePath: buildBasePath(doc),
-      banner: doc.banner?.enabled ? doc.banner : null,
-      modal: doc.modal?.enabled ? doc.modal : null,
-      highlightProducts: (doc.highlightProducts || []).filter(Boolean),
+      code: link.code || code,
+      title: link.title || "",
+      basePath: link.basePath || link.target || "/shop",
+      banner: link.banner || null,
+      modal: link.modal || link.popup || null,
+      highlightProducts: [],
     });
-  } catch (err) {
-    console.error("GET /api/custom-url/[code] error:", err);
-    return NextResponse.json({ error: "Failed to load campaign" }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ErpError && error.status !== 0 && error.status < 500) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({ error: "Failed to load campaign" }, { status: 502 });
   }
 }

@@ -1,4 +1,4 @@
-import { getSiteInfo } from "@/lib/getSiteInfo";
+import { getSiteInfo } from "@/lib/storefront";
 import { telHref } from "@/lib/siteInfo";
 
 export const metadata = {
@@ -6,7 +6,7 @@ export const metadata = {
   description: "Elysium Lifestyle's privacy policy — how we collect, use, and protect your information.",
 };
 
-// Re-read settings on each request so contact details stay in sync with admin.
+// Contact details come from the brand ERP (Website → Settings) on each request.
 export const dynamic = "force-dynamic";
 
 const LAST_UPDATED = "1 May 2025";

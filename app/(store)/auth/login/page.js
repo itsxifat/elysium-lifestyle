@@ -1,14 +1,26 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, getProviders } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
-import { DemoCredentials } from "@enfinito/demo-kit/ui";
+import { useSettings } from "@/context/SettingsContext";
+
+// What a failed sign-in says. The provider throws the ERP's refusal as a code
+// (lib/auth.js); Google's refusals come back as `?error=` on this page.
+const SIGN_IN_ERRORS = {
+  INVALID_CREDENTIALS: "Invalid email or password",
+  RATE_LIMITED: "Too many sign-in attempts. Please wait a few minutes and try again.",
+  UNAVAILABLE: "We couldn't reach the shop. Please try again.",
+  GOOGLE_EMAIL_UNVERIFIED: "This email has an account that was never verified. Verify it with the code we email, or reset your password, then use Google.",
+  GOOGLE_CONFLICT: "This account is linked to a different Google login.",
+  GOOGLE_NOT_VERIFIED: "Google hasn't verified this email address.",
+  AccessDenied: "We couldn't sign you in with Google. Please try again.",
+};
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -24,12 +36,20 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const verified = searchParams.get("verified");
+  const failed = searchParams.get("error");
+  const { settings } = useSettings();
+  const freeOver = settings?.shipping?.freeShippingEnabled ? settings.shipping.freeShippingThreshold : null;
 
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  // Google is offered only when this deploy has a Google OAuth client.
+  const [google, setGoogle] = useState(false);
+  useEffect(() => {
+    getProviders().then((p) => setGoogle(!!p?.google)).catch(() => {});
+  }, []);
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -39,8 +59,17 @@ function LoginForm() {
         password: data.password,
         redirect: false,
       });
-      if (result?.error) {
-        toast.error("Invalid email or password");
+      if (result?.error === "EMAIL_UNVERIFIED") {
+        // The right password, but the email code was never entered: finish that first.
+        toast.error("Please verify your email first — we've sent you a new code.");
+        await fetch("/api/auth/resend-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: data.email }),
+        }).catch(() => {});
+        router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+      } else if (result?.error) {
+        toast.error(SIGN_IN_ERRORS[result.error] || SIGN_IN_ERRORS.INVALID_CREDENTIALS);
       } else {
         router.push(callbackUrl);
         router.refresh();
@@ -99,7 +128,9 @@ function LoginForm() {
                 <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </span>
-            <span className="text-brand-cream/40 text-[12px] tracking-wide">Free shipping over Tk 1500</span>
+            <span className="text-brand-cream/40 text-[12px] tracking-wide">
+              {freeOver ? `Free shipping over Tk ${freeOver.toLocaleString("en-BD")}` : "Delivery across Bangladesh"}
+            </span>
           </div>
           <div className="mt-3 flex items-center gap-3">
             <span className="w-6 h-6 rounded-full bg-brand-terracotta flex items-center justify-center">
@@ -132,6 +163,12 @@ function LoginForm() {
         <div className="flex-1 flex items-center justify-center px-6 py-12 lg:py-0">
           <div className="w-full max-w-[400px]">
 
+            {failed && (
+              <div role="alert" className="mb-6 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-[12px]">
+                {SIGN_IN_ERRORS[failed] || "We couldn't sign you in. Please try again."}
+              </div>
+            )}
+
             {verified && (
               <div className="mb-6 px-4 py-3 bg-green-50 border border-green-200 text-green-700 text-[12px]">
                 Email verified! You can now sign in.
@@ -144,6 +181,7 @@ function LoginForm() {
             </div>
 
             {/* Google */}
+            {google && (<>
             <button
               onClick={handleGoogle}
               disabled={googleLoading}
@@ -158,16 +196,7 @@ function LoginForm() {
               <span className="text-[10px] uppercase tracking-[3px] text-brand-tan">or</span>
               <div className="flex-1 h-px bg-brand-tan/20" />
             </div>
-
-            {/* Renders only in demo mode; null in production. Both accounts are
-                offered here — a visitor may want to shop or to try the panel. */}
-            <DemoCredentials
-              theme="light"
-              onFill={({ email, password }) => {
-                setValue("email", email, { shouldValidate: true });
-                setValue("password", password, { shouldValidate: true });
-              }}
-            />
+            </>)}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>

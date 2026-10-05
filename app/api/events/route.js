@@ -1,57 +1,26 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { dispatchEvent, newEventId } from "@/lib/tracking/dispatch";
-import { extractClientMeta } from "@/lib/tracking/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { erpPath, erpPost } from "@/lib/erp";
+import { jsonBody } from "@/lib/http";
+import { clientOf } from "@/lib/shopper";
 
-// Public ingest endpoint. Accepts events from the browser helper (and any
-// server-to-server caller). Forwards to Meta CAPI + GA4 MP via the dispatcher.
-// The real client IP/UA are read from the request headers (Nginx proxy chain)
-// and passed through to both platforms. Never throws to the caller.
-
+// Browser tracking events (PageView, AddToCart, …), forwarded to the brand ERP
+// (POST /storefront/v1/events, M35b), whose worker sends them to Meta's
+// Conversions API and GA4 with the shopper's address and browser.
+//
+// WAITING FOR M35b: until the ERP serves that route the forward fails quietly.
+// Always 200, so a browser beacon never surfaces an error to the shopper.
 export async function POST(request) {
-  // Light abuse guard — generous, since legit pages fire several events.
-  const limited = checkRateLimit(request, "events", { limit: 120, windowMs: 60 * 1000 });
-  if (limited) return limited;
-
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const { ip, userAgent } = extractClientMeta(request);
-  const events = Array.isArray(payload) ? payload : [payload];
-
-  const results = [];
-  for (const evt of events.slice(0, 20)) {
-    if (!evt || !evt.eventName) {
-      results.push({ status: "error", error: "missing eventName" });
-      continue;
+  const payload = await jsonBody(request);
+  const events = (Array.isArray(payload) ? payload : [payload]).filter((e) => e && e.eventName).slice(0, 20);
+  if (events.length) {
+    const client = clientOf(request);
+    try {
+      await erpPost(erpPath("/events"), { events, ...(client ? { client } : {}) });
+    } catch {
+      // Tracking must never break a page.
     }
-    const result = await dispatchEvent({
-      eventName: evt.eventName,
-      eventId: evt.eventId || newEventId(),
-      // This is the public, browser-facing ingest. Real server-origin events call
-      // trackServerEvent()/dispatchEvent() in-process and never reach this route,
-      // so always log "client" here — a caller-supplied "server" can only be a
-      // forged source label.
-      source: "client",
-      eventTime: evt.eventTime,
-      eventSourceUrl: evt.eventSourceUrl,
-      actionSource: evt.actionSource || "website",
-      userData: evt.userData || {},
-      customData: evt.customData || {},
-      ga4: evt.ga4 || {},
-      ip,
-      userAgent,
-      testMode: evt.testMode,
-    });
-    results.push({ eventId: result.eventId, status: result.status });
   }
-
-  // Always 200 so the browser beacon never surfaces an error to the user.
-  return NextResponse.json({ ok: true, results });
+  return NextResponse.json({ ok: true });
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { X, ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
 
 export default function CartDrawer() {
   const { items, isDrawerOpen, closeDrawer, removeItem, updateQuantity, subtotal } = useCart();
@@ -51,10 +51,11 @@ export default function CartDrawer() {
                 <div key={`${item.productId}-${item.size}`} className="flex gap-4 py-5">
                   <div className="relative w-18 h-24 flex-shrink-0 bg-brand-cream-dark overflow-hidden" style={{width: 72}}>
                     <Image
-                      src={item.image || "/placeholder.jpg"}
+                      src={item.image || PLACEHOLDER_IMAGE}
                       alt={item.name}
                       fill
-                      unoptimized={shouldUnoptimizeImage(item.image)}
+                      sizes="72px"
+                      unoptimized={shouldUnoptimizeImage(item.image || PLACEHOLDER_IMAGE)}
                       className="object-cover"
                     />
                   </div>

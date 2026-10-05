@@ -34,7 +34,8 @@ export default function VariantSelector({ variants = [], selectedSize, onSizeCha
             const deal = flashSizes?.[v.size];
             return (
               <button
-                key={v.size}
+                key={v.skuId || v.size}
+                type="button"
                 onClick={() => onSizeChange(v.size)}
                 disabled={!available}
                 className={cn(

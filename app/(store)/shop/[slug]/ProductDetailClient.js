@@ -102,8 +102,9 @@ export default function ProductDetailClient({ product, related = [], categoryPat
   const hasPriceRange = minPrice !== maxPrice;
   const displayPrice = selectedVariant ? selectedVariant.price : minPrice;
 
-  // Live flash sale on this product (lib/flash-pricing.js → productFlash):
-  // per-size prices, and the campaign it comes from.
+  // Live flash sale on this product (lib/storefront.js → getProduct, from the
+  // ERP's flash sales): per-size prices, and the campaign it comes from. The
+  // ERP's quote at checkout has the final word.
   const flash = product.flash || null;
   const deal = selectedVariant ? flash?.sizes?.[selectedVariant.size] || null : null;
   // Sizes can come from different campaigns; the strip follows the one the
@@ -127,7 +128,7 @@ export default function ProductDetailClient({ product, related = [], categoryPat
   }, [productId]);
 
   const whatsappNumber =
-    settings?.siteInfo?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "8801700000000";
+    settings?.siteInfo?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
   const whatsappMsg = encodeURIComponent(`Hi, I'm interested in: ${product.name}`);
 
   return (
@@ -277,15 +278,17 @@ export default function ProductDetailClient({ product, related = [], categoryPat
             />
 
             {/* WhatsApp enquiry */}
-            <a
-              href={`https://wa.me/${whatsappNumber}?text=${whatsappMsg}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full border border-brand-tan/30 py-3 text-[10px] uppercase tracking-[2px] text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-all duration-200"
-            >
-              <MessageCircle size={13} strokeWidth={1.5} />
-              Enquire on WhatsApp
-            </a>
+            {whatsappNumber && (
+              <a
+                href={`https://wa.me/${whatsappNumber}?text=${whatsappMsg}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full border border-brand-tan/30 py-3 text-[10px] uppercase tracking-[2px] text-brand-tan hover:border-brand-brown hover:text-brand-brown transition-all duration-200"
+              >
+                <MessageCircle size={13} strokeWidth={1.5} />
+                Enquire on WhatsApp
+              </a>
+            )}
 
             {/* Accordion details */}
             <div className="border-b border-brand-tan/15">

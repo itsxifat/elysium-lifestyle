@@ -7,15 +7,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   ShoppingBag, Search, User, Menu, X,
-  ChevronRight, ChevronDown, LogOut, Package, Settings,
+  ChevronRight, ChevronDown, LogOut, Package,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useSettings } from "@/context/SettingsContext";
 import { shouldUnoptimizeImage } from "@/lib/utils";
 import { track } from "@/lib/tracking/client";
-import { isStaff } from "@/lib/permissions";
-
-let _navCache = null;
-let _navCacheTs = 0;
 
 // ─── Desktop nav item ─────────────────────────────────────────────────────────
 
@@ -36,7 +33,11 @@ function DesktopNavItem({ item }) {
 
   return (
     <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <Link href={item.href} className={linkClass}>
+      <Link
+        href={item.href || "#"}
+        className={linkClass}
+        onClick={(e) => { if (!item.href) e.preventDefault(); }}
+      >
         {item.highlighted ? (
           <span
             className="animate-nav-shimmer"
@@ -149,9 +150,11 @@ function MobileNavItem({ item, onClose }) {
       </button>
       {open && (
         <div className="pl-3 pb-2 space-y-0.5">
-          <Link href={item.href} onClick={onClose} className="block py-2 text-[13px] text-brand-tan hover:text-brand-terracotta transition-colors">
-            All {item.label}
-          </Link>
+          {item.href && (
+            <Link href={item.href} onClick={onClose} className="block py-2 text-[13px] text-brand-tan hover:text-brand-terracotta transition-colors">
+              All {item.label}
+            </Link>
+          )}
           {item.children.map((child) => {
             const hasSubs = child.children?.length > 0;
             return (
@@ -250,32 +253,16 @@ export default function Navbar() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [navItems, setNavItems] = useState([]);
-  const [announcement, setAnnouncement] = useState({ enabled: true, text: "", link: "" });
+  // The menu and the announcement bar come from the brand ERP (GET /storefront/v1/site),
+  // read once per request by the root layout.
+  const { settings } = useSettings();
+  const navItems = settings?.navItems || [];
+  const announcement = settings?.announcement || { enabled: false, text: "", link: "" };
 
   const accountRef = useRef(null);
   const headerRef = useRef(null);
   const searchInputRef = useRef(null);
   const searchTimer = useRef(null);
-
-  // Fetch nav + announcement
-  useEffect(() => {
-    const now = Date.now();
-    if (_navCache && now - _navCacheTs < 60_000) {
-      setNavItems(_navCache.navItems || []);
-      setAnnouncement(_navCache.announcement || { enabled: true, text: "", link: "" });
-      return;
-    }
-    fetch("/api/nav")
-      .then((r) => r.json())
-      .then((data) => {
-        _navCache = data;
-        _navCacheTs = Date.now();
-        setNavItems(data.navItems || []);
-        setAnnouncement(data.announcement || { enabled: true, text: "", link: "" });
-      })
-      .catch(() => {});
-  }, []);
 
   // Live search
   useEffect(() => {
@@ -506,11 +493,6 @@ export default function Navbar() {
                             <Link href="/account/orders" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-sm text-brand-brown hover:bg-brand-cream transition-colors">
                               <Package size={16} strokeWidth={1.5} className="text-brand-tan" /> Order History
                             </Link>
-                            {isStaff(session.user.role) && (
-                              <Link href="/admin" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-5 py-2.5 text-sm text-brand-terracotta font-medium hover:bg-brand-cream transition-colors">
-                                <Settings size={16} strokeWidth={1.5} /> Admin Dashboard
-                              </Link>
-                            )}
                           </div>
                           <div className="border-t border-brand-tan/10 py-1">
                             <button onClick={() => { signOut({ callbackUrl: "/" }); setAccountOpen(false); }} className="flex w-full items-center gap-3 px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
@@ -666,11 +648,6 @@ export default function Navbar() {
                   <Link href="/account/orders" onClick={closeMobile} className="flex items-center gap-3 py-2.5 text-sm text-brand-brown hover:text-brand-terracotta transition-colors">
                     <Package size={16} strokeWidth={1.5} className="text-brand-tan" /> Order History
                   </Link>
-                  {isStaff(session.user.role) && (
-                    <Link href="/admin" onClick={closeMobile} className="flex items-center gap-3 py-2.5 text-sm text-brand-terracotta font-medium">
-                      <Settings size={16} strokeWidth={1.5} /> Admin Dashboard
-                    </Link>
-                  )}
                   <button onClick={() => { signOut({ callbackUrl: "/" }); closeMobile(); }} className="flex items-center gap-3 py-2.5 text-sm text-red-600 w-full text-left mt-1 border-t border-brand-tan/10 pt-3">
                     <LogOut size={16} strokeWidth={1.5} /> Sign Out
                   </button>

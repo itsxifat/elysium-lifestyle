@@ -5,11 +5,11 @@ import { Toaster } from "react-hot-toast";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 
-export default function Providers({ children, session }) {
+export default function Providers({ children, session, settings }) {
   return (
     <SessionProvider session={session}>
       <CartProvider>
-        <SettingsProvider>
+        <SettingsProvider initial={settings}>
           {children}
           <Toaster
             position="top-right"

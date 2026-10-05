@@ -1,11 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { connectDB } from "@/lib/mongoose";
-import Product from "@/models/Product";
-import Category from "@/models/Category";
-import Settings from "@/models/Settings";
-import { serializeDoc } from "@/lib/utils";
-import { getPublicFlashSales, getFlashSaleIndex, withFlashPricing } from "@/lib/flashSale";
+import { getSite, homeProducts, getCategoryTree, flattenCategories, getFlashSales } from "@/lib/storefront";
 import HeroSlider from "@/components/home/HeroSlider";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import FlashSaleSection from "@/components/home/FlashSaleSection";
@@ -21,71 +16,28 @@ import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import TrackingBootstrap from "@/components/tracking/TrackingBootstrap";
 
 async function getHomeData() {
-  try {
-    await connectDB();
-    const [featuredProducts, newArrivals, settings] = await Promise.all([
-      Product.find({ isPublished: true, featured: true })
-        .populate("category", "name slug gender")
-        .sort({ createdAt: -1 })
-        .limit(8)
-        .lean(),
-      Product.find({ isPublished: true, isNewArrival: true })
-        .populate("category", "name slug gender")
-        .sort({ createdAt: -1 })
-        .limit(8)
-        .lean(),
-      Settings.findOne({}).lean(),
-    ]);
+  const [site, products, tree, flash] = await Promise.all([
+    getSite(),
+    homeProducts().catch(() => ({ featuredProducts: [], newArrivals: [] })),
+    getCategoryTree(),
+    getFlashSales({ home: true }).catch(() => ({ live: [] })),
+  ]);
 
-    let categories = await Category.find({ isActive: true, isFeatured: true })
-      .sort({ sortOrder: 1 })
-      .limit(3)
-      .lean();
-    if (categories.length === 0) {
-      categories = await Category.find({ isActive: true })
-        .sort({ sortOrder: 1 })
-        .limit(3)
-        .lean();
-    }
+  // The editorial grid: the categories marked featured on the ERP's Catalog
+  // setup, else the first three at the top of the tree.
+  const top = flattenCategories(tree).filter((c) => !c.parent);
+  const featured = flattenCategories(tree).filter((c) => c.featured);
+  const categories = (featured.length ? featured : top).slice(0, 3);
 
-    // Graceful fallback: if nothing is flagged featured / new-arrival yet, show
-    // the most recent products so the homepage never collapses to empty.
-    let featured = featuredProducts;
-    let arrivals = newArrivals;
-    if (featured.length === 0 || arrivals.length === 0) {
-      const recent = await Product.find({ isPublished: true })
-        .populate("category", "name slug gender")
-        .sort({ createdAt: -1 })
-        .limit(16)
-        .lean();
-      if (featured.length === 0) featured = recent.slice(0, 8);
-      if (arrivals.length === 0) arrivals = recent.slice(8, 16);
-    }
-
-    // A flash sale is best effort on the homepage: if it can't be loaded the
-    // rest of the page still renders, just without it.
-    let flashSales = [];
-    try {
-      const index = await getFlashSaleIndex();
-      flashSales = await getPublicFlashSales({ homepage: true, live: index.sales });
-      // Products on a live sale show their flash price on every card.
-      await withFlashPricing([...featured, ...arrivals], index);
-    } catch (err) {
-      console.error("homepage flash sale error:", err);
-    }
-
-    return {
-      featuredProducts: serializeDoc(featured),
-      newArrivals: serializeDoc(arrivals),
-      categories: serializeDoc(categories),
-      heroSlides: serializeDoc(settings?.heroSlides || []),
-      promoBanner: serializeDoc(settings?.promoBanner || null),
-      testimonials: serializeDoc(settings?.testimonials || []),
-      flashSales: serializeDoc(flashSales),
-    };
-  } catch {
-    return { featuredProducts: [], newArrivals: [], categories: [], heroSlides: [], promoBanner: null, testimonials: [], flashSales: [] };
-  }
+  return {
+    featuredProducts: products.featuredProducts,
+    newArrivals: products.newArrivals,
+    categories,
+    heroSlides: site.heroSlides,
+    promoBanner: site.promoBanner,
+    testimonials: site.testimonials,
+    flashSales: flash.live,
+  };
 }
 
 export default async function HomePage() {

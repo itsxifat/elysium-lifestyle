@@ -1,15 +1,14 @@
 import { PackageCheck, RefreshCw, CircleAlert, Phone, Mail } from "lucide-react";
-import { getSiteInfo } from "@/lib/getSiteInfo";
+import { getSiteInfo } from "@/lib/storefront";
 import { telHref } from "@/lib/siteInfo";
-import { landingFontVars } from "@/components/landing/fonts";
-import { landingFontFamily } from "@/lib/landing-fonts";
+import { banglaFontVars, BANGLA_FONT_FAMILY } from "@/components/fonts/bangla";
 
 export const metadata = {
   title: "Return & Exchange Policy",
   description: "Elysium Lifestyle's return & exchange policy — check your parcel in front of the delivery rider, and request any exchange within 72 hours of receiving it.",
 };
 
-// Re-read settings on each request so contact details stay in sync with admin.
+// Contact details come from the brand ERP (Website → Settings) on each request.
 export const dynamic = "force-dynamic";
 
 const LAST_UPDATED = "12 September 2026";
@@ -76,10 +75,10 @@ const EN_RULES = [
   },
 ];
 
-// Manrope carries no Bengali glyphs, so Bangla copy uses Hind Siliguri — the
-// same self-hosted font the landing pages default to — rather than whatever
+// Manrope carries no Bengali glyphs, so Bangla copy uses Hind Siliguri, self-hosted
+// (components/fonts/bangla.js), rather than whatever
 // Bengali font the visitor's device falls back to.
-const BN_FONT = { fontFamily: landingFontFamily("hind_siliguri") };
+const BN_FONT = { fontFamily: BANGLA_FONT_FAMILY };
 
 // Keeps a #bn / #en jump from landing under the fixed navbar (main's top padding).
 const SCROLL_OFFSET = "scroll-mt-[116px] lg:scroll-mt-[162px]";
@@ -90,7 +89,7 @@ const JUMP_LINK =
 export default async function ReturnsPage() {
   const { phone, email } = await getSiteInfo();
   return (
-    <div className={`${landingFontVars} bg-white min-h-screen`}>
+    <div className={`${banglaFontVars} bg-white min-h-screen`}>
       {/* Header */}
       <div className="bg-brand-cream border-b border-brand-tan/15 py-14">
         <div className="container-custom">

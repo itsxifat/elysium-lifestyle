@@ -1,65 +1,29 @@
 export const dynamic = "force-dynamic";
 
+import { cache } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
-import { connectDB } from "@/lib/mongoose";
-import Product from "@/models/Product";
-import Category from "@/models/Category";
-import "@/models/SizeChart";
-import { serializeDoc, formatPrice, calculateDiscount } from "@/lib/utils";
-import { cdnAbsoluteUrl } from "@/lib/cdn";
-import { getAncestors } from "@/lib/categories";
-import { withFlashPricing } from "@/lib/flashSale";
+import { getProduct } from "@/lib/storefront";
 import ProductDetailClient from "./ProductDetailClient";
 
-async function getProduct(slug) {
-  await connectDB();
-  const product = await Product.findOne({ slug, isPublished: true })
-    .populate("category", "name slug")
-    .populate("sizeChart", "name columns rows")
-    .lean();
-  if (!product) return null;
-
-  // Breadcrumb path (Mens › Shirts › Casual) from the category tree.
-  let categoryPath = [];
-  if (product.category?._id) {
-    const allCats = await Category.find({}).select("_id name slug parent").lean();
-    categoryPath = getAncestors(allCats, product.category._id);
-  }
-
-  const related = await Product.find({
-    category: product.category?._id,
-    _id: { $ne: product._id },
-    isPublished: true,
-  })
-    .limit(4)
-    .lean();
-
-  // A product on a live flash sale is shown — and added to the bag — at its
-  // flash price, size by size. Best effort: without it the page still works.
-  await withFlashPricing([product, ...related]).catch((err) => console.error("flash pricing:", err.message));
-
-  return {
-    product: serializeDoc(product),
-    related: serializeDoc(related),
-    categoryPath,
-  };
-}
+// The product, its sizes with live availability, size chart, related products
+// and any flash price, from the brand ERP. Metadata and the page share one read.
+const load = cache((slug) => getProduct(slug));
 
 export async function generateMetadata({ params }) {
   try {
-    await connectDB();
-    const product = await Product.findOne({ slug: params.slug }).lean();
-    if (!product) return { title: "Product Not Found" };
-    // og:image is fetched by external crawlers (Facebook, WhatsApp, …) which
-    // can't use the same-origin proxy — give them an absolute, never-expiring
-    // signed CDN URL instead.
-    const ogImage = cdnAbsoluteUrl(product.images?.[0]);
+    const found = await load(params.slug);
+    if (!found?.product) return { title: "Product Not Found" };
+    const { product } = found;
     return {
-      title: product.name,
-      description: product.description?.slice(0, 160) || `Shop ${product.name} at Elysium Lifestyle`,
+      title: product.seoTitle || product.name,
+      description:
+        product.seoDescription ||
+        product.description?.slice(0, 160) ||
+        `Shop ${product.name} at Elysium Lifestyle`,
       openGraph: {
-        title: product.name,
-        images: ogImage ? [{ url: ogImage }] : [],
+        title: product.seoTitle || product.name,
+        // The ERP's public image URL: crawlers (Facebook, WhatsApp) fetch it directly.
+        images: product.ogImage ? [{ url: product.ogImage }] : [],
       },
     };
   } catch {
@@ -68,16 +32,10 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function ProductPage({ params }) {
-  const data = await getProduct(params.slug);
-  if (!data) {
-    // The product may have moved to a new slug (name/SKU change) — 301 old → new.
-    await connectDB();
-    const moved = await Product.findOne({ previousSlugs: params.slug, isPublished: true })
-      .select("slug")
-      .lean();
-    if (moved?.slug && moved.slug !== params.slug) permanentRedirect(`/shop/${moved.slug}`);
-    notFound();
-  }
+  const found = await load(params.slug);
+  // A product renamed in the ERP keeps its old address: answer it with a 301.
+  if (found?.redirect && found.redirect !== params.slug) permanentRedirect(`/shop/${found.redirect}`);
+  if (!found?.product) notFound();
 
-  return <ProductDetailClient product={data.product} related={data.related} categoryPath={data.categoryPath} />;
+  return <ProductDetailClient product={found.product} related={found.related} categoryPath={found.categoryPath} />;
 }

@@ -1,7 +1,7 @@
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
-import { DemoBanner } from "@enfinito/demo-kit/ui";
+import { getSite } from "@/lib/storefront";
 
 // Single clean, premium-neutral sans for the whole site (body + headings).
 // Variable font → full weight range available for hierarchy.
@@ -11,10 +11,13 @@ const manrope = Manrope({
   display: "swap",
 });
 
+// Every page reads the brand ERP (menu, contact details, prices, stock), so
+// nothing is pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
-  // Resolves og:image / twitter image URLs. Falls back to the prod origin so it
-  // doesn't default to localhost in production (set NEXT_PUBLIC_SITE_URL on the VPS).
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://elyle.enfinito.cloud"),
+  // Resolves og:image / twitter image URLs. Set NEXT_PUBLIC_SITE_URL per deploy.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://demo.elysium-lifestyle.bd"),
   title: {
     default: "Elysium Lifestyle — Premium Fashion",
     template: "%s | Elysium Lifestyle",
@@ -30,17 +33,17 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  // The menu, announcement, contact details, shipping rule and payment methods,
+  // from the brand ERP (cached for its 30 seconds in lib/erp.js). If the ERP is
+  // unreachable the frame still renders with neutral defaults.
+  const settings = await getSite();
   return (
     <html lang="en">
       <body
         className={`${manrope.variable} font-sans antialiased bg-brand-cream text-brand-brown`}
       >
-        <Providers>{children}</Providers>
-        {/* Renders nothing outside demo mode. Fixed to the bottom so the
-            countdown is always visible — a visitor who does not know their work
-            is temporary will be genuinely upset when it disappears. */}
-        <DemoBanner />
+        <Providers settings={settings}>{children}</Providers>
       </body>
     </html>
   );

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, getProviders } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
@@ -24,6 +24,11 @@ export default function RegisterPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  // Google is offered only when this deploy has a Google OAuth client.
+  const [google, setGoogle] = useState(false);
+  useEffect(() => {
+    getProviders().then((p) => setGoogle(!!p?.google)).catch(() => {});
+  }, []);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
@@ -141,6 +146,7 @@ export default function RegisterPage() {
             </div>
 
             {/* Google */}
+            {google && (<>
             <button
               onClick={handleGoogle}
               disabled={googleLoading}
@@ -155,6 +161,7 @@ export default function RegisterPage() {
               <span className="text-[10px] uppercase tracking-[3px] text-brand-tan">or</span>
               <div className="flex-1 h-px bg-brand-tan/20" />
             </div>
+            </>)}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
@@ -207,9 +214,9 @@ export default function RegisterPage() {
                 <div className="relative">
                   <input
                     type={showPw ? "text" : "password"}
-                    {...register("password", { required: "Password is required", minLength: { value: 6, message: "Min 6 characters" } })}
+                    {...register("password", { required: "Password is required", minLength: { value: 8, message: "Min 8 characters" } })}
                     className="w-full bg-white border border-brand-tan/30 px-4 py-3 pr-11 text-[13px] text-brand-brown placeholder-brand-tan/40 focus:outline-none focus:border-brand-brown transition-colors"
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters"
                     autoComplete="new-password"
                   />
                   <button

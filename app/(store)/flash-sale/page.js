@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Zap, CalendarClock, ShoppingBag } from "lucide-react";
-import { getPublicFlashSales, getUpcomingFlashSales } from "@/lib/flashSale";
-import { serializeDoc } from "@/lib/utils";
+import { getFlashSales } from "@/lib/storefront";
 import FlashCampaignBlock from "@/components/flash/FlashCampaignBlock";
 import UpcomingSaleCard from "@/components/flash/UpcomingSaleCard";
 import { CountdownText } from "@/components/flash/Countdown";
@@ -13,12 +12,12 @@ export const metadata = {
   description: "Limited-time prices on limited stock at Elysium Lifestyle. When a deal's gone, it's gone.",
 };
 
+// Live and scheduled sales from the brand ERP (GET /storefront/v1/flash-sales).
 async function getData() {
   try {
-    const [live, upcoming] = await Promise.all([getPublicFlashSales(), getUpcomingFlashSales()]);
-    return { live: serializeDoc(live), upcoming: serializeDoc(upcoming) };
+    return await getFlashSales();
   } catch (err) {
-    console.error("GET /flash-sale error:", err);
+    console.error("GET /flash-sale error:", err?.code || err?.message);
     return { live: [], upcoming: [] };
   }
 }

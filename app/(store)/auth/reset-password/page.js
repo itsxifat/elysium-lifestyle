@@ -53,9 +53,9 @@ function ResetPasswordForm() {
             <div className="relative">
               <input
                 type={showPw ? "text" : "password"}
-                {...register("password", { required: "Password is required", minLength: { value: 6, message: "Min 6 characters" } })}
+                {...register("password", { required: "Password is required", minLength: { value: 8, message: "Min 8 characters" } })}
                 className="w-full border border-brand-tan/30 bg-transparent px-4 py-3 pr-10 text-[13px] text-brand-brown placeholder-brand-tan/40 focus:outline-none focus:border-brand-brown transition-colors"
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
               />
               <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tan hover:text-brand-brown">
                 {showPw ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}
