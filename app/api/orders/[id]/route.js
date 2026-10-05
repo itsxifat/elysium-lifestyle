@@ -57,6 +57,8 @@ export async function GET(request, { params }) {
       delete order.landingPage;
       delete order.editHistory;
       delete order.fraudCheck;
+      // The marketplace block carries ncom's ids, raw payload and warnings.
+      delete order.ncom;
     }
 
     return NextResponse.json(order);
