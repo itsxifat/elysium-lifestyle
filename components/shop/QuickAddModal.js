@@ -7,12 +7,14 @@ import Link from "next/link";
 import { formatPrice, cn, shouldUnoptimizeImage } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import Spinner from "@/components/ui/Spinner";
+import WasPrice from "@/components/ui/WasPrice";
+import { priceSummary } from "@/lib/storefront-map";
 import toast from "react-hot-toast";
 
 // Buy a product without leaving the page. A card or a flash deal only knows a
 // product's name and price range, so the sizes — each with its live stock, its
-// price and any flash price (`flash.sizes`, keyed by size) — are read from the
-// shop when the modal opens (GET /api/products/<slug>, from the ERP).
+// price now, its regular price struck through and any flash offer — are read
+// from the shop when the modal opens (GET /api/products/<slug>, from the ERP).
 export default function QuickAddModal({ product: summary, onClose }) {
   const { addItem } = useCart();
   const [product, setProduct] = useState(summary?.variants ? summary : null);
@@ -40,22 +42,17 @@ export default function QuickAddModal({ product: summary, onClose }) {
     };
   }, [onClose]);
 
-  const deals = product?.flash?.sizes || {};
-  const dealFor = (size) => {
-    const d = deals[size];
-    return d && d.remaining > 0 ? d : null;
-  };
+  const dealFor = (v) => (v?.flash && v.flash.remaining > 0 ? v.flash : null);
 
   const variants = product?.variants || [];
   const selectedVariant = variants.find((v) => v.size === selectedSize);
-  const selectedDeal = selectedVariant ? dealFor(selectedVariant.size) : null;
-  const unitPrice = selectedDeal ? selectedDeal.price : selectedVariant?.price;
-  const priceOf = (v) => dealFor(v.size)?.price ?? v.price;
-  const prices = variants.map(priceOf);
-  const minPrice = prices.length ? Math.min(...prices) : summary.minPrice ?? 0;
-  const maxPrice = prices.length ? Math.max(...prices) : summary.maxPrice ?? 0;
-  const hasDeals = variants.some((v) => dealFor(v.size));
-  const cheapest = variants.find((v) => priceOf(v) === minPrice);
+  const selectedDeal = dealFor(selectedVariant);
+  const unitPrice = selectedVariant?.price;
+  const summaryPrices = priceSummary(variants);
+  const minPrice = variants.length ? summaryPrices.min : summary.minPrice ?? 0;
+  const maxPrice = variants.length ? summaryPrices.max : summary.maxPrice ?? 0;
+  const lowestWas = variants.length ? summaryPrices.compareAt : summary.compareAt ?? null;
+  const hasDeals = variants.some((v) => dealFor(v));
   const image = summary.images?.[0] || product?.images?.[0] || "";
 
   // A flash line can only hold what the deal has left — past that the line
@@ -76,7 +73,7 @@ export default function QuickAddModal({ product: summary, onClose }) {
         name: product.name,
         image,
         price: unitPrice,
-        regularPrice: selectedVariant.price,
+        regularPrice: selectedVariant.compareAt ?? undefined,
         sku: selectedVariant.sku || "",
       },
       selectedSize,
@@ -123,17 +120,19 @@ export default function QuickAddModal({ product: summary, onClose }) {
             <div className="mt-1.5">
               {selectedVariant ? (
                 <span className="flex items-baseline gap-2">
-                  <span className={cn("text-base font-bold", selectedDeal ? "text-brand-terracotta" : "text-brand-brown")}>{formatPrice(unitPrice)}</span>
-                  {selectedDeal && <span className="text-[12px] text-brand-tan line-through">{formatPrice(selectedVariant.price)}</span>}
+                  <span className={cn("text-base font-bold tabular-nums", selectedVariant.compareAt ? "text-brand-terracotta" : "text-brand-brown")}>{formatPrice(unitPrice)}</span>
+                  <WasPrice amount={selectedVariant.compareAt} className="text-[12px]" />
                 </span>
-              ) : minPrice !== maxPrice ? (
-                <span className="text-sm text-brand-tan">
+              ) : minPrice !== maxPrice && !lowestWas ? (
+                <span className="text-sm text-brand-tan tabular-nums">
                   {formatPrice(minPrice)} – {formatPrice(maxPrice)}
                 </span>
               ) : (
                 <span className="flex items-baseline gap-2">
-                  <span className={cn("text-base font-bold", hasDeals ? "text-brand-terracotta" : "text-brand-brown")}>{formatPrice(minPrice)}</span>
-                  {cheapest && dealFor(cheapest.size) && <span className="text-[12px] text-brand-tan line-through">{formatPrice(cheapest.price)}</span>}
+                  <span className={cn("text-base font-bold tabular-nums", lowestWas ? "text-brand-terracotta" : "text-brand-brown")}>
+                    {minPrice !== maxPrice ? "From " : ""}{formatPrice(minPrice)}
+                  </span>
+                  <WasPrice amount={lowestWas} className="text-[12px]" />
                 </span>
               )}
             </div>
@@ -165,8 +164,8 @@ export default function QuickAddModal({ product: summary, onClose }) {
                 {variants.map((v) => {
                   const available = v.stock > 0;
                   const isSelected = selectedSize === v.size;
-                  const deal = dealFor(v.size);
-                  const dealGone = !deal && deals[v.size];
+                  const deal = dealFor(v);
+                  const reduced = v.compareAt > v.price;
                   return (
                     <button
                       key={v.skuId}
@@ -178,7 +177,7 @@ export default function QuickAddModal({ product: summary, onClose }) {
                         isSelected
                           ? "bg-brand-brown text-brand-cream border-brand-brown"
                           : available
-                          ? deal
+                          ? reduced
                             ? "border-brand-terracotta/50 text-brand-brown hover:border-brand-terracotta"
                             : "border-brand-tan/40 text-brand-brown hover:border-brand-brown"
                           : "border-brand-tan/20 text-brand-tan/30 cursor-not-allowed"
@@ -189,19 +188,20 @@ export default function QuickAddModal({ product: summary, onClose }) {
                       )}
                       <span className="text-[12px] font-medium leading-tight">{v.size}</span>
                       <span className={cn(
-                        "text-[10px] mt-0.5 leading-tight",
-                        isSelected ? "text-brand-cream/80" : deal ? "text-brand-terracotta font-semibold" : "text-brand-tan"
+                        "text-[10px] mt-0.5 leading-tight tabular-nums",
+                        isSelected ? "text-brand-cream/80" : reduced ? "text-brand-terracotta font-semibold" : "text-brand-tan"
                       )}>
-                        {formatPrice(deal ? deal.price : v.price)}
+                        {formatPrice(v.price)}
                       </span>
-                      {deal && (
-                        <span className={cn("text-[9px] line-through leading-tight", isSelected ? "text-brand-cream/50" : "text-brand-tan/70")}>
-                          {formatPrice(v.price)}
-                        </span>
+                      {reduced && (
+                        <s className={cn("text-[9px] leading-tight tabular-nums", isSelected ? "text-brand-cream/50" : "text-brand-tan/70")}>
+                          <span className="sr-only">Regular price </span>
+                          {formatPrice(v.compareAt)}
+                        </s>
                       )}
                       {!deal && hasDeals && available && (
                         <span className={cn("text-[8px] uppercase tracking-wide leading-tight mt-0.5", isSelected ? "text-brand-cream/60" : "text-brand-tan/70")}>
-                          {dealGone ? "Deal gone" : "Regular"}
+                          Regular
                         </span>
                       )}
                       {!available && (

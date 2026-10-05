@@ -128,3 +128,49 @@ export async function adminSession() {
   await signInAdmin();
   return chooseBrand();
 }
+
+// --- Website → Tracking (M35b) -------------------------------------------------------------------
+
+export const E2E_PIXEL_ID = "123456789012345";
+export const E2E_MEASUREMENT_ID = "G-E2E12345";
+
+/**
+ * Switch the brand's tracking on (the Meta pixel and Conversions API with a
+ * made-up token, GA4's gtag; the ERP's `fake` provider sends nothing anywhere)
+ * or off (pixel, Conversions API and gtag all off), as Website → Tracking does.
+ * Answers the ERP's provider (`fake` or `live`).
+ */
+export async function setTracking(on) {
+  const { body } = await call("GET", "/v1/storefront/tracking");
+  const current = body.settings;
+  if (on && body.provider !== "fake") throw new Error("Refusing to switch tracking on: the ERP's provider is not `fake`.");
+  await call("PUT", "/v1/storefront/tracking", {
+    meta: {
+      pixelEnabled: on,
+      capiEnabled: on,
+      pixelId: on ? E2E_PIXEL_ID : current.meta.pixelId,
+      datasetId: current.meta.datasetId,
+      apiVersion: current.meta.apiVersion,
+      testEventCode: current.meta.testEventCode,
+      defaultCountryCode: current.meta.defaultCountryCode,
+      ...(on && !current.meta.accessTokenSet ? { accessToken: "e2e-made-up-access-token-not-a-real-one" } : {}),
+    },
+    ga4: {
+      clientEnabled: on,
+      mpEnabled: false,
+      measurementId: on ? E2E_MEASUREMENT_ID : current.ga4.measurementId,
+    },
+    proxy: current.proxy,
+    testMode: on,
+    events: current.events,
+    logRetentionDays: current.logRetentionDays,
+  });
+  return body.provider;
+}
+
+/** The brand's tracking log, newest first (`eventName` narrows it). */
+export async function trackingLog(eventName) {
+  const query = eventName ? `?eventName=${encodeURIComponent(eventName)}&limit=50` : "?limit=50";
+  const { body } = await call("GET", `/v1/storefront/tracking/events${query}`);
+  return body.items || [];
+}

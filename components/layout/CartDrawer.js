@@ -6,6 +6,7 @@ import Image from "next/image";
 import { X, ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
+import WasPrice from "@/components/ui/WasPrice";
 
 export default function CartDrawer() {
   const { items, isDrawerOpen, closeDrawer, removeItem, updateQuantity, subtotal } = useCart();
@@ -66,9 +67,9 @@ export default function CartDrawer() {
                     <p className="text-[11px] text-brand-tan mt-1 uppercase tracking-wider">Size: {item.size}</p>
                     <div className="flex items-center justify-between mt-3">
                       <span className="flex items-baseline gap-1.5">
-                        <span className={`text-[13px] font-medium ${item.regularPrice ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
+                        <span className={`text-[13px] font-medium tabular-nums ${item.regularPrice > item.price ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
                         {item.regularPrice > item.price && (
-                          <span className="text-[11px] text-brand-tan line-through">{formatPrice(item.regularPrice * item.quantity)}</span>
+                          <WasPrice amount={item.regularPrice * item.quantity} className="text-[11px]" />
                         )}
                       </span>
                       <div className="flex items-center gap-1">

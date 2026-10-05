@@ -93,7 +93,9 @@ export default function FilterSidebar({ categories = [], onClose }) {
   const currentSize = searchParams.get("size");
   const currentMinPrice = searchParams.get("minPrice");
   const currentMaxPrice = searchParams.get("maxPrice");
-  const hasFilters = currentCategory || currentSize || currentMinPrice || currentMaxPrice;
+  const hasFilters =
+    currentCategory || currentSize || currentMinPrice || currentMaxPrice ||
+    searchParams.get("onSale") === "true" || searchParams.get("newArrival") === "true";
 
   return (
     <div className="bg-brand-cream">
@@ -180,7 +182,7 @@ export default function FilterSidebar({ categories = [], onClose }) {
       </FilterGroup>
 
       {/* On Sale / New Arrivals */}
-      <FilterGroup title="Special" defaultOpen={false}>
+      <FilterGroup title="Special" defaultOpen={searchParams.get("onSale") === "true" || searchParams.get("newArrival") === "true"}>
         <div className="space-y-2">
           {[
             { key: "onSale", label: "On Sale" },

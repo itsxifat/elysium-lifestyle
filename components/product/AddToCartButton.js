@@ -5,11 +5,13 @@ import { ShoppingBag, Minus, Plus } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import toast from "react-hot-toast";
 
-// `deal` is the selected size's live flash offer ({ price, remaining }), if any.
-export default function AddToCartButton({ product, selectedSize, selectedVariant, deal = null }) {
+// `selectedVariant.flash` is the size's live flash offer ({ sale, remaining }),
+// if any; `image` is the photo the gallery shows (the chosen colour's).
+export default function AddToCartButton({ product, selectedSize, selectedVariant, image = null }) {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
 
+  const deal = selectedVariant?.flash || null;
   const isAvailable = selectedVariant && selectedVariant.stock > 0;
   // A flash line can only hold what the deal has left — past that the whole
   // line would be charged the normal price at checkout.
@@ -36,9 +38,10 @@ export default function AddToCartButton({ product, selectedSize, selectedVariant
         skuId: selectedVariant.skuId,
         slug: product.slug,
         name: product.name,
-        image: product.images?.[0],
-        price: deal ? deal.price : selectedVariant.price,
-        regularPrice: selectedVariant.price,
+        image: image || product.images?.[0],
+        // What the shop charges now and, struck through, the ERP's regular price.
+        price: selectedVariant.price,
+        regularPrice: selectedVariant.compareAt ?? undefined,
         sku: selectedVariant.sku || "",
       },
       selectedSize,

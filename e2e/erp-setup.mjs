@@ -10,6 +10,9 @@
 //     pictures each, and one product's address changed so its old address must
 //     redirect;
 //   - a live flash sale (two sizes of one product, five units each);
+//   - a regular ("was") price on the linen shirt (M39b), a product in two
+//     colours with a photo per colour (M39b), a campaign link with a banner, a
+//     pop-up and a highlighted product (M35b), and tracking switched off (M35b);
 //   - the menu: a category entry and a highlighted link;
 //   - Website → Connection: a new website key, written to .env.e2e.local (with
 //     the older keys of the same label revoked).
@@ -24,7 +27,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { API, ORIGIN, adminSession, call } from "./erp-console.mjs";
+import { API, ORIGIN, adminSession, call, setTracking } from "./erp-console.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -187,6 +190,125 @@ async function flashSale(list) {
   });
 }
 
+// A regular ("was") price above the price (M39b, D-640): the linen shirt sells at
+// Tk 1,450 with Tk 1,800 struck through, so the cards, the product page, the bag
+// and the shop's "On Sale" filter have something to show.
+const REGULAR = { product: "linen-casual-shirt", compareAtPoisha: "180000" };
+
+async function regularPrices(list) {
+  const product = list.find((p) => p.slug === REGULAR.product);
+  if (!product) return;
+  const { body: detail } = await call("GET", `/v1/catalog/products/${product.id}`);
+  const prices = detail.skus
+    .filter((sku) => String(sku.compareAtPoisha ?? "") !== REGULAR.compareAtPoisha)
+    .map((sku) => ({ skuId: sku.id, compareAtPoisha: REGULAR.compareAtPoisha }));
+  if (prices.length) await call("PUT", "/v1/catalog/prices", { prices, reason: "e2e: a regular price" });
+}
+
+// A product in two colours, with a photo for each colour and one for every
+// colour (M39b, D-643): picking a colour on the product page switches photos.
+const COLOURED = {
+  slug: "two-tone-oxford",
+  name: "Two-Tone Oxford",
+  pricePoisha: "160000",
+  colours: [["RED", "Red"], ["BLUE", "Blue"]],
+};
+
+async function attributeWith(code, name, kind, values) {
+  const find = async () => {
+    const { body } = await call("GET", "/v1/catalog/attributes");
+    return (body.items || body).find((a) => a.code === code);
+  };
+  let attribute = await find();
+  if (!attribute) {
+    await call("POST", "/v1/catalog/attributes", { code, name, kind });
+    attribute = await find();
+  }
+  for (const [position, [valueCode, label]] of values.entries()) {
+    if (attribute.values.some((v) => v.code === valueCode)) continue;
+    await call("POST", `/v1/catalog/attributes/${attribute.id}/values`, { code: valueCode, label, position });
+  }
+  return find();
+}
+
+async function colouredProduct() {
+  const { body: listed } = await call("GET", "/v1/catalog/products?limit=100");
+  const known = (listed.items || listed).find((p) => p.slug === COLOURED.slug);
+  const colour = await attributeWith("COLOUR", "Colour", "colour", COLOURED.colours);
+  const valueId = (code) => colour.values.find((v) => v.code === code).id;
+  let productId = known?.id;
+  if (!productId) {
+    const size = await attributeWith("SIZE", "Size", "size", [["M", "M"], ["L", "L"]]);
+    const { body: categories } = await call("GET", "/v1/catalog/categories");
+    const shirts = (categories.items || categories).find((c) => c.slug === "shirts");
+    const { body: created } = await call("POST", "/v1/catalog/products", {
+      name: COLOURED.name,
+      slug: COLOURED.slug,
+      categoryId: shirts?.id ?? null,
+      status: "active",
+      pricePoisha: COLOURED.pricePoisha,
+      axes: [
+        { attributeId: size.id, valueIds: size.values.filter((v) => ["M", "L"].includes(v.code)).map((v) => v.id) },
+        { attributeId: colour.id, valueIds: ["RED", "BLUE"].map(valueId) },
+      ],
+    });
+    productId = created.id;
+  }
+
+  let { body: detail } = await call("GET", `/v1/catalog/products/${productId}`);
+  if ((detail.images || []).length === 0) {
+    const { default: sharp } = await import("sharp");
+    const shots = [
+      ["every colour", ["#3d405b", "#f4f1de"], null],
+      ["red", ["#9b2226", "#fde2e4"], "RED"],
+      ["blue", ["#1d3557", "#dbe7f3"], "BLUE"],
+    ];
+    const uploaded = [];
+    for (const [label, tones, colourCode] of shots) {
+      const png = await sharp(picture(`${COLOURED.name}, ${label}`, tones, false)).png().toBuffer();
+      const fileId = await upload(png, `${COLOURED.slug}-${label.replace(/\s+/g, "-")}`);
+      await call("POST", `/v1/catalog/products/${productId}/images`, { fileId, altText: `${COLOURED.name}, ${label}` });
+      uploaded.push({ fileId, colourCode });
+    }
+    ({ body: detail } = await call("GET", `/v1/catalog/products/${productId}`));
+    for (const { fileId, colourCode } of uploaded) {
+      if (!colourCode) continue;
+      const row = detail.images.find((img) => img.fileId === fileId);
+      await call("PUT", `/v1/catalog/products/${productId}/images/${row.id}/colour`, { colourValueId: valueId(colourCode) });
+    }
+    ({ body: detail } = await call("GET", `/v1/catalog/products/${productId}`));
+  }
+  // Which photo is which, for the spec: by the colour each one shows.
+  const photoOf = (code) => detail.images.find((img) => (img.colourValueId ?? null) === (code ? valueId(code) : null))?.fileId;
+  return { slug: COLOURED.slug, photos: { common: photoOf(null), red: photoOf("RED"), blue: photoOf("BLUE") } };
+}
+
+// A campaign link (M35b, D-551) opening on the shop, with a banner, a pop-up and
+// the polo shirt highlighted.
+const CAMPAIGN = { title: "E2E Eid post", highlight: "premium-polo-shirt" };
+
+async function campaignLink(list) {
+  const { body } = await call("GET", "/v1/storefront/campaign-links");
+  const existing = (body.items || body).find((link) => link.title === CAMPAIGN.title);
+  const highlight = list.find((p) => p.slug === CAMPAIGN.highlight);
+  const input = {
+    title: CAMPAIGN.title,
+    baseType: "shop",
+    categoryId: null,
+    customPath: "",
+    highlightProductIds: highlight ? [highlight.id] : [],
+    banner: { enabled: true, text: "E2E Eid offer: free delivery this week", bgColor: "#264653", textColor: "#FFFFFF", link: "/shop" },
+    modal: { enabled: true, type: "text", title: "Eid Mubarak", text: "Our Eid range is here.", imageFileId: null, ctaText: "Shop now", ctaLink: "/shop" },
+    isActive: true,
+  };
+  if (existing) {
+    await call("PUT", `/v1/storefront/campaign-links/${existing.id}`, input);
+    return { id: existing.id, code: existing.code, banner: input.banner.text, modal: input.modal.title };
+  }
+  const { body: created } = await call("POST", "/v1/storefront/campaign-links", input);
+  return { id: created.id, code: created.code, banner: input.banner.text, modal: input.modal.title };
+}
+
 async function siteKey() {
   const { body: keys } = await call("GET", "/v1/storefront/site-keys");
   for (const key of keys.items || keys || []) {
@@ -202,10 +324,15 @@ async function main() {
   const org = await adminSession();
   await websiteSettings();
   await emailServer();
+  const coloured = await colouredProduct();
   const list = await products();
   await productImages(list);
+  await regularPrices(list);
   await flashSale(list);
   await menu();
+  const campaign = await campaignLink(list);
+  // Tracking starts off: the spec checks that nothing loads, then switches it on.
+  await setTracking(false);
   const key = await siteKey();
 
   const env = [
@@ -220,7 +347,11 @@ async function main() {
   writeFileSync(path.join(root, ".env.e2e.local"), env, { mode: 0o600 });
   writeFileSync(
     path.join(stateDir, "erp.json"),
-    JSON.stringify({ api: API, origin: ORIGIN, orgId: org.orgId, renamed: RENAMED, products: list.map((p) => p.slug) }, null, 2),
+    JSON.stringify(
+      { api: API, origin: ORIGIN, orgId: org.orgId, renamed: RENAMED, products: list.map((p) => p.slug), regular: REGULAR, coloured, campaign },
+      null,
+      2
+    ),
     { mode: 0o600 }
   );
   console.log(`ERP ready: ${list.length} products on the website, key ${key.keyId.slice(0, 12)}…`);

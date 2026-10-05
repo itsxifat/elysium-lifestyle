@@ -32,14 +32,18 @@ export default async function OrderConfirmationPage({ params, searchParams }) {
   const awaiting = order.paymentState === "awaiting_payment";
   const cancelled = order.orderStatus === "cancelled";
   const online = order.paymentMethod === "sslcommerz";
+  // The browser's Purchase only for an order placed in the last day: the emailed
+  // link opened later (on another device, past Meta's 48-hour deduplication) must
+  // not count the sale again. The ERP's own Purchase is sent either way.
+  const placedAt = Date.parse(order.createdAt || "");
+  const recent = Number.isFinite(placedAt) && Date.now() - placedAt < 24 * 60 * 60 * 1000;
 
   return (
     <div className="bg-brand-cream min-h-screen py-16">
       {/* Client Purchase, deduplicated with the ERP's server event by `purchase_<order>`. */}
-      {!cancelled && (!online || paid) && (
+      {!cancelled && recent && (!online || paid) && (
         <PurchaseTracker
           order={{
-            id: order.orderNumber,
             orderNumber: order.orderNumber,
             value: order.totalAmount,
             currency: "BDT",

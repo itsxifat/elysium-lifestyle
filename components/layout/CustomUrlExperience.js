@@ -10,7 +10,9 @@ import { shouldUnoptimizeImage } from "@/lib/utils";
 
 // Reads the ?cu=<code> suffix and renders the campaign's top banner + pop-up
 // modal on whatever storefront page the visitor landed on. (Highlighted products
-// are rendered by the shop listing itself.)
+// are rendered by the shop listing itself.) The campaign link is the brand ERP's
+// (Website → Campaign links, D-551); each visit is counted there once per browser
+// session, the way the old site counted one per landing.
 export default function CustomUrlExperience() {
   const searchParams = useSearchParams();
   const code = searchParams.get("cu");
@@ -19,6 +21,17 @@ export default function CustomUrlExperience() {
 
   const banner = campaign?.banner;
   const modal = campaign?.modal;
+
+  // Count the visit once per session per campaign, only for a live link.
+  useEffect(() => {
+    if (!campaign?.code) return;
+    const key = `cu-view-${campaign.code}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch { /* sessionStorage may be unavailable: count this page view */ }
+    fetch(`/api/custom-url/${encodeURIComponent(campaign.code)}/views`, { method: "POST", keepalive: true }).catch(() => {});
+  }, [campaign?.code]);
 
   // Show the modal once per browser session per campaign.
   useEffect(() => {
@@ -35,6 +48,7 @@ export default function CustomUrlExperience() {
 
   const bannerInner = banner?.text ? (
     <div
+      data-testid="campaign-banner"
       className="text-center text-[12px] md:text-[13px] font-medium px-4 py-2.5"
       style={{ background: banner.bgColor || "#B85C3A", color: banner.textColor || "#FFFFFF" }}
     >
@@ -44,17 +58,22 @@ export default function CustomUrlExperience() {
 
   return (
     <>
-      {/* Top offer banner */}
+      {/* Top offer banner, below the fixed header however tall it is. */}
       {bannerInner && (
-        banner.link
-          ? <Link href={banner.link} className="block hover:opacity-95 transition-opacity">{bannerInner}</Link>
-          : bannerInner
+        <div style={{ marginTop: "var(--site-header-overlap, 0px)" }}>
+          {banner.link
+            ? <Link href={banner.link} className="block hover:opacity-95 transition-opacity">{bannerInner}</Link>
+            : bannerInner}
+        </div>
       )}
 
       {/* Pop-up modal */}
       {showModal && modal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-brand-brown/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowModal(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={modal.title || campaign.title || "Offer"}
             className="relative bg-brand-cream w-full max-w-md rounded-lg shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >

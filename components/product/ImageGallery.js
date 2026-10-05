@@ -252,6 +252,7 @@ export default function ImageGallery({ images = [], name }) {
       >
         {src ? (
           <Image
+            data-testid="gallery-main"
             src={src}
             alt={name}
             fill

@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
-import { shouldUnoptimizeImage } from "@/lib/utils";
+import { formatPrice, shouldUnoptimizeImage } from "@/lib/utils";
+import WasPrice from "@/components/ui/WasPrice";
 import { track } from "@/lib/tracking/client";
 
 // ─── Desktop nav item ─────────────────────────────────────────────────────────
@@ -214,14 +215,24 @@ function SearchResults({ query, results, loading, onClose }) {
               onClick={onClose}
               className="flex items-center gap-3 px-4 py-3 hover:bg-brand-cream transition-colors border-b border-brand-tan/5 last:border-0"
             >
-              <div className="w-10 h-10 bg-brand-tan/10 flex-shrink-0 overflow-hidden">
-                {product.image
-                  ? <img src={product.image} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full" />}
+              <div className="relative w-10 h-10 bg-brand-tan/10 flex-shrink-0 overflow-hidden">
+                {product.image && (
+                  <Image
+                    src={product.image}
+                    alt=""
+                    fill
+                    sizes="40px"
+                    unoptimized={shouldUnoptimizeImage(product.image)}
+                    className="object-cover"
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium text-brand-brown truncate">{product.name}</p>
-                <p className="text-[11px] text-brand-tan mt-0.5">Tk {product.price.toLocaleString()}</p>
+                <p className="text-[11px] mt-0.5 flex items-baseline gap-1.5">
+                  <span className={`tabular-nums ${product.compareAt ? "text-brand-terracotta font-medium" : "text-brand-tan"}`}>{formatPrice(product.price)}</span>
+                  <WasPrice amount={product.compareAt} className="text-[10px]" />
+                </p>
               </div>
             </Link>
           ))}
@@ -283,6 +294,28 @@ export default function Navbar() {
     }, 300);
     return () => clearTimeout(searchTimer.current);
   }, [searchQuery]);
+
+  // The fixed header grows with the announcement bar, but the pages' top padding
+  // is fixed: publish how far the header reaches over the page, so content that
+  // must start the page in full (a campaign link's banner) can sit below it.
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    const publish = () => {
+      const main = document.querySelector("main");
+      const padding = main ? parseFloat(getComputedStyle(main).paddingTop) || 0 : 0;
+      const overlap = Math.max(0, Math.ceil(header.getBoundingClientRect().height - padding));
+      document.documentElement.style.setProperty("--site-header-overlap", `${overlap}px`);
+    };
+    publish();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(publish) : null;
+    observer?.observe(header);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", publish);
+    };
+  }, [pathname]);
 
   // Focus search input when opened
   useEffect(() => {

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { getSite, homeProducts, getCategoryTree, flattenCategories, getFlashSales } from "@/lib/storefront";
 import HeroSlider from "@/components/home/HeroSlider";
 import CategoryGrid from "@/components/home/CategoryGrid";
@@ -14,6 +15,7 @@ import Footer from "@/components/layout/Footer";
 import CartDrawer from "@/components/layout/CartDrawer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import TrackingBootstrap from "@/components/tracking/TrackingBootstrap";
+import CustomUrlExperience from "@/components/layout/CustomUrlExperience";
 
 async function getHomeData() {
   const [site, products, tree, flash] = await Promise.all([
@@ -48,6 +50,10 @@ export default async function HomePage() {
       <TrackingBootstrap />
       <Navbar />
       <main className="pt-[100px] lg:pt-[146px]">
+        {/* A campaign link may open on the home page (`/?cu=<code>`, a custom path). */}
+        <Suspense fallback={null}>
+          <CustomUrlExperience />
+        </Suspense>
         <HeroSlider slides={heroSlides} />
         <FlashSaleSection sales={flashSales} />
         <CategoryGrid categories={categories} />

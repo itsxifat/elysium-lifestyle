@@ -8,6 +8,7 @@ import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
 import { formatPrice, shouldUnoptimizeImage, PLACEHOLDER_IMAGE } from "@/lib/utils";
+import WasPrice from "@/components/ui/WasPrice";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, subtotal, syncWithServer, mounted } = useCart();
@@ -121,9 +122,9 @@ export default function CartPage() {
                       <div className="flex items-center gap-4">
                         <span className="flex items-baseline gap-2">
                           {item.regularPrice > item.price && (
-                            <span className="text-[12px] text-brand-tan line-through">{formatPrice(item.regularPrice * item.quantity)}</span>
+                            <WasPrice amount={item.regularPrice * item.quantity} className="text-[12px]" />
                           )}
-                          <span className={`font-medium text-[14px] ${item.regularPrice > item.price ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
+                          <span className={`font-medium text-[14px] tabular-nums ${item.regularPrice > item.price ? "text-brand-terracotta" : "text-brand-brown"}`}>{formatPrice(item.price * item.quantity)}</span>
                         </span>
                         <button className="text-brand-tan/50 hover:text-red-500 transition-colors" onClick={() => removeItem(item.productId, item.size)}>
                           <Trash2 size={14} />

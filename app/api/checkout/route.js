@@ -8,6 +8,7 @@ import { getShopper } from "@/lib/session";
 import { clientOf } from "@/lib/shopper";
 import { rememberOrderToken } from "@/lib/order-token";
 import { normalizeBdPhone } from "@/lib/utils";
+import { purchaseTrackingOf } from "@/lib/tracking/forward";
 
 // Place the order in the brand ERP (POST /storefront/v1/checkout, D-521).
 //
@@ -73,6 +74,10 @@ export async function POST(request) {
   if (shopper) order.accountId = shopper.accountId;
   const client = clientOf(request);
   if (client) order.client = client;
+  // What only the browser knows (Meta's _fbp/_fbc, GA4's ids, the page), so the
+  // ERP's own Purchase carries them (M35b, D-552); left out when tracking is off.
+  const tracking = purchaseTrackingOf(body?.tracking);
+  if (tracking) order.tracking = tracking;
 
   try {
     const { body: answer, replayed } = await erpPost(erpPath("/checkout"), order, { idempotencyKey, timeoutMs: 15_000 });

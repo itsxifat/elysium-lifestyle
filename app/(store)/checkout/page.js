@@ -7,12 +7,13 @@ import { useSession } from "next-auth/react";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
 import { formatPrice, formatMoney, shouldUnoptimizeImage, PLACEHOLDER_IMAGE, normalizeBdPhone } from "@/lib/utils";
+import WasPrice from "@/components/ui/WasPrice";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import Input from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
 import AreaPicker from "@/components/checkout/AreaPicker";
-import { track } from "@/lib/tracking/client";
+import { track, checkoutTracking } from "@/lib/tracking/client";
 
 // The checkout. Every figure on it is the brand ERP's quote for this cart,
 // address and codes (POST /api/cart/quote); "Place order" sends that quote's
@@ -66,6 +67,9 @@ export default function CheckoutPage() {
   const [repriced, setRepriced] = useState(false);
   const [saved, setSaved] = useState([]);
   const pressKey = useRef(null);
+  // The browser's half of the Purchase the ERP sends, fixed per press like its key,
+  // so a retried press sends the same body (nothing while tracking is off).
+  const pressTracking = useRef(undefined);
 
   useEffect(() => {
     if (paymentOptions.length && !paymentOptions.some((o) => o.value === paymentMethod)) {
@@ -219,7 +223,11 @@ export default function CheckoutPage() {
 
     setPlacing(true);
     // One key per press; a press retried after a dropped connection reuses it.
-    if (!pressKey.current) pressKey.current = newKey();
+    if (!pressKey.current) {
+      pressKey.current = newKey();
+      pressTracking.current = await checkoutTracking().catch(() => undefined);
+    }
+    const tracking = pressTracking.current;
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -236,6 +244,7 @@ export default function CheckoutPage() {
             totalPoisha: quote.total.poisha,
             lines: quote.lines.map((l) => ({ skuId: l.skuId, unitPricePoisha: l.unitPrice.poisha })),
           },
+          tracking,
         }),
       });
       const result = await res.json().catch(() => ({}));
@@ -491,9 +500,7 @@ export default function CheckoutPage() {
                         {item.sku && <p className="text-[10px] text-brand-tan/80">SKU: {item.sku}</p>}
                         <p className="text-xs font-semibold text-brand-brown mt-1">
                           {formatPrice(lineTotal)}
-                          {shelf > lineTotal && (
-                            <span className="ml-1.5 font-normal text-brand-tan line-through">{formatPrice(shelf)}</span>
-                          )}
+                          {shelf > lineTotal && <WasPrice amount={shelf} className="ml-1.5 font-normal" />}
                         </p>
                       </div>
                     </div>

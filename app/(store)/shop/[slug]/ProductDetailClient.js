@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   ChevronRight, ChevronDown, X,
@@ -8,12 +8,14 @@ import {
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import ImageGallery from "@/components/product/ImageGallery";
-import VariantSelector from "@/components/product/VariantSelector";
+import VariantSelector, { ColourSelector } from "@/components/product/VariantSelector";
 import AddToCartButton from "@/components/product/AddToCartButton";
 import ProductCard from "@/components/shop/ProductCard";
 import { CountdownText } from "@/components/flash/Countdown";
 import { track } from "@/lib/tracking/client";
 import { useSettings } from "@/context/SettingsContext";
+import WasPrice from "@/components/ui/WasPrice";
+import { coloursOf, galleryFor, priceSummary } from "@/lib/storefront-map";
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -92,23 +94,41 @@ export default function ProductDetailClient({ product, related = [], categoryPat
   const [selectedSize, setSelectedSize] = useState("");
   const [showSizeChart, setShowSizeChart] = useState(false);
 
-  const selectedVariant = product.variants?.find((v) => v.size === selectedSize);
-  const minPrice = product.variants?.length
-    ? Math.min(...product.variants.map((v) => v.price))
-    : 0;
-  const maxPrice = product.variants?.length
-    ? Math.max(...product.variants.map((v) => v.price))
-    : 0;
-  const hasPriceRange = minPrice !== maxPrice;
-  const displayPrice = selectedVariant ? selectedVariant.price : minPrice;
+  const variants = useMemo(() => product.variants || [], [product.variants]);
+  // A product in more than one colour (and sizes) gets a colour picker: it shows
+  // that colour's sizes and switches the gallery to that colour's photos (the
+  // ERP's photos by colour, D-643). It starts on the first colour in stock.
+  const colours = useMemo(() => coloursOf(product), [product]);
+  const pickColour = colours.length > 1 && variants.some((v) => v.sizeOnly);
+  const [colour, setColour] = useState(() =>
+    pickColour ? (variants.find((v) => v.colour && v.stock > 0)?.colour || colours[0]) : null
+  );
+  const shownVariants = pickColour ? variants.filter((v) => v.colour === colour) : variants;
+  const labelOf = (v) => (pickColour ? v.sizeOnly || v.size : v.size);
 
-  // Live flash sale on this product (lib/storefront.js → getProduct, from the
-  // ERP's flash sales): per-size prices, and the campaign it comes from. The
+  const selectedVariant = variants.find((v) => v.size === selectedSize);
+  // Colours without sizes are picked as the "sizes" themselves; one colour never switches.
+  const galleryColour = pickColour ? colour : colours.length > 1 ? selectedVariant?.colour || null : null;
+  const gallery = useMemo(() => galleryFor(product, galleryColour), [product, galleryColour]);
+
+  const changeColour = (next) => {
+    setColour(next);
+    // Keep the chosen size in the new colour when it comes in it.
+    const same = selectedVariant && variants.find((v) => v.colour === next && v.sizeOnly === selectedVariant.sizeOnly && v.stock > 0);
+    setSelectedSize(same ? same.size : "");
+  };
+
+  // What a shopper pays now (a live flash price included) and the regular price
+  // struck through, both the ERP's (M39b, D-640); for the chosen colour's sizes.
+  const summary = priceSummary(shownVariants);
+  const minPrice = summary.min;
+  const hasPriceRange = summary.min !== summary.max;
+
+  // A live flash sale on this product: the strip names the sale the selected
+  // size is priced from (sizes can come from different sales), else any. The
   // ERP's quote at checkout has the final word.
   const flash = product.flash || null;
-  const deal = selectedVariant ? flash?.sizes?.[selectedVariant.size] || null : null;
-  // Sizes can come from different campaigns; the strip follows the one the
-  // selected size is priced from.
+  const deal = selectedVariant?.flash || null;
   const flashSale = deal?.sale || flash?.sale || null;
 
   const productId = product._id || product.id;
@@ -158,7 +178,8 @@ export default function ProductDetailClient({ product, related = [], categoryPat
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-8 lg:gap-14 lg:items-start">
 
           {/* Left — gallery */}
-          <ImageGallery images={product.images} name={product.name} />
+          {/* A new gallery per colour: it opens on the colour's first photo. */}
+          <ImageGallery key={galleryColour || "all"} images={gallery} name={product.name} />
 
           {/* Right — info (sticky on desktop) */}
           <div className="lg:sticky lg:top-[165px] space-y-5">
@@ -211,44 +232,46 @@ export default function ProductDetailClient({ product, related = [], categoryPat
             )}
 
             {/* Price */}
-            <div className="flex items-baseline gap-3 flex-wrap">
-              {deal ? (
+            <div className="flex items-baseline gap-3 flex-wrap" data-testid="product-price">
+              {selectedVariant ? (
                 <>
-                  <span className="text-2xl font-semibold text-brand-terracotta tracking-tight">{formatPrice(deal.price)}</span>
-                  <span className="text-base text-brand-tan line-through">{formatPrice(selectedVariant.price)}</span>
-                  <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">-{deal.discount}%</span>
-                </>
-              ) : flash && !selectedVariant ? (
-                <>
-                  <span className="text-2xl font-semibold text-brand-terracotta tracking-tight">
-                    {Object.keys(flash.sizes).length < (product.variants?.length || 0) || hasPriceRange ? "From " : ""}
-                    {formatPrice(flash.price)}
+                  <span className={`text-2xl font-semibold tracking-tight tabular-nums ${selectedVariant.compareAt ? "text-brand-terracotta" : "text-brand-brown"}`}>
+                    {formatPrice(selectedVariant.price)}
                   </span>
-                  <span className="text-base text-brand-tan line-through">{formatPrice(flash.regularPrice)}</span>
-                  {flash.discount > 0 && (
-                    <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">Up to {flash.discount}% off</span>
+                  <WasPrice amount={selectedVariant.compareAt} className="text-base" />
+                  {selectedVariant.discount > 0 && (
+                    <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">-{selectedVariant.discount}%</span>
                   )}
+                </>
+              ) : summary.maxDiscount > 0 ? (
+                <>
+                  <span className="text-2xl font-semibold text-brand-terracotta tracking-tight tabular-nums">
+                    {hasPriceRange ? "From " : ""}
+                    {formatPrice(minPrice)}
+                  </span>
+                  <WasPrice amount={summary.compareAt} className="text-base" />
+                  <span className="text-[11px] font-bold text-white bg-brand-terracotta px-2 py-0.5">
+                    {hasPriceRange || summary.maxDiscount !== summary.discount ? `Up to ${summary.maxDiscount}% off` : `-${summary.discount}%`}
+                  </span>
                 </>
               ) : (
                 <>
-                  <span className="text-2xl font-semibold text-brand-brown tracking-tight">
-                    {hasPriceRange && !selectedVariant
-                      ? `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
-                      : formatPrice(displayPrice)}
+                  <span className="text-2xl font-semibold text-brand-brown tracking-tight tabular-nums">
+                    {hasPriceRange ? `${formatPrice(summary.min)} – ${formatPrice(summary.max)}` : formatPrice(minPrice)}
                   </span>
-                  {hasPriceRange && !selectedVariant && (
+                  {hasPriceRange && (
                     <span className="text-[10px] text-brand-tan uppercase tracking-wider">varies by size</span>
                   )}
                 </>
               )}
             </div>
-            {deal && Math.min(deal.remaining, selectedVariant.stock) <= 10 && (
+            {deal && deal.remaining <= 10 && (
               <p className="text-[12px] text-brand-terracotta font-medium -mt-2">
-                Only {Math.min(deal.remaining, selectedVariant.stock)} left at this price
+                Only {deal.remaining} left at this price
               </p>
             )}
             {flash && selectedVariant && !deal && (
-              <p className="text-[11px] text-brand-tan -mt-2">Size {selectedVariant.size} isn&apos;t part of the flash sale.</p>
+              <p className="text-[11px] text-brand-tan -mt-2">Size {labelOf(selectedVariant)} isn&apos;t part of the flash sale.</p>
             )}
 
             {selectedVariant?.sku && (
@@ -260,13 +283,16 @@ export default function ProductDetailClient({ product, related = [], categoryPat
             <div className="h-px bg-brand-tan/15" />
 
             {/* Variants */}
+            {pickColour && (
+              <ColourSelector colours={colours} selected={colour} onChange={changeColour} variants={variants} />
+            )}
             <VariantSelector
-              variants={product.variants}
+              variants={shownVariants}
               selectedSize={selectedSize}
               onSizeChange={setSelectedSize}
               hasSizeChart={!!product.sizeChart}
               onSizeGuideClick={() => setShowSizeChart(true)}
-              flashSizes={flash?.sizes}
+              labelOf={labelOf}
             />
 
             {/* Add to cart */}
@@ -274,7 +300,7 @@ export default function ProductDetailClient({ product, related = [], categoryPat
               product={product}
               selectedSize={selectedSize}
               selectedVariant={selectedVariant}
-              deal={deal}
+              image={gallery[0]}
             />
 
             {/* WhatsApp enquiry */}
