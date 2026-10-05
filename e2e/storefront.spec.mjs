@@ -271,3 +271,16 @@ test("an unknown product is not found", async ({ page }) => {
   const res = await page.goto("/shop/no-such-product-anywhere");
   expect(res.status()).toBe(404);
 });
+
+test("an SSLCommerz return is relayed to the ERP, never believed here", async ({ request }) => {
+  // A gateway return naming a transaction the ERP never opened: the ERP refuses
+  // it, nothing changes, and the shopper is sent back to the checkout.
+  for (const kind of ["success", "fail", "cancel"]) {
+    const res = await request.post(`/api/payment/sslcommerz/${kind}`, {
+      form: { tran_id: `NOPE${RUN}`.slice(0, 30), val_id: "fake-val", status: "VALID" },
+      maxRedirects: 0,
+    });
+    expect(res.status()).toBe(303);
+    expect(res.headers().location).toMatch(/\/checkout\?error=payment_failed$/);
+  }
+});

@@ -106,7 +106,12 @@ export default function AreaPicker({ value, onChange, errors = {}, className, id
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        {errors.thanaId && <p className="mt-1 text-xs text-red-500">{errors.thanaId}</p>}
+        {errors.thanaId ? (
+          <p className="mt-1 text-xs text-red-500">{errors.thanaId}</p>
+        ) : (
+          // The courier lists name upazilas, not city neighbourhoods.
+          <p className="mt-1 text-[11px] text-brand-tan">In a city? Choose the nearest one and write your area below.</p>
+        )}
       </div>
     </div>
   );

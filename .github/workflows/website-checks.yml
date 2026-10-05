@@ -1,0 +1,30 @@
+name: Website checks
+
+# The headless website's gate: no database and no admin panel (M36 check 4),
+# lint, and a production build. The end-to-end journeys need a running brand
+# ERP and are run against a local preview (README → End-to-end tests).
+
+on:
+  pull_request:
+  push:
+    branches: [main, erp-storefront]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check:no-database
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://demo.elysium-lifestyle.bd
+          ERP_MEDIA_ORIGINS: https://erp.elysium-lifestyle.bd
