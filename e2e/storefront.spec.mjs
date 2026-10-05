@@ -115,7 +115,7 @@ test("/admin and everything under it go to the ERP's console", async ({ request 
   }
 });
 
-test("checkout, cash on delivery: a website order in the ERP, holding its stock", async ({ page, request }) => {
+test("checkout, cash on delivery: a website order in the ERP, holding its stock", async ({ page, request, browser }) => {
   const before = await stockOf(request, PRODUCT, "M");
   await addToBag(page, PRODUCT, "M");
   await page.goto("/cart");
@@ -156,7 +156,17 @@ test("checkout, cash on delivery: a website order in the ERP, holding its stock"
 
   // The shop's "order placed" email carries the order's own link.
   const mail = await mailTo(request, `guest.${RUN}@example.test`, new RegExp(orderNo));
-  expect(mail.text).toMatch(new RegExp(`/order-confirmation/${orderNo}\\?token=[A-Za-z0-9_-]{43}`));
+  const link = mail.text.match(new RegExp(`/order-confirmation/${orderNo}\\?token=([A-Za-z0-9_-]{43})`));
+  expect(link, "the order link in the email").toBeTruthy();
+
+  // Opened on another device: the token moves into that browser's cookie and the
+  // address bar shows the clean order address (no token for history or trackers).
+  const other = await browser.newContext({ extraHTTPHeaders: { "X-Real-IP": "198.51.100.254" } });
+  const phone = await other.newPage();
+  await phone.goto(`/order-confirmation/${orderNo}?token=${link[1]}`);
+  await expect(phone).toHaveURL(new RegExp(`/order-confirmation/${orderNo}$`));
+  await expect(phone.getByTestId("order-number")).toHaveText(orderNo);
+  await other.close();
 });
 
 test("sign up: the emailed code verifies the account", async ({ page, request }) => {
@@ -282,5 +292,19 @@ test("an SSLCommerz return is relayed to the ERP, never believed here", async ({
     });
     expect(res.status()).toBe(303);
     expect(res.headers().location).toMatch(/\/checkout\?error=payment_failed$/);
+  }
+});
+
+test("sign-in never sends a shopper to another site", async ({ page }) => {
+  const site = new URL(test.info().project.use.baseURL).host;
+  for (const asked of ["https://evil.example/", "//evil.example", "/\t/evil.example", "/%09/evil.example", "/\\evil.example"]) {
+    await page.goto(`/auth/login?callbackUrl=${encodeURIComponent(asked)}`);
+    await page.locator('input[name="email"]').fill(shopper.email);
+    await page.locator('input[name="password"]').fill(shopper.newPassword);
+    await page.getByRole("button", { name: "Sign In" }).click();
+    // Signed in and still on this site (an odd path may be a 404 here, never another host).
+    await expect(page).not.toHaveURL(/\/auth\/login/);
+    expect(new URL(page.url()).host).toBe(site);
+    await page.context().clearCookies();
   }
 });

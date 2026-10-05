@@ -72,7 +72,9 @@ Scripts: `npm run build`, `npm run lint`, `npm test` (the ERP client: signatures
 pictures from the ERP's `/media/`, a flash sale (home teaser, hub, sale page, sale price in
 the quote), a cash-on-delivery checkout that becomes a **website** order holding its stock in
 the ERP (checked through the ERP's console API), sign up with the emailed code, sign in,
-checkout as the account and its order history, forgot and reset password, an old product
+checkout as the account and its order history, forgot and reset password, the emailed order
+link opened on another device (the token moves into a cookie, the address bar stays clean), an
+SSLCommerz return the ERP refuses, sign-in refusing to send anyone off the site, an old product
 address redirecting, and `/admin` going to the ERP.
 
 The ERP sends email only over TLS, so the run brings a small SMTP sink (`e2e/mail-sink.mjs`)

@@ -239,8 +239,11 @@ export default function CheckoutPage() {
         }),
       });
       const result = await res.json().catch(() => ({}));
-      // A definitive answer (placed or refused) ends this press.
-      pressKey.current = null;
+      // Only a definitive answer ends this press: placed (2xx) or refused (4xx).
+      // A gateway timeout, a 5xx or "still being placed" may mean the order went
+      // in, so the next press reuses the key and gets that same order back.
+      const definitive = res.ok || (res.status >= 400 && res.status < 500 && result.code !== "IDEMPOTENCY_IN_FLIGHT");
+      if (definitive) pressKey.current = null;
 
       if (!res.ok) {
         if (result.code === "CART_REPRICED" && result.quote) {

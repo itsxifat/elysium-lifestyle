@@ -71,6 +71,28 @@ export function middleware(request) {
     return NextResponse.redirect(`${ERP_ADMIN_URL}/`, 308);
   }
 
+  // An order link from an email carries its view token in `?token=`. Keep it for
+  // this browser in the same HttpOnly cookie the checkout sets (lib/order-token.js)
+  // and continue on the clean address, so the token never sits in the address
+  // bar, the history, a Referer, or the URL a tracking event reports.
+  const linked = /^\/order-confirmation\/([A-Za-z0-9-]{3,40})$/.exec(pathname);
+  const token = request.nextUrl.searchParams.get("token");
+  if (linked && token !== null) {
+    const clean = request.nextUrl.clone();
+    clean.searchParams.delete("token");
+    const response = NextResponse.redirect(clean, 303);
+    if (/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      response.cookies.set(`ely_ot_${linked[1].toUpperCase()}`, token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: !isDev,
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60,
+      });
+    }
+    return response;
+  }
+
   const isApi = pathname.startsWith("/api");
   if (isApi) return NextResponse.next();
 

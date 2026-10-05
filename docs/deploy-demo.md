@@ -133,6 +133,11 @@ sudo docker compose -f deploy/compose.demo.yml --env-file /etc/elysium-web/demo.
 sudo docker compose -f deploy/compose.demo.yml --env-file /etc/elysium-web/demo.env logs -f --tail=200
 ```
 
+nginx limits each visitor address on `/api/` (30 a second, bursts of 100) and on the sign-in,
+sign-up, code and reset routes (60 a minute, bursts of 30), generous because mobile carriers put
+many shoppers behind one address; the ERP counts each shopper too (D-534). A 429 from nginx in
+the logs is that limit.
+
 The logs never carry a shopper's email, phone, password or an order's view token: the ERP
 client logs a method, a path without its query, and the ERP's error code.
 

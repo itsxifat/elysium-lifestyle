@@ -9,8 +9,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_DIRS = ["app", "components", "context", "hooks", "lib", "middleware.js", "next.config.mjs", "package.json"];
-const SKIP = new Set(["node_modules", ".next", ".git"]);
+const SOURCE_DIRS = ["app", "components", "context", "hooks", "lib", "scripts", "e2e", "tests", "scanner-app/www", "middleware.js", "next.config.mjs", "package.json"];
+// This file names the forbidden patterns, so it would match itself.
+const SELF = path.join("scripts", "check-no-database.mjs");
+const SKIP = new Set(["node_modules", ".next", ".git", ".state", ".results", ".report", ".mail-sink"]);
 
 // A database driver, ODM or connection string, anywhere in the website's code.
 const FORBIDDEN = [
@@ -39,7 +41,7 @@ function walk(target, out = []) {
 
 const problems = [];
 for (const file of SOURCE_DIRS.flatMap((dir) => walk(dir))) {
-  if (!/\.(m?js|jsx|ts|tsx|json)$/.test(file)) continue;
+  if (!/\.(m?js|jsx|ts|tsx|json)$/.test(file) || file === SELF) continue;
   const text = readFileSync(path.join(root, file), "utf8");
   for (const { re, why } of FORBIDDEN) {
     if (re.test(text)) problems.push(`${file}: ${why}`);

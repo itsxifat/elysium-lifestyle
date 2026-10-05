@@ -31,12 +31,24 @@ const GoogleIcon = () => (
   </svg>
 );
 
+// Resolve the asked-for address the way the browser will, and keep it only if
+// it stays on this origin (`/\t/evil.example`, `//evil`, `/\evil` all leave it).
+function sameSitePath(asked) {
+  if (!asked || typeof window === "undefined") return "/";
+  try {
+    const url = new URL(asked, window.location.origin);
+    if (url.origin !== window.location.origin) return "/";
+    return `${url.pathname}${url.search}${url.hash}` || "/";
+  } catch {
+    return "/";
+  }
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Only a path on this site: a sign-in link must not send a shopper elsewhere.
-  const asked = searchParams.get("callbackUrl") || "/";
-  const callbackUrl = asked.startsWith("/") && !asked.startsWith("//") && !asked.startsWith("/\\") ? asked : "/";
+  const callbackUrl = sameSitePath(searchParams.get("callbackUrl"));
   const verified = searchParams.get("verified");
   const failed = searchParams.get("error");
   const { settings } = useSettings();

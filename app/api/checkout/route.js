@@ -75,7 +75,7 @@ export async function POST(request) {
   if (client) order.client = client;
 
   try {
-    const { body: answer, replayed } = await erpPost(erpPath("/checkout"), order, { idempotencyKey });
+    const { body: answer, replayed } = await erpPost(erpPath("/checkout"), order, { idempotencyKey, timeoutMs: 15_000 });
     // The view token stays out of the page: it is kept in an HttpOnly cookie
     // for this order, which the confirmation page and the payment step read.
     const { viewToken, ...placed } = answer.order;
