@@ -1,169 +1,96 @@
-# First-Party Server-Side Tracking
+# Tracking: the Meta pixel, Conversions API and GA4
 
-> **Changed in M36 (2026-10-05): tracking moves to the brand ERP.** The website has no
-> database and no `/admin/tracking`: the Meta pixel / Conversions API and GA4 settings,
-> the server-side dispatch and the event log move to the ERP's **Website → Tracking**
-> (M35b). What stays on the website: the browser helper (`lib/tracking/client.js`), the
-> first-party proxy paths (`docs/nginx-tracking.conf`, an include in
-> `deploy/nginx/demo.elysium-lifestyle.bd.conf`), `GET /api/tracking/config` (now read
-> from the ERP's `/storefront/v1/tracking/config`) and `POST /api/events` (forwarded to
-> the ERP's `/storefront/v1/events` with the shopper's address). Until M35b ships those
-> routes, tracking is off and events are dropped quietly. The rest of this page describes
-> the old in-website implementation, kept as the reference M35b ports from.
-
-
-Unblockable, first-party event tracking to **Meta Conversions API** and **GA4
-Measurement Protocol**, with a browser pixel/gtag layer for deduplicated
-client+server coverage. All config and logs live in MongoDB and are managed at
-**`/admin/tracking`** — no env files, no GTM, no third-party services.
-
-## Architecture
+Tracking is run by the brand ERP's **Website → Tracking** (M35b, D-552). The website has no
+tracking settings, no secrets and no event log of its own: it loads the browser's pixel and
+gtag from its own domain, fires events with an event id, and forwards the same events to the
+ERP, which sends them again from its server under the same id. The ERP's API is described in
+its repository's `docs/storefront-api.md` → Tracking.
 
 ```
-Browser  ──fbq/gtag (proxied via Nginx) ─────────────►  Meta /tr , GA /g/collect
-   │  lib/tracking/client.js  (same event_id)
-   └──POST /api/events ──► dispatchEvent() ─┬─► Meta CAPI (graph.facebook.com)
-                                            └─► GA4 MP   (google-analytics.com/mp)
-Server (order success, etc.)
-   └── trackServerEvent() ──► dispatchEvent() ──► (same two APIs)  ← unblockable
-                                            └─► TrackingEvent log (Mongo) → admin
+browser ── fbq / gtag, loaded from /e1/s.js and /e2/s.js ─► nginx ─► connect.facebook.net,
+   │        (hits to /e1/t and /e2/g/collect)                       googletagmanager.com, GA
+   │  lib/tracking/client.js: the same event id for both
+   └── POST /api/events (batches of 1–20) ─► this site's server ─► ERP POST /storefront/v1/events
+                                                                     │ logged, then sent by its
+checkout ─ POST /api/checkout { tracking } ─► ERP POST /checkout     │ worker: Conversions API,
+                                               └─ Purchase, id       │ Measurement Protocol
+                                                  purchase_<orderNo> ┘
 ```
 
-- **Dedup:** browser and server send the **same `event_id`**; Meta merges them.
-- **Match data:** PII (email, phone, name, city…) is SHA-256 hashed per Meta
-  spec before sending; `fbp`/`fbc`/IP/UA are passed through. See
-  [lib/tracking/hash.js](lib/tracking/hash.js).
-- **Resilience:** one platform failing never blocks the other; failed sends are
-  logged and **retried** (auto once, plus a manual retry button in the admin).
+## What the website does
 
-## 1. Turn it on (admin)
+- `GET /api/tracking/config` reads the ERP's `GET /storefront/v1/tracking/config` (cached 30
+  seconds) and answers the browser: the pixel id, the GA4 measurement id, this site's proxy
+  paths and which events fire in the browser. No secret is in it.
+- **Off unless the ERP turns it on.** When the ERP has the pixel and gtag both off (or cannot
+  be read), the browser loads no script, sets no cookie and sends no event.
+- When on, `lib/tracking/client.js` writes Meta's `_fbp` (and `_fbc` from an ad's `fbclid`),
+  loads the pixel from `metaScriptPath` and gtag from `ga4ScriptPath` with
+  `transport_url = <site> + ga4CollectPath`, and fires PageView on every page,
+  ViewContent on a product, AddToCart, InitiateCheckout and Search. An event the ERP's routing
+  switches off is not fired; one marked browser-off is only forwarded.
+- Each event is queued with its event id and sent to `/api/events` in batches of up to twenty
+  (every 1.5 seconds, and when the page is hidden or left). The site's server reduces each one
+  to the fields the ERP accepts (`lib/tracking/forward.js`: an https page only, known user
+  fields, small custom data), adds the shopper's own address and browser as `client`, and
+  forwards them. **Purchase is never forwarded**: it is the ERP's own.
+- At checkout the browser's half of the Purchase goes with the order as `tracking` (`fbp`,
+  `fbc`, the page, GA4's client and session ids). The ERP sends Purchase as
+  `purchase_<orderNo>` when a cash-on-delivery order is placed, or when an online payment is
+  booked; the confirmation page fires the browser's pixel and gtag with that same id (once per
+  order in a browser, and only within a day of the order, so an emailed link opened later does
+  not count it again), so Meta counts the order once and GA4 deduplicates on the transaction
+  id.
+- Meta's `_fbp`/`_fbc` cookies are written only while the Meta pixel is on (not for GA4 alone).
+  A batch stays under 48 KB (the ERP and a keepalive request take 64 KiB).
 
-1. Go to **`/admin/tracking` → Configuration**.
-2. Meta: paste **Pixel ID** + **CAPI access token** (Events Manager → Settings →
-   Conversions API). Toggle **Browser Pixel** and **Conversions API** on.
-3. GA4: paste **Measurement ID** (`G-…`) + **API Secret** (Admin → Data Streams
-   → Measurement Protocol API secrets). Toggle **gtag.js** and **Measurement
-   Protocol** on.
-4. Set per-event routing in the matrix (e.g. AddToCart client-only).
-5. **Save.** Changes take effect within ~30 s (config is cached briefly).
+## Switching it on (for the brand)
 
-Secrets are stored in Mongo and shown masked (`••••••••`); re-saving without
-changing them keeps the stored value.
+1. **nginx**: install the proxy paths once (they must exist before the pixel is switched on,
+   or the browser loads nothing):
 
-## 2. Server events (the unblockable signal)
+   ```sh
+   sudo cp docs/nginx-tracking.conf /etc/nginx/snippets/elysium-tracking-proxy.conf
+   # uncomment `include /etc/nginx/snippets/elysium-tracking-proxy.conf;` in the site file
+   sudo nginx -t && sudo systemctl reload nginx
+   curl -sI https://<site>/e1/s.js | head -1     # 200
+   ```
 
-Purchase is **already wired** into both completion paths:
+   The file serves the ERP's default proxy paths: `/e1/s.js` (the pixel script), `/e1/t` (its
+   hits), `/e2/s.js` (gtag) and `/e2` (gtag's `transport_url`; its hits arrive at
+   `/e2/g/collect`). The website loads the scripts from the paths the ERP names, but the
+   pixel's hit path is fixed by the file's `sub_filter` lines: if you change any path on
+   Website → Tracking → proxy paths, change the file (locations and `sub_filter`) to match.
 
-- COD — [app/api/orders/route.js](app/api/orders/route.js)
-- SSLCommerz — [app/api/payment/sslcommerz/success/route.js](app/api/payment/sslcommerz/success/route.js)
+2. **The ERP** (org admin for the ids and secrets, marketing for the rest), Website →
+   Tracking:
+   - Meta: the pixel id, **Browser pixel** on; for the server side the Conversions API access
+     token (Events Manager → Settings) and **Conversions API** on.
+   - GA4: the measurement id (`G-…`), **gtag** on; for the server side the Measurement
+     Protocol API secret and **Measurement Protocol** on.
+   - Which events go where (browser, server, Meta, GA4), test mode and the test event code.
+   - The ERP needs `STOREFRONT_CREDENTIALS_KEY` to keep the token and secret, and sends to Meta
+     and Google only with `STOREFRONT_TRACKING_PROVIDER=live` **and**
+     `STOREFRONT_TRACKING_ENABLED=true`; with the default `fake` provider it logs and sends
+     nothing anywhere.
 
-Both call `trackPurchaseFromOrder(order, { request })`. The `request` lets it
-read the real client IP/UA from the Nginx `X-Forwarded-For` chain.
+3. Within about a minute the website loads the pixel and gtag. The ERP's Website → Tracking log
+   shows each event, its source (browser or server), its match keys (`fbp`, address, browser,
+   …) and whether it was sent.
 
-Fire any other event from the backend:
+## Checking it
 
-```js
-import { trackServerEvent } from "@/lib/tracking/server";
+- Meta Events Manager → Test Events with the ERP's test mode and test event code: each browser
+  event appears twice, browser and server, **deduplicated** (same event id).
+- GA4 DebugView, or the Realtime report.
+- Turning the pixel and gtag off in the ERP stops everything on the website within a minute.
 
-await trackServerEvent("CompleteRegistration", {
-  request,                         // to capture real IP + UA
-  userData: { email, phone, firstName, lastName, city, country: "BD" },
-  customData: { value: 0, currency: "BDT" },
-  eventId,                         // optional: pass the browser's id to dedup
-});
-```
+## Limits
 
-It never throws — a tracking failure can't break your handler.
-
-## 3. Client events
-
-The store layout mounts [TrackingBootstrap](components/tracking/TrackingBootstrap.js),
-which loads the proxied pixel/gtag and fires **PageView** on every route change.
-Fire the rest from your components:
-
-```js
-import { track } from "@/lib/tracking/client";
-
-// product page
-track.viewContent({ customData: { value: price, currency: "BDT",
-  content_ids: [productId], content_type: "product", content_name: name } });
-
-// add to cart
-track.addToCart({ customData: { value: price, currency: "BDT",
-  content_ids: [productId], contents: [{ id: productId, quantity: 1, item_price: price }] } });
-
-// checkout start
-track.initiateCheckout({ customData: { value: subtotal, currency: "BDT", num_items } });
-
-// search
-track.search({ customData: { search_string: query } });
-
-// arbitrary custom event
-track.custom("NewsletterSignup", { customData: { source: "footer" } });
-```
-
-Each call fires the pixel + gtag **and** POSTs to `/api/events` with a shared
-`event_id`. Purchase on the confirmation page is handled by
-[PurchaseTracker](components/tracking/PurchaseTracker.js) using
-`purchase_<orderId>` so it dedups with the server Purchase.
-
-## 4. Nginx (full unblockability)
-
-Add [docs/nginx-tracking.conf](docs/nginx-tracking.conf) inside your `server {}`
-block, then `sudo nginx -t && sudo systemctl reload nginx`. It serves:
-
-| First-party path | Proxies |
-|---|---|
-| `/e1/s.js` | Meta `fbevents.js` (hostnames rewritten to first-party) |
-| `/e1/t` | Meta event beacon `facebook.com/tr` |
-| `/e2/s.js` | GA4 `gtag.js` |
-| `/e2/g/collect` | GA4 `google-analytics.com/g/collect` |
-
-These paths match `TrackingConfig.proxy` defaults; rename both together. The
-client loads scripts from these paths automatically (it reads the paths from
-`/api/tracking/config`). GA4 uses gtag's official `transport_url` override;
-Meta uses Nginx `sub_filter` to rewrite the hardcoded hostnames.
-
-## 5. Admin panel (`/admin/tracking`)
-
-- **Dashboard** — volume (client vs server), match-quality coverage (EMQ
-  inputs), per-platform success/latency, Today/7d/30d cards.
-- **Live Events** — filterable table (event, platform, status, source, search),
-  expandable rows with the exact request/response JSON per platform, a **Dedup**
-  view (confirms browser+server `event_id` pairs), an **Errors** view with a
-  **Retry** button.
-- **Configuration** — all toggles/credentials, per-event routing, proxy paths,
-  retention, and a **Fire test event** tool.
-
-## 6. End-to-end testing
-
-### Meta Test Events
-1. Events Manager → your pixel → **Test Events**, copy the `TEST…` code.
-2. Admin → Configuration → paste **Test Event Code**, toggle **Test Mode** on,
-   Save.
-3. Click **Fire test event** (or do a real action on the site). The event
-   appears in Meta Test Events within seconds; the admin shows the exact CAPI
-   request/response.
-4. Browse the site with Test Mode on — pixel + CAPI events should show **once
-   each, deduplicated** (same `event_id`) in Test Events, and as **Deduped ✓**
-   in the admin Dedup view.
-5. Turn **Test Mode off** for production.
-
-### GA4 DebugView
-1. With **Test Mode on**, server events use GA4's `/debug/mp/collect`; the admin
-   test tool surfaces `validationMessages` (empty array = valid).
-2. GA4 → Admin → **DebugView**. Fire events; they appear in real time.
-3. For the browser side, the GA Debugger extension or `?gtm_debug=x` forces
-   debug. Confirm `purchase`, `add_to_cart`, etc. arrive with `value`/`items`.
-4. Realtime report (Reports → Realtime) confirms production traffic once live.
-
-## Notes & limitations
-
-- **GA4 MP IP/geo:** GA4 does not support overriding the client IP over MP — geo
-  on server events reflects the server's region. We set the request `User-Agent`
-  to the client UA (device is correct) and pass the IP as a param for your logs.
-  Meta CAPI *does* accept `client_ip_address`, so Meta geo is accurate.
-- **Proxied pixel IP:** beacons proxied through Nginx reach Meta with the server
-  IP; the deduped CAPI event carries the real client IP, so EMQ is preserved.
-- **Retention:** logs auto-expire after `logRetentionDays` (default 30) via a
-  Mongo TTL index on `expireAt`.
+- The website forwards events only while the ERP has the pixel or gtag on: a brand that wants
+  the Conversions API **without** a browser pixel gets no browser events forwarded, because the
+  ERP's tracking config does not say whether the server side is on.
+- A beacon proxied through nginx reaches Meta and Google from the server's address; the
+  server-side copy carries the shopper's real address and browser, so match quality holds.
+- The content security policy (`middleware.js`) is still report-only; the pixel and gtag load
+  from this site's own origin, so nothing needs adding to it when it is enforced.

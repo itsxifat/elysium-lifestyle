@@ -144,12 +144,51 @@ client logs a method, a path without its query, and the ERP's error code.
 **Rotating the website key:** issue a new key in the ERP, put it in `demo.env`, `up -d`, then
 revoke the old key in the ERP.
 
+## Campaign links
+
+Made on the ERP's **Website → Campaign links** (a five-digit code). Share the link the console
+shows (`https://demo.elysium-lifestyle.bd/shop?cu=48213`, or the category or path it opens
+on): the page shows the link's banner and pop-up, the shop lists its highlighted products
+first, and the ERP counts one visit per browser session (the count is in the console). Nothing
+to set up on the website or in nginx.
+
+## Tracking (the Meta pixel, Conversions API, GA4)
+
+Off until the ERP switches it on: with the pixel and gtag off in Website → Tracking the site
+loads no script and sends no event. To switch it on (details in
+[`TRACKING.md`](TRACKING.md)):
+
+1. nginx, once: the proxy paths the pixel and gtag load from.
+
+   ```sh
+   sudo cp /srv/elysium-web/docs/nginx-tracking.conf /etc/nginx/snippets/elysium-tracking-proxy.conf
+   sudoedit /etc/nginx/sites-available/elysium-web-demo.conf   # uncomment the tracking include
+   sudo nginx -t && sudo systemctl reload nginx
+   curl -sI https://demo.elysium-lifestyle.bd/e1/s.js | head -1   # HTTP/2 200
+   ```
+
+2. The ERP, **Website → Tracking** (org admin): the Meta pixel id and **Browser pixel** on; the
+   Conversions API access token and **Conversions API** on; for GA4 the measurement id and
+   **gtag**, and the Measurement Protocol API secret if wanted. The proxy paths stay at their
+   defaults (`/e1/s.js`, `/e1/t`, `/e2/s.js`, `/e2`), which the nginx file serves. Use test
+   mode with Meta's test event code first.
+3. The ERP's server must have `STOREFRONT_CREDENTIALS_KEY` (to keep the token) and, to really
+   send, `STOREFRONT_TRACKING_PROVIDER=live` with `STOREFRONT_TRACKING_ENABLED=true` (D-552);
+   with the default `fake` provider events are logged in Website → Tracking and sent nowhere.
+
+The website needs no new environment for either: it reads both from the ERP with its key.
+
+## Updating to the 2026-10-06 version
+
+Regular prices, the "On Sale" filter, photos by colour, campaign links and tracking (README →
+"Changes since the first deploy") need the ERP at M39b and M35b (integration-wave2, live on
+`erp.elysium-lifestyle.bd`), no new environment and no nginx change (the tracking include is
+optional, above). Update as under "Update, roll back, logs".
+
 ## Not part of this deploy
 
 - The switch of `elysium-lifestyle.bd` to this site (M37).
-- Campaign links (`?cu=`), the tracking pixel and Conversions API, and ncom.bd's connector:
-  the website already calls the ERP routes M35b adds; the nginx file has the tracking-proxy
-  include and the `/api/ncom/` forward commented out until then.
+- ncom.bd's connector: the nginx file has the `/api/ncom/` forward commented out.
 - Landing pages: none on the new website (the owner's decision of 2026-10-05).
 - The old site's demo mode (`@enfinito/demo-kit`, sandboxed Mongo databases) went with the
   database.
