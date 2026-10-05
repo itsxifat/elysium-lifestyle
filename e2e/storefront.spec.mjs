@@ -235,9 +235,39 @@ test("forgot password: the emailed link sets a new one, and the old one stops wo
   void page;
 });
 
-test("an unknown product is not found, and the flash-sale hub renders", async ({ page }) => {
-  const res = await page.goto("/shop/no-such-product-anywhere");
-  expect(res.status()).toBe(404);
+test("pictures are the ERP's public media, served through the image optimiser", async ({ page }) => {
+  await page.goto("/shop");
+  const picture = page.getByTestId("product-card").first().locator("img").first();
+  await expect(picture).toHaveAttribute("src", /\/_next\/image\?url=.*%2Fmedia%2F/);
+  await expect.poll(() => picture.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+});
+
+test("flash sale: the home teaser, the hub, the sale's page, the product's sale price and the quote", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Weekend Flash" })).toBeVisible();
+
   await page.goto("/flash-sale");
   await expect(page.getByRole("heading", { name: "Deals that won't wait" })).toBeVisible();
+  await expect(page.getByText("Weekend Flash").first()).toBeVisible();
+
+  await page.goto("/flash-sale/e2e-flash");
+  await expect(page.getByRole("heading", { name: "Weekend Flash" })).toBeVisible();
+  await expect(page.getByText("Slim Fit Denim").first()).toBeVisible();
+  await expect(page.getByText("Tk 1,500").first()).toBeVisible();
+
+  await page.goto("/shop/slim-fit-denim");
+  await expect(page.getByRole("link", { name: /Weekend Flash/ })).toBeVisible();
+  await page.getByRole("button", { name: /^M\s/ }).click();
+  await expect(page.getByText("Tk 1,500").first()).toBeVisible();
+  await expect(page.getByText("Tk 1,850").first()).toBeVisible();
+  await page.getByRole("button", { name: /Add to Bag/ }).click();
+  await page.goto("/cart");
+  // The ERP's quote charges the flash price (the line is priced by the sale).
+  await expect(page.getByRole("main").getByRole("link", { name: "Slim Fit Denim" })).toBeVisible();
+  await expect(page.getByTestId("cart-subtotal")).toHaveText("Tk 1,500");
+});
+
+test("an unknown product is not found", async ({ page }) => {
+  const res = await page.goto("/shop/no-such-product-anywhere");
+  expect(res.status()).toBe(404);
 });

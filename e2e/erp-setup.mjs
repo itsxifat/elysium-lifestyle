@@ -6,8 +6,10 @@
 //   - Website → Settings: the site's contact details and address, cash on
 //     delivery on, the announcement bar, free shipping over Tk 3,000;
 //   - Website → Email: the shop's email server pointed at the local mail sink;
-//   - the demo products put on the website (featured / new arrival / tags), and
-//     one product's address changed so its old address must redirect;
+//   - the demo products put on the website (featured / new arrival / tags), two
+//     pictures each, and one product's address changed so its old address must
+//     redirect;
+//   - a live flash sale (two sizes of one product, five units each);
 //   - the menu: a category entry and a highlighted link;
 //   - Website → Connection: a new website key, written to .env.e2e.local (with
 //     the older keys of the same label revoked).
@@ -114,6 +116,77 @@ async function menu() {
   }, { allow: [400] });
 }
 
+// Two pictures per product (the card's and the hover one), uploaded the way the
+// console does: an upload ticket, the bytes, finalize, attach. Public, so the
+// ERP serves them under /media/.
+const TONES = [
+  ["#6b4a3a", "#e9dccb"],
+  ["#2f3e46", "#d8e2dc"],
+  ["#7a5c2e", "#f2e8cf"],
+  ["#3d405b", "#f4f1de"],
+  ["#5e3023", "#f3e9dc"],
+  ["#264653", "#e9f5db"],
+];
+
+function picture(name, [ink, paper], hover) {
+  const label = name.replace(/[<>&"]/g, "");
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000">
+  <rect width="800" height="1000" fill="${hover ? ink : paper}"/>
+  <path d="M300 330l-90 60 45 90 45-22v262h200V458l45 22 45-90-90-60c-15 45-52 68-90 68s-75-23-90-68z" fill="${hover ? paper : ink}" opacity="0.85"/>
+  <text x="400" y="880" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" fill="${hover ? paper : ink}">${label}</text>
+</svg>`);
+}
+
+async function upload(png, name) {
+  const { body: ticket } = await call("POST", "/v1/files", {
+    purpose: "product-image",
+    contentType: "image/png",
+    originalName: `${name}.png`,
+    visibility: "public",
+    sizeBytes: png.length,
+  });
+  const put = await fetch(ticket.url, { method: ticket.method || "PUT", headers: ticket.headers, body: png });
+  if (!put.ok) throw new Error(`upload of ${name} → ${put.status}`);
+  await call("POST", `/v1/files/${ticket.fileId}/finalize`, {});
+  return ticket.fileId;
+}
+
+async function productImages(list) {
+  const { default: sharp } = await import("sharp");
+  for (const [index, product] of list.entries()) {
+    const { body: detail } = await call("GET", `/v1/catalog/products/${product.id}`);
+    if ((detail.images || []).length > 0) continue;
+    for (const hover of [false, true]) {
+      const png = await sharp(picture(product.name, TONES[index % TONES.length], hover)).png().toBuffer();
+      const fileId = await upload(png, `${product.slug}${hover ? "-2" : ""}`);
+      await call("POST", `/v1/catalog/products/${product.id}/images`, { fileId, altText: product.name });
+    }
+  }
+}
+
+// A live flash sale on two sizes of one product, five units each: the flash
+// pages, the card's sale price and the quote's flash price have something to show.
+const FLASH = { slug: "e2e-flash", product: "slim-fit-denim", salePricePoisha: "150000", sizes: ["M", "L"] };
+
+async function flashSale(list) {
+  const { body } = await call("GET", "/v1/promo/flash-sales");
+  if ((body.items || []).some((sale) => sale.slug === FLASH.slug)) return;
+  const product = list.find((p) => p.slug === FLASH.product);
+  if (!product) return;
+  const { body: detail } = await call("GET", `/v1/catalog/products/${product.id}`);
+  const skus = detail.skus.filter((sku) => sku.attributes.some((a) => FLASH.sizes.includes(a.valueLabel)));
+  await call("POST", "/v1/promo/flash-sales", {
+    title: "Weekend Flash",
+    subtitle: "Denim at a weekend price",
+    slug: FLASH.slug,
+    enabled: true,
+    showOnHome: true,
+    startsAt: new Date(Date.now() - 60_000).toISOString(),
+    endsAt: new Date(Date.now() + 30 * 24 * 3600_000).toISOString(),
+    items: skus.map((sku) => ({ skuId: sku.id, salePricePoisha: FLASH.salePricePoisha, unitLimit: 5 })),
+  });
+}
+
 async function siteKey() {
   const { body: keys } = await call("GET", "/v1/storefront/site-keys");
   for (const key of keys.items || keys || []) {
@@ -130,6 +203,8 @@ async function main() {
   await websiteSettings();
   await emailServer();
   const list = await products();
+  await productImages(list);
+  await flashSale(list);
   await menu();
   const key = await siteKey();
 

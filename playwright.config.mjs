@@ -10,6 +10,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = process.env.E2E_SITE_PORT || "3410";
 
+// In production nginx sets X-Real-IP to the visitor's address and the ERP counts
+// sign-ins, codes and checkouts per shopper address (D-534). Here the browser
+// talks to the site directly, so each run plays one shopper from its own
+// documentation-range address instead of every run sharing one bucket.
+const shopperIp = `198.51.100.${1 + Math.floor(Math.random() * 250)}`;
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.spec\.mjs$/,
@@ -27,6 +33,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
     viewport: { width: 1440, height: 1000 },
+    extraHTTPHeaders: { "X-Real-IP": shopperIp },
   },
   webServer: {
     command: "node e2e/start-site.mjs",
