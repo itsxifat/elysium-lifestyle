@@ -1,6 +1,6 @@
 {
   "appId": "cloud.enfinito.elyscanner",
-  "appName": "Elysium Scanner",
+  "appName": "Elysiam Scanner",
   "webDir": "www",
   "android": {
     "allowMixedContent": false

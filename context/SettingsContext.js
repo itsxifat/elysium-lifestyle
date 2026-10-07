@@ -11,7 +11,7 @@ import { createContext, useContext, useState } from "react";
 const SettingsContext = createContext(null);
 
 const defaultSettings = {
-  siteInfo: { siteName: "Elysium Lifestyle", whatsappNumber: "", phone: "", email: "", address: "" },
+  siteInfo: { siteName: "Elysiam Lifestyle", whatsappNumber: "", phone: "", email: "", address: "" },
   socialLinks: {},
   announcement: { enabled: false, text: "", link: "" },
   navItems: [],

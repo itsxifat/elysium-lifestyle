@@ -19,16 +19,16 @@ export const metadata = {
   // Resolves og:image / twitter image URLs. Set NEXT_PUBLIC_SITE_URL per deploy.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://demo.elysium-lifestyle.bd"),
   title: {
-    default: "Elysium Lifestyle — Premium Fashion",
-    template: "%s | Elysium Lifestyle",
+    default: "Elysiam Lifestyle — Premium Fashion",
+    template: "%s | Elysiam Lifestyle",
   },
   description:
-    "Discover premium fashion for men, women, and kids at Elysium Lifestyle. Shop the latest collections, new arrivals, and exclusive deals.",
+    "Discover premium fashion for men, women, and kids at Elysiam Lifestyle. Shop the latest collections, new arrivals, and exclusive deals.",
   keywords: ["fashion", "clothing", "men", "women", "kids", "Bangladesh", "lifestyle"],
   openGraph: {
-    title: "Elysium Lifestyle — Premium Fashion",
+    title: "Elysiam Lifestyle — Premium Fashion",
     description: "Premium fashion for every lifestyle.",
-    siteName: "Elysium Lifestyle",
+    siteName: "Elysiam Lifestyle",
     type: "website",
   },
 };

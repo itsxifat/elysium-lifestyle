@@ -44,7 +44,7 @@ async function websiteSettings() {
   await call("PATCH", "/v1/storefront/settings", {
     siteInfo: {
       ...current.siteInfo,
-      siteName: "Elysium Lifestyle",
+      siteName: "Elysiam Lifestyle",
       whatsapp: "+8801700000000",
       phone: "+880 1700-000000",
       email: "hello@elysium.test",
@@ -64,7 +64,7 @@ async function emailServer() {
     port: SMTP_PORT,
     secure: false,
     username: "",
-    fromName: "Elysium Lifestyle",
+    fromName: "Elysiam Lifestyle",
     fromEmail: "shop@elysium.test",
   });
 }

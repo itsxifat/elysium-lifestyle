@@ -2,7 +2,7 @@
   "name": "elysium-scanner",
   "version": "1.1.1",
   "private": true,
-  "description": "Elysium Lifestyle — native shipment scanner for warehouse packing",
+  "description": "Elysiam Lifestyle — native shipment scanner for warehouse packing",
   "scripts": {
     "sync": "cap sync android",
     "add:android": "cap add android",

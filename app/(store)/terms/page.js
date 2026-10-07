@@ -2,8 +2,8 @@ import { getSiteInfo } from "@/lib/storefront";
 import { telHref } from "@/lib/siteInfo";
 
 export const metadata = {
-  title: "Terms & Conditions — Elysium Lifestyle",
-  description: "Elysium Lifestyle's terms and conditions governing the use of our website and services.",
+  title: "Terms & Conditions — Elysiam Lifestyle",
+  description: "Elysiam Lifestyle's terms and conditions governing the use of our website and services.",
 };
 
 // Contact details come from the brand ERP (Website → Settings) on each request.
@@ -31,7 +31,7 @@ export default async function TermsPage() {
 
             <section>
               <p className="text-brand-brown/60 text-[14px] leading-relaxed">
-                Welcome to Elysium Lifestyle. By accessing or using our website (elysiumlifestyle.com) or placing an order, you agree to be bound by these Terms and Conditions. Please read them carefully before making a purchase.
+                Welcome to Elysiam Lifestyle. By accessing or using our website (elysiumlifestyle.com) or placing an order, you agree to be bound by these Terms and Conditions. Please read them carefully before making a purchase.
               </p>
             </section>
 
@@ -87,13 +87,13 @@ export default async function TermsPage() {
 
             <LegalSection title="7. Intellectual Property">
               <p>
-                All content on this website — including logos, images, text, and designs — is the property of Elysium Lifestyle and is protected under applicable copyright and trademark laws. You may not reproduce, distribute, or use our content without prior written permission.
+                All content on this website — including logos, images, text, and designs — is the property of Elysiam Lifestyle and is protected under applicable copyright and trademark laws. You may not reproduce, distribute, or use our content without prior written permission.
               </p>
             </LegalSection>
 
             <LegalSection title="8. Limitation of Liability">
               <p>
-                To the fullest extent permitted by law, Elysium Lifestyle shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of our website or products. Our total liability shall not exceed the amount you paid for the relevant order.
+                To the fullest extent permitted by law, Elysiam Lifestyle shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of our website or products. Our total liability shall not exceed the amount you paid for the relevant order.
               </p>
               <p>
                 We do not guarantee that our website will be uninterrupted, error-free, or free of viruses.

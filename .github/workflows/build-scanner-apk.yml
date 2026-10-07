@@ -73,7 +73,7 @@ jobs:
             keytool -genkeypair -v -keystore release.keystore -alias elysium \
               -keyalg RSA -keysize 2048 -validity 9125 \
               -storepass elysium123 -keypass elysium123 \
-              -dname "CN=Elysium Scanner, O=Elysium Lifestyle, C=BD"
+              -dname "CN=Elysiam Scanner, O=Elysiam Lifestyle, C=BD"
             echo "KS_PASS=elysium123" >> "$GITHUB_ENV"
             echo "KEY_ALIAS=elysium" >> "$GITHUB_ENV"
             echo "KEY_PASS=elysium123" >> "$GITHUB_ENV"

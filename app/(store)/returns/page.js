@@ -5,7 +5,7 @@ import { banglaFontVars, BANGLA_FONT_FAMILY } from "@/components/fonts/bangla";
 
 export const metadata = {
   title: "Return & Exchange Policy",
-  description: "Elysium Lifestyle's return & exchange policy — check your parcel in front of the delivery rider, and request any exchange within 72 hours of receiving it.",
+  description: "Elysiam Lifestyle's return & exchange policy — check your parcel in front of the delivery rider, and request any exchange within 72 hours of receiving it.",
 };
 
 // Contact details come from the brand ERP (Website → Settings) on each request.

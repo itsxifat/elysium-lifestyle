@@ -2,8 +2,8 @@ import { getSiteInfo } from "@/lib/storefront";
 import { telHref } from "@/lib/siteInfo";
 
 export const metadata = {
-  title: "Privacy Policy — Elysium Lifestyle",
-  description: "Elysium Lifestyle's privacy policy — how we collect, use, and protect your information.",
+  title: "Privacy Policy — Elysiam Lifestyle",
+  description: "Elysiam Lifestyle's privacy policy — how we collect, use, and protect your information.",
 };
 
 // Contact details come from the brand ERP (Website → Settings) on each request.
@@ -31,7 +31,7 @@ export default async function PrivacyPolicyPage() {
 
             <section>
               <p className="text-brand-brown/60">
-                At Elysium Lifestyle, we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or make a purchase. Please read this policy carefully.
+                At Elysiam Lifestyle, we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or make a purchase. Please read this policy carefully.
               </p>
             </section>
 

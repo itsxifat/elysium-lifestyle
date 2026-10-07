@@ -119,7 +119,7 @@ function LoginForm() {
           <Link href="/">
             <Image
               src="/logo-white.png"
-              alt="Elysium Lifestyle"
+              alt="Elysiam Lifestyle"
               width={160}
               height={48}
               className="h-10 w-auto object-contain"
@@ -158,7 +158,7 @@ function LoginForm() {
 
         {/* Bottom copyright */}
         <div className="relative z-10 px-12 pb-8">
-          <p className="text-brand-cream/20 text-[11px] tracking-widest uppercase">© 2025 Elysium Lifestyle</p>
+          <p className="text-brand-cream/20 text-[11px] tracking-widest uppercase">© 2025 Elysiam Lifestyle</p>
         </div>
       </div>
 
@@ -167,7 +167,7 @@ function LoginForm() {
         {/* Mobile header */}
         <div className="flex items-center justify-between px-6 pt-6 lg:hidden">
           <Link href="/">
-            <Image src="/logo-black.png" alt="Elysium" width={130} height={40} className="h-8 w-auto" />
+            <Image src="/logo-black.png" alt="Elysiam" width={130} height={40} className="h-8 w-auto" />
           </Link>
           <Link href="/auth/register" className="text-[11px] uppercase tracking-widest text-brand-tan hover:text-brand-brown transition-colors">
             Register
@@ -261,7 +261,7 @@ function LoginForm() {
             </form>
 
             <p className="text-center text-[12px] text-brand-tan mt-7">
-              New to Elysium?{" "}
+              New to Elysiam?{" "}
               <Link href="/auth/register" className="text-brand-brown hover:text-brand-terracotta font-medium transition-colors">
                 Create an account
               </Link>

@@ -19,7 +19,7 @@ export async function generateMetadata({ params }) {
       description:
         product.seoDescription ||
         product.description?.slice(0, 160) ||
-        `Shop ${product.name} at Elysium Lifestyle`,
+        `Shop ${product.name} at Elysiam Lifestyle`,
       openGraph: {
         title: product.seoTitle || product.name,
         // The ERP's public image URL: crawlers (Facebook, WhatsApp) fetch it directly.

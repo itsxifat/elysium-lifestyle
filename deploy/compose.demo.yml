@@ -4,7 +4,7 @@
 #   docker compose -f deploy/compose.demo.yml --env-file /etc/elysium-web/demo.env up -d --build
 #
 # Host networking, bound to 127.0.0.1 only: nginx is the only way in, and the
-# site reaches Elysium's ERP API over loopback (127.0.0.1:3501, where the ERP's
+# site reaches Elysiam's ERP API over loopback (127.0.0.1:3501, where the ERP's
 # compose publishes it) without leaving the machine.
 
 name: elysium-web-demo

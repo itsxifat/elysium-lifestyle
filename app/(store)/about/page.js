@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "About Us — Elysium Lifestyle",
-  description: "Learn about Elysium Lifestyle — our story, values, and commitment to premium fashion for Bangladesh.",
+  title: "About Us — Elysiam Lifestyle",
+  description: "Learn about Elysiam Lifestyle — our story, values, and commitment to premium fashion for Bangladesh.",
 };
 
 const VALUES = [
@@ -14,7 +14,7 @@ const VALUES = [
   },
   {
     title: "Inclusive Fashion",
-    desc: "From toddlers to adults, Elysium dresses every member of the family with the same commitment to style, comfort, and quality.",
+    desc: "From toddlers to adults, Elysiam dresses every member of the family with the same commitment to style, comfort, and quality.",
   },
   {
     title: "Rooted in Bangladesh",
@@ -36,7 +36,7 @@ export default function AboutPage() {
       <section className="bg-[#1E0E08] py-24 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center select-none pointer-events-none opacity-[0.03]">
           <span className="text-[160px] md:text-[200px] font-display font-bold text-white leading-none whitespace-nowrap">
-            ELYSIUM
+            ELYSIAM
           </span>
         </div>
         <div className="container-custom relative text-center">
@@ -47,7 +47,7 @@ export default function AboutPage() {
             <span className="text-brand-cream/50">every moment.</span>
           </h1>
           <p className="text-white/45 text-base md:text-lg max-w-xl mx-auto leading-relaxed">
-            Elysium Lifestyle was born from a simple belief — that everyone deserves to look and feel their best, every single day.
+            Elysiam Lifestyle was born from a simple belief — that everyone deserves to look and feel their best, every single day.
           </p>
         </div>
       </section>
@@ -66,7 +66,7 @@ export default function AboutPage() {
               </h2>
               <div className="space-y-4 text-brand-tan text-[14px] leading-relaxed">
                 <p>
-                  Elysium Lifestyle started as a passion project — a small team of fashion enthusiasts in Dhaka who believed that quality, stylish clothing shouldn&apos;t be a luxury reserved for the few.
+                  Elysiam Lifestyle started as a passion project — a small team of fashion enthusiasts in Dhaka who believed that quality, stylish clothing shouldn&apos;t be a luxury reserved for the few.
                 </p>
                 <p>
                   We&apos;ve built our brand around the idea that great fashion tells a story. Every fabric, every cut, and every stitch is chosen with intention — to help our customers feel confident and express their unique identity.

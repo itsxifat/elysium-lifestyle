@@ -28,7 +28,7 @@ export default function NewsletterSection() {
       if (res.ok) {
         setSubscribed(true);
         setEmail("");
-        toast.success("Welcome to the Elysium family!");
+        toast.success("Welcome to the Elysiam family!");
       } else {
         toast.error("Something went wrong. Please try again.");
       }
@@ -44,7 +44,7 @@ export default function NewsletterSection() {
       {/* Decorative background text */}
       <div className="absolute inset-0 flex items-center justify-center select-none pointer-events-none opacity-[0.025]">
         <span className="text-[140px] md:text-[180px] font-display font-bold text-white leading-none whitespace-nowrap">
-          ELYSIUM
+          ELYSIAM
         </span>
       </div>
 
@@ -60,7 +60,7 @@ export default function NewsletterSection() {
             <h2 className="font-display text-4xl md:text-5xl font-semibold text-white leading-tight mb-5">
               Join the
               <br />
-              <span className="text-brand-cream/60">Elysium Circle</span>
+              <span className="text-brand-cream/60">Elysiam Circle</span>
             </h2>
             <p className="text-white/40 text-[14px] leading-relaxed mb-7">
               Be the first to know about new collections, exclusive drops, and members-only deals.
@@ -81,7 +81,7 @@ export default function NewsletterSection() {
               <div className="text-center py-10">
                 <CheckCircle size={40} className="text-brand-terracotta mx-auto mb-4" strokeWidth={1.5} />
                 <p className="text-white text-xl font-display font-semibold mb-2">You&apos;re in!</p>
-                <p className="text-white/40 text-sm">Welcome to the Elysium family. Expect great things.</p>
+                <p className="text-white/40 text-sm">Welcome to the Elysiam family. Expect great things.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">

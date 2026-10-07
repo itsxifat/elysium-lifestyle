@@ -9,7 +9,7 @@ import { CountdownText } from "@/components/flash/Countdown";
 
 export const metadata = {
   title: "Flash Sale",
-  description: "Limited-time prices on limited stock at Elysium Lifestyle. When a deal's gone, it's gone.",
+  description: "Limited-time prices on limited stock at Elysiam Lifestyle. When a deal's gone, it's gone.",
 };
 
 // Live and scheduled sales from the brand ERP (GET /storefront/v1/flash-sales).

@@ -1,4 +1,4 @@
-/* Elysium Scanner — native warehouse packing scanner.
+/* Elysiam Scanner — native warehouse packing scanner.
  *
  * Plain JS (no bundler) so the APK stays tiny and the build is trivial.
  * Capacitor exposes native plugins at runtime via Capacitor.Plugins.<Name>,

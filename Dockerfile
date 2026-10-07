@@ -1,4 +1,4 @@
-# The Elysium website (Next.js, standalone output) for demo.elysium-lifestyle.bd.
+# The Elysiam website (Next.js, standalone output) for demo.elysium-lifestyle.bd.
 # It has no database: everything is read from and written to the brand ERP.
 #
 #   docker build \

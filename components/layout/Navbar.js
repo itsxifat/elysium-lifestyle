@@ -453,10 +453,10 @@ export default function Navbar() {
 
               {/* Center logo — always visible */}
               <div className="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 lg:flex lg:justify-center lg:w-1/3">
-                <Link href="/" aria-label="Elysium Lifestyle">
+                <Link href="/" aria-label="Elysiam Lifestyle">
                   <Image
                     src="/logo-black.png"
-                    alt="Elysium Lifestyle"
+                    alt="Elysiam Lifestyle"
                     width={200}
                     height={60}
                     className="h-12 md:h-14 w-auto object-contain"
@@ -649,7 +649,7 @@ export default function Navbar() {
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-brand-tan/15">
           <Link href="/" onClick={closeMobile}>
-            <Image src="/logo-black.png" alt="Elysium Lifestyle" width={140} height={42} className="h-9 w-auto object-contain" />
+            <Image src="/logo-black.png" alt="Elysiam Lifestyle" width={140} height={42} className="h-9 w-auto object-contain" />
           </Link>
           <button onClick={closeMobile} className="p-2 -mr-2 text-brand-brown hover:text-brand-terracotta rounded-full hover:bg-brand-tan/10 transition-colors">
             <X size={22} strokeWidth={1.5} />
