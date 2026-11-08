@@ -14,6 +14,7 @@ import {
   mapCard,
   mapCustomLink,
   mapProduct,
+  mapSale,
   mapSearchResult,
   mapTrackingConfig,
   priceSummary,
@@ -57,6 +58,51 @@ test("indexFlash keeps live offers with units left, the lowest per SKU", () => {
   assert.equal(flash.bySku.get("sku-m").sale.title, "Cheaper");
   assert.equal(flash.bySku.has("sku-l"), false, "no units left");
   assert.equal(flash.byProduct.get("p-denim").length, 2);
+});
+
+// The 2026-10-15 report: a shirt on two live sales at once showed Tk 999 on the
+// newer sale's card and Tk 799 (the older sale's price, which the cart charges)
+// on its product page.
+const shirt = (price, unitsLeft) => ({
+  skuId: "sku-shirt-m",
+  sku: "ELP00395-M",
+  size: "M",
+  product: { id: "p-shirt", name: "Men's Formal Shirt", slug: "mens-formal-shirt" },
+  price: money(price),
+  compareAt: money(1999),
+  unitsLeft,
+});
+const OLD_SALE = { id: "sale-01", slug: "flash-sale-01", title: "Flash Sale 01", status: "live", endsAt: null, items: [shirt(799, 3)] };
+const NEW_SALE = { id: "sale-07", slug: "flash-sale-07", title: "Flash Sale 07", status: "live", endsAt: null, items: [shirt(999, 5)] };
+
+test("a sale's card shows the cheaper price another live sale charges for the same size", () => {
+  const flash = indexFlash([NEW_SALE, OLD_SALE]);
+  const [item] = mapSale(NEW_SALE, flash).items;
+  assert.equal(item.price, 799);
+  assert.equal(item.regularPrice, 1999);
+  assert.equal(item.maxDiscount, 60);
+  assert.equal(item.remaining, 3, "what is left at the price charged");
+  assert.deepEqual(item.sizes.map((s) => [s.size, s.price, s.discount, s.remaining]), [["M", 799, 60, 3]]);
+  assert.equal(mapSale(NEW_SALE, flash).stats.maxDiscount, 60);
+  // The product page and the cheaper sale agree.
+  assert.equal(mapSale(OLD_SALE, flash).items[0].price, 799);
+  assert.equal(mapProduct({ id: "p-shirt", variants: [{ skuId: "sku-shirt-m", size: "M", price: money(799), compareAt: money(1999), availableQty: 9 }] }, flash).variants[0].price, 799);
+});
+
+test("a sale keeps its own price when it is the cheapest, or the cheaper one has run out", () => {
+  assert.equal(mapSale(OLD_SALE, indexFlash([NEW_SALE, OLD_SALE])).items[0].price, 799);
+  const runOut = { ...OLD_SALE, items: [shirt(799, 0)] };
+  const [item] = mapSale(NEW_SALE, indexFlash([NEW_SALE, runOut])).items;
+  assert.equal(item.price, 999);
+  assert.equal(item.remaining, 5);
+  assert.equal(mapSale(NEW_SALE).items[0].price, 999, "no live index: the sale's own figures");
+});
+
+test("a scheduled sale is not repriced by a live one", () => {
+  const upcoming = { ...NEW_SALE, status: "scheduled", items: [{ ...shirt(999, 5), price: null }] };
+  const [item] = mapSale(upcoming, indexFlash([OLD_SALE])).items;
+  assert.equal(item.price, null);
+  assert.equal(item.regularPrice, 1999);
 });
 
 test("a card shows what is paid now with the regular price struck through", () => {
