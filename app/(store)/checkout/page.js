@@ -12,7 +12,6 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 import Input from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
-import AreaPicker from "@/components/checkout/AreaPicker";
 import { track, checkoutTracking } from "@/lib/tracking/client";
 
 // The checkout. Every figure on it is the brand ERP's quote for this cart,
@@ -22,7 +21,10 @@ import { track, checkoutTracking } from "@/lib/tracking/client";
 // Each press carries its own idempotency key, reused if the press is retried
 // after a dropped connection, so an order is never placed twice.
 
+// The delivery zones the ERP's Website settings price (D-953): the shopper picks one,
+// and writes the whole address as one line (no district or thana pickers).
 const ZONE_LABELS = { inside_dhaka: "Inside Dhaka", suburbs: "Dhaka suburbs", outside_dhaka: "Outside Dhaka" };
+const ZONES = ["inside_dhaka", "suburbs", "outside_dhaka"];
 
 function newKey() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -57,8 +59,8 @@ export default function CheckoutPage() {
   );
 
   const [paymentMethod, setPaymentMethod] = useState("cod");
-  const [area, setArea] = useState({ districtId: "", thanaId: "" });
-  const [areaErrors, setAreaErrors] = useState({});
+  const [zone, setZone] = useState("");
+  const [zoneError, setZoneError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [appliedCodes, setAppliedCodes] = useState([]);
@@ -106,7 +108,6 @@ export default function CheckoutPage() {
       name: session?.user?.name || "",
       email: session?.user?.email || "",
       phone: "",
-      area: "",
       addressLine: "",
       notes: "",
     },
@@ -117,9 +118,9 @@ export default function CheckoutPage() {
     (a) => {
       setValue("name", a.name || "");
       setValue("phone", localPhone(a.phone));
-      setValue("area", a.area || "");
-      setValue("addressLine", a.addressLine || "");
-      setArea({ districtId: a.districtId, thanaId: a.thanaId });
+      // An address saved before D-953 kept its area apart: it joins the one line.
+      setValue("addressLine", [a.addressLine, a.area].filter(Boolean).join(", "));
+      if (ZONES.includes(a.zone)) setZone(a.zone);
     },
     [setValue]
   );
@@ -154,7 +155,7 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lines,
-          address: area.districtId && area.thanaId ? area : undefined,
+          address: zone ? { zone } : undefined,
           codes,
           phone: phoneForQuote,
         }),
@@ -163,7 +164,7 @@ export default function CheckoutPage() {
       if (!res.ok) throw new Error(data.error || "Could not price your bag");
       return data.quote;
     },
-    [lines, area, phoneForQuote]
+    [lines, zone, phoneForQuote]
   );
 
   useEffect(() => {
@@ -203,12 +204,12 @@ export default function CheckoutPage() {
 
   const onSubmit = async (data) => {
     if (items.length === 0) { toast.error("Your cart is empty"); return; }
-    if (!area.districtId || !area.thanaId) {
-      setAreaErrors({ districtId: !area.districtId ? "Choose your district" : undefined, thanaId: !area.thanaId ? "Choose your thana" : undefined });
-      toast.error("Please choose your district and thana");
+    if (!zone) {
+      setZoneError("Choose your delivery area");
+      toast.error("Please choose your delivery area");
       return;
     }
-    setAreaErrors({});
+    setZoneError("");
     if (!quote || quoting) { toast("Updating your total — one moment…"); return; }
     if (!quote.deliverable) { toast.error("We don't deliver to that area yet. Please choose another address."); return; }
     if (quote.unavailable?.length) {
@@ -235,7 +236,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           lines,
           contact: { name: data.name, phone: data.phone, email: data.email || undefined },
-          address: { ...area, area: data.area || undefined, addressLine: data.addressLine },
+          address: { zone, addressLine: data.addressLine },
           codes: appliedCodes,
           paymentMethod,
           notes: data.notes || undefined,
@@ -386,16 +387,22 @@ export default function CheckoutPage() {
                   autoComplete="email"
                 />
                 <div className="sm:col-span-2">
-                  <AreaPicker value={area} onChange={(next) => { setArea(next); setAreaErrors({}); }} errors={areaErrors} idPrefix="checkout" />
+                  <label htmlFor="field-addressLine" className="block text-sm font-medium text-brand-brown mb-1">
+                    Full Address *
+                  </label>
+                  <textarea
+                    id="field-addressLine"
+                    rows={3}
+                    maxLength={500}
+                    {...register("addressLine", { required: "Address is required", minLength: { value: 3, message: "Address is required" } })}
+                    placeholder="House, road, area, thana, district"
+                    autoComplete="street-address"
+                    className={`w-full border bg-white px-4 py-3 text-brand-brown placeholder-brand-tan focus:outline-none transition-colors duration-200 text-sm ${
+                      errors.addressLine ? "border-red-400 focus:border-red-500" : "border-brand-tan focus:border-brand-terracotta"
+                    }`}
+                  />
+                  {errors.addressLine?.message && <p className="mt-1 text-xs text-red-500">{errors.addressLine.message}</p>}
                 </div>
-                <Input label="Area" {...register("area")} placeholder="Dhanmondi 27" />
-                <Input
-                  label="Street Address *"
-                  {...register("addressLine", { required: "Address is required", minLength: { value: 3, message: "Address is required" } })}
-                  error={errors.addressLine?.message}
-                  placeholder="House, Road"
-                  autoComplete="street-address"
-                />
                 <div className="sm:col-span-2">
                   <Input label="Order notes" {...register("notes")} placeholder="Anything the rider should know" />
                 </div>
@@ -404,24 +411,42 @@ export default function CheckoutPage() {
 
             {/* Delivery */}
             <div className="bg-white border border-brand-tan/20 p-6">
-              <h2 className="text-base font-semibold text-brand-brown uppercase tracking-wider mb-1">Delivery</h2>
-              {!area.thanaId ? (
-                <p className="text-xs text-brand-tan">Choose your district and thana to see the delivery charge.</p>
-              ) : quote && !quote.deliverable ? (
-                <p className="text-sm text-red-600">We don&apos;t deliver to that area yet. Please choose another address.</p>
-              ) : quote ? (
-                <div className="flex items-center justify-between p-4 border border-brand-terracotta bg-brand-cream mt-3">
-                  <div>
-                    <p className="text-sm font-medium text-brand-brown">{ZONE_LABELS[quote.zone] || "Delivery"}</p>
-                    <p className="text-xs text-brand-tan mt-0.5">Delivered to your door by courier</p>
-                  </div>
-                  <span className={`text-sm font-bold ${delivery === 0 ? "text-emerald-600" : "text-brand-brown"}`} data-testid="delivery-fee">
-                    {delivery === 0 ? "Free" : formatPrice(delivery)}
-                  </span>
-                </div>
-              ) : (
-                <Spinner size="sm" className="mt-3" />
-              )}
+              <h2 className="text-base font-semibold text-brand-brown uppercase tracking-wider mb-1">Delivery area *</h2>
+              <p className="text-xs text-brand-tan">Choose where your parcel goes. Delivered to your door by courier.</p>
+              <div className="space-y-3 mt-3" role="radiogroup" aria-label="Delivery area">
+                {ZONES.map((key) => {
+                  const fee = shipping.zones?.[key];
+                  const chosen = zone === key;
+                  const shown = chosen && quote && !quoting && quote.zone === key ? delivery : fee;
+                  return (
+                    <label
+                      key={key}
+                      className={`flex items-center justify-between gap-4 p-4 border cursor-pointer transition-colors ${
+                        chosen ? "border-brand-terracotta bg-brand-cream" : "border-brand-tan/30 hover:border-brand-tan"
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="deliveryZone"
+                          value={key}
+                          checked={chosen}
+                          onChange={() => { setZone(key); setZoneError(""); }}
+                          className="accent-brand-terracotta"
+                        />
+                        <span className="text-sm font-medium text-brand-brown">{ZONE_LABELS[key]}</span>
+                      </span>
+                      <span
+                        className={`text-sm font-bold ${shown === 0 ? "text-emerald-600" : "text-brand-brown"}`}
+                        data-testid={chosen ? "delivery-fee" : undefined}
+                      >
+                        {typeof shown === "number" ? (shown === 0 ? "Free" : formatPrice(shown)) : ""}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {zoneError && <p className="mt-2 text-xs text-red-500">{zoneError}</p>}
               {freeOver > 0 && itemsTotal < freeOver && (
                 <p className="text-xs text-brand-tan/70 mt-3">
                   Add {formatPrice(freeOver - itemsTotal)} more to qualify for free shipping

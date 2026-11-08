@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, UserCircle, Lock, MapPin, Plus, Trash2, Pencil } from "lucide-react";
-import AreaPicker, { useDistricts, useThanas } from "@/components/checkout/AreaPicker";
 import { normalizeBdPhone, shouldUnoptimizeImage } from "@/lib/utils";
 
 // The shopper's profile, saved addresses and password, all kept in the brand
@@ -17,13 +16,8 @@ const inputClass =
 const labelClass = "block text-[10px] uppercase tracking-[2px] text-brand-tan mb-1.5";
 const localPhone = (value) => String(value || "").replace(/^\+?880/, "0");
 
-function AreaName({ districtId, thanaId }) {
-  const districts = useDistricts();
-  const thanas = useThanas(districtId);
-  const d = districts.find((x) => x.id === districtId)?.name;
-  const t = thanas.find((x) => x.id === thanaId)?.name;
-  return <>{[t, d].filter(Boolean).join(", ")}</>;
-}
+// D-953: an address is one line plus the delivery zone it goes to.
+const ZONE_LABELS = { inside_dhaka: "Inside Dhaka", suburbs: "Dhaka suburbs", outside_dhaka: "Outside Dhaka" };
 
 function AddressForm({ initial, onSave, onCancel, saving }) {
   const { register, handleSubmit, formState: { errors } } = useForm({
@@ -31,20 +25,15 @@ function AddressForm({ initial, onSave, onCancel, saving }) {
       label: initial?.label || "",
       name: initial?.name || "",
       phone: localPhone(initial?.phone),
-      area: initial?.area || "",
-      addressLine: initial?.addressLine || "",
+      // An address saved before D-953 kept its area apart: it joins the one line.
+      addressLine: [initial?.addressLine, initial?.area].filter(Boolean).join(", "),
+      zone: initial?.zone || "",
       isDefault: !!initial?.isDefault,
     },
   });
-  const [where, setWhere] = useState({ districtId: initial?.districtId || "", thanaId: initial?.thanaId || "" });
-  const [whereErrors, setWhereErrors] = useState({});
 
   const submit = (data) => {
-    if (!where.districtId || !where.thanaId) {
-      setWhereErrors({ districtId: !where.districtId ? "Choose a district" : undefined, thanaId: !where.thanaId ? "Choose a thana" : undefined });
-      return;
-    }
-    onSave({ ...(initial?.id ? { id: initial.id } : {}), ...data, ...where });
+    onSave({ ...(initial?.id ? { id: initial.id } : {}), ...data, area: undefined, districtId: undefined, thanaId: undefined });
   };
 
   return (
@@ -70,14 +59,26 @@ function AddressForm({ initial, onSave, onCancel, saving }) {
           {errors.phone && <p className="text-red-400 text-[11px] mt-1.5">{errors.phone.message}</p>}
         </div>
         <div>
-          <label htmlFor="addr-area" className={labelClass}>Area</label>
-          <input id="addr-area" {...register("area")} className={inputClass} placeholder="Dhanmondi 27" />
+          <label htmlFor="addr-zone" className={labelClass}>Delivery area</label>
+          <select id="addr-zone" {...register("zone", { required: true })} className={inputClass}>
+            <option value="">Choose</option>
+            {Object.entries(ZONE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          {errors.zone && <p className="text-red-400 text-[11px] mt-1.5">Required</p>}
         </div>
       </div>
-      <AreaPicker value={where} onChange={(next) => { setWhere(next); setWhereErrors({}); }} errors={whereErrors} idPrefix="addr" />
       <div>
-        <label htmlFor="addr-line" className={labelClass}>Street address</label>
-        <input id="addr-line" {...register("addressLine", { required: true, minLength: 3 })} className={inputClass} placeholder="House, Road" />
+        <label htmlFor="addr-line" className={labelClass}>Full address</label>
+        <textarea
+          id="addr-line"
+          rows={2}
+          maxLength={500}
+          {...register("addressLine", { required: true, minLength: 3 })}
+          className={inputClass}
+          placeholder="House, road, area, thana, district"
+        />
         {errors.addressLine && <p className="text-red-400 text-[11px] mt-1.5">Required</p>}
       </div>
       <label className="flex items-center gap-2 text-[12px] text-brand-brown">
@@ -313,7 +314,7 @@ export default function AccountPage() {
                   </p>
                   <p>{a.name} · {localPhone(a.phone)}</p>
                   <p>{[a.addressLine, a.area].filter(Boolean).join(", ")}</p>
-                  <p><AreaName districtId={a.districtId} thanaId={a.thanaId} /></p>
+                  {ZONE_LABELS[a.zone] && <p>{ZONE_LABELS[a.zone]}</p>}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button type="button" onClick={() => setEditing(a.id)} aria-label="Edit address" className="text-brand-tan hover:text-brand-brown">

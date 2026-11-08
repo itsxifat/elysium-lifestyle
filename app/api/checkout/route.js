@@ -20,6 +20,7 @@ import { purchaseTrackingOf } from "@/lib/tracking/forward";
 // shopper's address are added here, never taken from the browser.
 
 const POISHA = /^\d{1,16}$/;
+const ZONES = ["inside_dhaka", "suburbs", "outside_dhaka"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function text(value, max) {
@@ -51,10 +52,9 @@ export async function POST(request) {
       phone: normalizeBdPhone(body?.contact?.phone || "").slice(0, 32),
       ...(email ? { email } : {}),
     },
+    // D-953: the delivery zone picked and the whole address as one line.
     address: {
-      districtId: Number(body?.address?.districtId),
-      thanaId: Number(body?.address?.thanaId),
-      ...(text(body?.address?.area, 160) ? { area: text(body.address.area, 160) } : {}),
+      ...(ZONES.includes(body?.address?.zone) ? { zone: body.address.zone } : {}),
       addressLine: text(body?.address?.addressLine, 500) || "",
     },
     paymentMethod,

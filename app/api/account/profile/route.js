@@ -38,8 +38,13 @@ function address(a) {
     ...(String(a.label || "").trim() ? { label: String(a.label).trim().slice(0, 40) } : {}),
     name: String(a.name || "").trim().slice(0, 200),
     phone: normalizeBdPhone(a.phone || "").slice(0, 32),
-    districtId: Number(a.districtId),
-    thanaId: Number(a.thanaId),
+    // D-953: the delivery zone and the address as one line; an older address's
+    // district and thana are kept as they were.
+    ...(["inside_dhaka", "suburbs", "outside_dhaka"].includes(a.zone) ? { zone: a.zone } : {}),
+    ...(Number.isInteger(Number(a.districtId)) && Number(a.districtId) > 0 &&
+    Number.isInteger(Number(a.thanaId)) && Number(a.thanaId) > 0
+      ? { districtId: Number(a.districtId), thanaId: Number(a.thanaId) }
+      : {}),
     ...(String(a.area || "").trim() ? { area: String(a.area).trim().slice(0, 160) } : {}),
     addressLine: String(a.addressLine || "").trim().slice(0, 500),
     isDefault: !!a.isDefault,
